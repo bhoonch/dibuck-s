@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { hashSync } from "bcryptjs";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TRIAL_DAYS } from "@/lib/modules";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role } from "@/generated/prisma/enums";
 
@@ -186,8 +185,13 @@ export async function setSubscription(moduleId: string, subscribe: boolean) {
       // 재구독 — 체험은 모듈당 최초 1회뿐, 남은 체험 기간이 있으면 그대로 이어진다
       await db.tenantModule.update({ where, data: { status: "ACTIVE" } });
     } else {
-      const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+      // 체험 표준 기간은 모듈 관리에서 설정 — 전 단지 동일 적용, 0이면 체험 없이 시작
+      const mod = await db.module.findUniqueOrThrow({ where: { id: moduleId } });
+      let trialEndsAt: Date | null = null;
+      if (mod.trialDays > 0) {
+        trialEndsAt = new Date();
+        trialEndsAt.setDate(trialEndsAt.getDate() + mod.trialDays);
+      }
       await db.tenantModule.create({ data: { tenantId, moduleId, trialEndsAt } });
     }
   }

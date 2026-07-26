@@ -5,7 +5,7 @@ import { saveModulePrice } from "../actions";
 import { PageTitle, Pill, btnPrimary, btnRow, tableHead, tableRow } from "../ui";
 import { PriceInput } from "./price-input";
 
-const COLS = "60px 1fr 150px 110px 100px 110px";
+const COLS = "60px 1fr 140px 110px 90px 90px 110px";
 
 export default async function AdminModulesPage() {
   const modules = await db.module.findMany({
@@ -28,6 +28,7 @@ export default async function AdminModulesPage() {
           <span>코드</span>
           <span>모듈</span>
           <span>월 가격 (단지)</span>
+          <span>체험 기간</span>
           <span>구독 단지</span>
           <span>상태</span>
           <span />
@@ -52,6 +53,18 @@ export default async function AdminModulesPage() {
               </span>
             </Link>
             <PriceInput defaultValue={m.price} />
+            <label className="flex items-center gap-1">
+              <input
+                name="trialDays"
+                type="number"
+                min={0}
+                max={365}
+                defaultValue={m.trialDays}
+                aria-label="체험 기간(일)"
+                className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 text-right font-mono text-sm outline-none transition-colors focus-visible:border-ring"
+              />
+              <span className="shrink-0 text-xs text-gray-500">일</span>
+            </label>
             <span className="font-mono text-sm text-gray-600">
               {m._count.subscriptions}
             </span>
@@ -64,7 +77,7 @@ export default async function AdminModulesPage() {
             </span>
             <span>
               <button type="submit" className={btnRow}>
-                가격 저장
+                저장
               </button>
             </span>
           </form>
@@ -72,9 +85,10 @@ export default async function AdminModulesPage() {
       </section>
 
       <p className="mt-3 text-xs text-gray-500">
-        가격 변경은 저장 즉시 반영되며, 이미 구독 중인 단지의 구독 상태에는
-        영향을 주지 않습니다. 모듈명·아이콘·라우트 등 나머지 항목은 모듈명을
-        눌러 수정합니다.
+        체험 기간은 새로 구독하는 모든 단지에 동일하게 적용됩니다(0 = 체험 없이
+        바로 유료). 이미 진행 중인 체험에는 영향이 없고, 특정 단지만 예외로
+        주려면 단지 상세에서 개별 지정하세요. 가격 변경도 저장 즉시 반영되며
+        기존 구독 상태는 바뀌지 않습니다.
       </p>
     </>
   );

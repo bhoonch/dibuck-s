@@ -15,7 +15,6 @@ import {
   btnSubmit,
 } from "../../ui";
 import { won, ymd } from "../../metrics";
-import { TRIAL_DAYS } from "@/lib/modules";
 import {
   impersonate,
   saveTenantMemo,
@@ -259,15 +258,17 @@ export default async function AdminTenantDetailPage({
                     <input type="hidden" name="trial" value="true" />
                     <select
                       name="days"
-                      defaultValue={TRIAL_DAYS}
+                      defaultValue={m.trialDays || 30}
                       aria-label="체험 기간"
                       className="h-7 rounded-md border border-input bg-transparent px-1.5 font-mono text-xs outline-none"
                     >
-                      {[7, 14, 30, 60, 90].map((d) => (
-                        <option key={d} value={d}>
-                          {d}일
-                        </option>
-                      ))}
+                      {[...new Set([7, 14, 30, 60, 90, m.trialDays || 30])]
+                        .sort((a, b) => a - b)
+                        .map((d) => (
+                          <option key={d} value={d}>
+                            {d}일
+                          </option>
+                        ))}
                     </select>
                     <button type="submit" className={btnRow}>
                       {daysLeft !== null ? "기간 재설정" : "체험 시작"}

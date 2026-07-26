@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Module" ADD COLUMN     "trialDays" INTEGER NOT NULL DEFAULT 30;

@@ -93,11 +93,24 @@ export function ModuleForm({
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="price">월 요금 (원)</Label>
             <PriceInput id="price" defaultValue={m?.price ?? 20000} />
             <p className={hint}>단지 1곳 기준 월 구독료.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="trialDays">체험 기간 (일)</Label>
+            <Input
+              id="trialDays"
+              name="trialDays"
+              type="number"
+              min={0}
+              max={365}
+              defaultValue={m?.trialDays ?? 30}
+              className="font-mono"
+            />
+            <p className={hint}>새 구독 단지 전체에 동일 적용. 0 = 체험 없음.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="sortOrder">정렬 순서</Label>

@@ -10,7 +10,6 @@ import {
   targetNeedsModule,
   targetNeedsTenants,
 } from "@/lib/announcements";
-import { TRIAL_DAYS } from "@/lib/modules";
 import { parseWon } from "@/lib/won";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role, TenantStatus } from "@/generated/prisma/enums";
@@ -38,9 +37,10 @@ export async function setModuleTrial(formData: FormData) {
   const trial = formData.get("trial") === "true";
   let trialEndsAt: Date | null = null;
   if (trial) {
+    const mod = await db.module.findUniqueOrThrow({ where: { id: moduleId } });
     const days = Math.min(
       365,
-      Math.max(1, Math.round(Number(formData.get("days"))) || TRIAL_DAYS),
+      Math.max(1, Math.round(Number(formData.get("days"))) || mod.trialDays || 30),
     );
     trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + days);
@@ -151,6 +151,7 @@ export async function saveModule(formData: FormData) {
     // 라우트는 항상 모듈 ID에서 파생 — 입력받을 이유가 없다
     route: `/modules/${id}`,
     price: parseWon(formData.get("price")),
+    trialDays: parseTrialDays(formData.get("trialDays")),
     sortOrder: Number(formData.get("sortOrder")) || 0,
     isActive: formData.get("isActive") === "on",
   };
@@ -160,12 +161,17 @@ export async function saveModule(formData: FormData) {
   redirect("/admin/modules");
 }
 
-/** 모듈 관리 화면의 인라인 가격 수정 */
+/** 체험 기간 입력(일) — 0이면 체험 없이 바로 유료 */
+const parseTrialDays = (v: FormDataEntryValue | null) =>
+  Math.min(365, Math.max(0, Math.round(Number(v)) || 0));
+
+/** 모듈 관리 화면의 인라인 가격·체험 기간 수정 (전 단지 동일 적용) */
 export async function saveModulePrice(formData: FormData) {
   await requireRole(Role.SUPER_ADMIN);
   const id = String(formData.get("id"));
   const price = parseWon(formData.get("price"));
-  await db.module.update({ where: { id }, data: { price } });
+  const trialDays = parseTrialDays(formData.get("trialDays"));
+  await db.module.update({ where: { id }, data: { price, trialDays } });
   revalidatePath("/admin/modules");
   revalidatePath("/admin/revenue");
 }

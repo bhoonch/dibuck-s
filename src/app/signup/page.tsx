@@ -28,8 +28,8 @@ export default function SignupPage() {
         <CardHeader>
           <CardTitle className="text-xl">무료로 시작하기</CardTitle>
           <CardDescription>
-            가입 즉시 사용할 수 있고, 모듈은 구독할 때마다 30일 무료 체험이
-            시작됩니다. 카드 등록은 필요 없습니다.
+            가입 즉시 사용할 수 있고, 모듈은 구독할 때마다 무료 체험 기간이
+            주어집니다. 카드 등록은 필요 없습니다.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -12,13 +12,15 @@ export function SubscribeButton({
   price,
   subscribed,
   trialEligible,
+  trialDays,
 }: {
   moduleId: string;
   moduleName: string;
   price: number;
   subscribed: boolean;
-  /** 한 번도 구독한 적 없으면 30일 무료 체험으로 시작 */
+  /** 한 번도 구독한 적 없고 모듈에 체험 기간이 설정돼 있으면 무료 체험으로 시작 */
   trialEligible: boolean;
+  trialDays: number;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -30,7 +32,7 @@ export function SubscribeButton({
           subscribed
             ? "구독이 해지되었습니다."
             : trialEligible
-              ? "30일 무료 체험이 시작되었습니다."
+              ? `${trialDays}일 무료 체험이 시작되었습니다.`
               : "구독이 시작되었습니다.",
         );
       } catch {
@@ -65,7 +67,7 @@ export function SubscribeButton({
       }
       description={
         trialEligible
-          ? `30일 동안 무료로 사용합니다. 체험 기간에는 요금이 없고, 이후 월 ${price.toLocaleString()}원입니다.`
+          ? `${trialDays}일 동안 무료로 사용합니다. 체험 기간에는 요금이 없고, 이후 월 ${price.toLocaleString()}원입니다.`
           : `월 ${price.toLocaleString()}원이 청구됩니다.`
       }
       confirmLabel={trialEligible ? "무료 체험 시작" : "구독 시작"}

@@ -1,8 +1,5 @@
 import { db } from "@/lib/db";
 
-/** 무료 체험 기본 기간(일). ponytail: 전 모듈 공통 — 모듈별로 달리 줘야 하면 Module에 컬럼 추가 */
-export const TRIAL_DAYS = 30;
-
 export type TenantModuleInfo = {
   id: string;
   name: string;
@@ -10,6 +7,8 @@ export type TenantModuleInfo = {
   icon: string;
   route: string;
   price: number;
+  /** 이 모듈의 무료 체험 표준 기간(일) — 모듈 관리에서 설정, 0이면 체험 없음 */
+  trialDays: number;
   subscribed: boolean;
   /** 구독 중이면서 아직 무료 체험 기간이 남아 있으면 종료일, 아니면 null */
   trialEndsAt: Date | null;
@@ -43,6 +42,7 @@ export async function getModulesForTenant(
       icon: m.icon,
       route: m.route,
       price: m.price,
+      trialDays: m.trialDays,
       subscribed: active,
       trialEndsAt:
         active && row?.trialEndsAt && row.trialEndsAt > now

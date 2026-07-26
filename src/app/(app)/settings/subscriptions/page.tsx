@@ -93,7 +93,8 @@ export default async function SubscriptionsPage() {
                       moduleName={m.name}
                       price={m.price}
                       subscribed={m.subscribed}
-                      trialEligible={!m.everSubscribed}
+                      trialEligible={!m.everSubscribed && m.trialDays > 0}
+                      trialDays={m.trialDays}
                     />
                   </span>
                 )}

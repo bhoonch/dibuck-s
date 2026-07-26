@@ -84,6 +84,7 @@ model Module {
   icon        String // lucide 아이콘 이름
   route       String // "/modules/dunning"
   price       Int // 월 구독료(원)
+  trialDays   Int     @default(30) // 무료 체험 표준 기간 — 셀프 구독 시 전 단지 동일 적용
   sortOrder   Int     @default(0)
   isActive    Boolean @default(true)
 
