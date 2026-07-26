@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── 테넌트(아파트 단지) ──────────────────────────────────────
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Tenant {
+  id           String       @id @default(cuid())
+  name         String // 단지명
+  address      String?
+  households   Int? // 세대수
+  buildingInfo String? // 동 구성 설명 (예: "101동~110동")
+  approvalLine Json? // 결재선: 결재 순서대로 userId 배열
+  status       TenantStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+
+  users         User[]
+  modules       TenantModule[]
+  documents     Document[]
+  notifications Notification[]
+  units         Unit[]
+}
+
+// ── 세대 마스터 (모든 모듈이 공유: 독촉장, 민원, 공지 발송 등) ──
+
+model Unit {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  dong      String // "101"
+  ho        String // "502"
+  name      String? // 세대주/입주민 (선택)
+  phone     String? // 연락처 (선택)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, dong, ho])
+}
+
+// ── 직원 계정 + 역할 ─────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN // 플랫폼 운영자(개발자) — tenantId 없음
+  DIRECTOR // 소장
+  ACCOUNTANT // 경리
+  STAFF // 직원
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id])
+  email        String   @unique
+  passwordHash String
+  name         String
+  title        String? // 직책 (표시용 자유 입력: 과장, 전기과장, 경비반장 등)
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+
+  documents     Document[]
+  notifications Notification[]
+
+  @@index([tenantId])
+}
+
+// ── 모듈 레지스트리 + 단지별 구독 ────────────────────────────
+
+model Module {
+  id          String  @id // slug: "dunning", "notice" ...
+  name        String
+  description String
+  icon        String // lucide 아이콘 이름
+  route       String // "/modules/dunning"
+  price       Int // 월 구독료(원)
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  subscriptions TenantModule[]
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+}
+
+model TenantModule {
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  moduleId     String
+  module       Module             @relation(fields: [moduleId], references: [id])
+  status       SubscriptionStatus @default(ACTIVE)
+  subscribedAt DateTime           @default(now())
+  updatedAt    DateTime           @default(now()) @updatedAt
+
+  @@id([tenantId, moduleId])
+}
+
+// ── 전 단지 공지 배너 (관리자 발송) ──────────────────────────
+
+model Announcement {
+  id        String   @id @default(cuid())
+  message   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// ── 공통 문서 저장소 ─────────────────────────────────────────
+
+model Document {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  moduleId    String? // 생성한 모듈 slug (코어 생성 문서는 null)
+  docNo       String? // 문서번호: "공지-2026-0003" (종류·연도별 순번)
+  type        String // "dunning_letter" | "notice" | "contract" | "minutes" | "approval" ...
+  title       String
+  content     String   @default("")
+  attachments Json? // [{ name, url }]
+  status      String   @default("draft")
+  dueDate     DateTime? // 기한 — 계약 만료일, 점검 예정일 등 (할 일 위젯이 사용)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, type])
+  @@index([tenantId, createdAt])
+}
+
+// ── 알림 센터 (사용자별 fan-out) ─────────────────────────────
+
+model Notification {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // "contract_expiry" | "approval_request" | "inspection_due" ...
+  title     String
+  body      String?
+  link      String? // 클릭 시 이동 경로
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}

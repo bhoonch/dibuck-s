@@ -1,0 +1,74 @@
+import "dotenv/config";
+import { SignJWT } from "jose";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "./src/generated/prisma/client";
+
+const db = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+});
+
+async function token(email: string) {
+  const user = await db.user.findUniqueOrThrow({ where: { email } });
+  return new SignJWT({
+    userId: user.id,
+    tenantId: user.tenantId,
+    role: user.role,
+    name: user.name,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("1h")
+    .sign(new TextEncoder().encode(process.env.AUTH_SECRET!));
+}
+
+async function check(pages: string[], cookie: string) {
+  let failed = 0;
+  for (const p of pages) {
+    const res = await fetch(`http://localhost:3000${p}`, {
+      headers: { cookie },
+      redirect: "manual",
+    });
+    const ok = res.status === 200;
+    if (!ok) failed++;
+    console.log(`${ok ? "OK " : "FAIL"} ${res.status} ${p}`);
+  }
+  return failed;
+}
+
+async function main() {
+  const director = await token("test1@test.com");
+  const admin = await token("admin@test.com");
+  const tenant = await db.tenant.findFirstOrThrow();
+
+  let failed = await check(
+    [
+      "/",
+      "/modules",
+      "/modules/dunning",
+      "/documents",
+      "/documents?type=approval",
+      "/notifications",
+      "/settings",
+      "/settings/units",
+      "/settings/staff",
+      "/settings/approval-line",
+      "/settings/subscriptions",
+    ],
+    `session=${director}`,
+  );
+  failed += await check(
+    [
+      "/admin",
+      "/admin/tenants",
+      `/admin/tenants/${tenant.id}`,
+      "/admin/modules",
+      "/admin/modules/new",
+      "/admin/modules/dunning",
+      "/admin/announcements",
+    ],
+    `session=${admin}`,
+  );
+  if (failed) throw new Error(`${failed} pages failed`);
+  console.log("smoke OK");
+}
+
+main().finally(() => db.$disconnect());

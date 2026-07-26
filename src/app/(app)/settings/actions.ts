@@ -1,0 +1,161 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { hashSync } from "bcryptjs";
+import { requireRole } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { Role } from "@/generated/prisma/enums";
+
+const STAFF_ROLES: Role[] = [Role.DIRECTOR, Role.ACCOUNTANT, Role.STAFF];
+
+export async function updateTenantInfo(formData: FormData) {
+  const session = await requireRole(Role.DIRECTOR);
+  const households = Number(formData.get("households"));
+  await db.tenant.update({
+    where: { id: session.tenantId! },
+    data: {
+      name: String(formData.get("name") ?? "").trim() || undefined,
+      address: String(formData.get("address") ?? "").trim() || null,
+      buildingInfo: String(formData.get("buildingInfo") ?? "").trim() || null,
+      households: Number.isFinite(households) && households > 0 ? households : null,
+    },
+  });
+  revalidatePath("/settings");
+}
+
+export async function addStaff(
+  _prev: { error?: string; success?: boolean } | undefined,
+  formData: FormData,
+) {
+  const session = await requireRole(Role.DIRECTOR);
+  const email = String(formData.get("email") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim() || null;
+  const role = String(formData.get("role")) as Role;
+  const password = String(formData.get("password") ?? "");
+
+  if (!email || !name || !password)
+    return { error: "모든 항목을 입력해 주세요." };
+  if (password.length < 8)
+    return { error: "비밀번호는 8자 이상이어야 합니다." };
+  if (!STAFF_ROLES.includes(role)) return { error: "잘못된 역할입니다." };
+  if (await db.user.findUnique({ where: { email } }))
+    return { error: "이미 사용 중인 이메일입니다." };
+
+  await db.user.create({
+    data: {
+      email,
+      name,
+      title,
+      role,
+      tenantId: session.tenantId!,
+      passwordHash: hashSync(password, 10),
+    },
+  });
+  revalidatePath("/settings/staff");
+  return { success: true };
+}
+
+export async function updateStaffRole(userId: string, role: Role) {
+  const session = await requireRole(Role.DIRECTOR);
+  if (userId === session.userId)
+    throw new Error("본인 계정의 역할은 변경할 수 없습니다.");
+  if (!STAFF_ROLES.includes(role)) throw new Error("잘못된 역할입니다.");
+  const target = await db.user.findUnique({ where: { id: userId } });
+  if (target?.tenantId !== session.tenantId)
+    throw new Error("다른 단지의 직원입니다.");
+  await db.user.update({ where: { id: userId }, data: { role } });
+  revalidatePath("/settings/staff");
+}
+
+export async function removeStaff(userId: string) {
+  const session = await requireRole(Role.DIRECTOR);
+  if (userId === session.userId)
+    throw new Error("본인 계정은 삭제할 수 없습니다.");
+  const target = await db.user.findUnique({ where: { id: userId } });
+  if (target?.tenantId !== session.tenantId)
+    throw new Error("다른 단지의 직원입니다.");
+  await db.user.delete({ where: { id: userId } }); // 알림은 cascade, 문서 작성자는 null 처리
+  revalidatePath("/settings/staff");
+}
+
+export async function saveApprovalLine(formData: FormData) {
+  const session = await requireRole(Role.DIRECTOR);
+  const ids = ["approver1", "approver2", "approver3"]
+    .map((k) => String(formData.get(k) ?? ""))
+    .filter(Boolean);
+  const line = [...new Set(ids)]; // 중복 결재자 제거
+  const valid = await db.user.count({
+    where: { id: { in: line }, tenantId: session.tenantId },
+  });
+  if (valid !== line.length) throw new Error("잘못된 결재자입니다.");
+  await db.tenant.update({
+    where: { id: session.tenantId! },
+    data: { approvalLine: line },
+  });
+  revalidatePath("/settings/approval-line");
+}
+
+export async function uploadUnits(
+  _prev: { error?: string; success?: string } | undefined,
+  formData: FormData,
+) {
+  const session = await requireRole(Role.DIRECTOR);
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0)
+    return { error: "파일을 선택해 주세요." };
+  if (file.size > 5 * 1024 * 1024)
+    return { error: "5MB 이하 파일만 업로드할 수 있습니다." };
+
+  const XLSX = await import("xlsx");
+  let rows: unknown[][];
+  try {
+    const wb = XLSX.read(await file.arrayBuffer());
+    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+      header: 1,
+      raw: false,
+    });
+  } catch {
+    return { error: "파일을 읽을 수 없습니다. 엑셀(.xlsx) 파일인지 확인해 주세요." };
+  }
+
+  const cell = (r: unknown[], i: number) => String(r[i] ?? "").trim();
+  const units = rows
+    .filter((r) => Array.isArray(r) && cell(r, 0) && cell(r, 1))
+    .filter((r) => !cell(r, 0).includes("동") || /\d/.test(cell(r, 0))) // 헤더 행 제외
+    .map((r) => ({
+      tenantId: session.tenantId!,
+      dong: cell(r, 0).replace(/동$/, ""),
+      ho: cell(r, 1).replace(/호$/, ""),
+      name: cell(r, 2) || null,
+      phone: cell(r, 3) || null,
+    }));
+  if (units.length === 0)
+    return { error: "등록할 세대가 없습니다. A열=동, B열=호 형식인지 확인해 주세요." };
+
+  if (formData.get("replace") === "on")
+    await db.unit.deleteMany({ where: { tenantId: session.tenantId! } });
+  let saved = 0;
+  for (const u of units) {
+    await db.unit.upsert({
+      where: {
+        tenantId_dong_ho: { tenantId: u.tenantId, dong: u.dong, ho: u.ho },
+      },
+      update: { name: u.name, phone: u.phone },
+      create: u,
+    });
+    saved++;
+  }
+  revalidatePath("/settings/units");
+  return { success: `${saved}세대를 등록했습니다.` };
+}
+
+export async function setSubscription(moduleId: string, subscribe: boolean) {
+  const session = await requireRole(Role.DIRECTOR);
+  await db.tenantModule.upsert({
+    where: { tenantId_moduleId: { tenantId: session.tenantId!, moduleId } },
+    update: { status: subscribe ? "ACTIVE" : "CANCELED" },
+    create: { tenantId: session.tenantId!, moduleId },
+  });
+  revalidatePath("/", "layout"); // 사이드바·홈·설정 모두 갱신
+}
