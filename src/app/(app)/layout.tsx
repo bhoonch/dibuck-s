@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Megaphone } from "lucide-react";
+import { Hourglass, Megaphone } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
@@ -59,6 +60,14 @@ export default async function AppLayout({
     complaints,
   };
 
+  // 체험 만료 안내 — 크론 없이 접속 시점에 계산해서 배너로만 알린다.
+  // ponytail: 알림 센터 fan-out 없음(발송 이력 추적이 필요해짐) — 결제 연동(5.6) 때 결제 유도로 대체
+  const expiredTrials = modules.filter((m) => m.trialExpired);
+  const endingSoon = modules.filter(
+    (m) => m.trialEndsAt && m.trialEndsAt.getTime() - now.getTime() <= 7 * 86400000,
+  );
+  const names = (list: typeof modules) => list.map((m) => m.name).join(", ");
+
   const tenantMeta = [
     tenant.buildingInfo,
     tenant.households ? `${tenant.households.toLocaleString()}세대` : null,
@@ -72,6 +81,37 @@ export default async function AppLayout({
         <div className="flex items-center justify-center gap-2 border-b border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-800">
           <Megaphone className="size-4 shrink-0" />
           {announcement.message}
+        </div>
+      )}
+      {(expiredTrials.length > 0 || endingSoon.length > 0) && (
+        <div className="flex items-center justify-center gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <Hourglass className="size-4 shrink-0" />
+          {expiredTrials.length > 0 ? (
+            <>
+              {names(expiredTrials)} 무료 체험이 종료되어 잠겼습니다.
+              <Link
+                href="/support?category=구독"
+                className="font-semibold underline underline-offset-2"
+              >
+                유료 전환 문의
+              </Link>
+            </>
+          ) : (
+            <>
+              {names(endingSoon)} 무료 체험이{" "}
+              {Math.max(
+                1,
+                Math.ceil(
+                  (Math.min(
+                    ...endingSoon.map((m) => m.trialEndsAt!.getTime()),
+                  ) -
+                    now.getTime()) /
+                    86400000,
+                ),
+              )}
+              일 뒤 종료됩니다.
+            </>
+          )}
         </div>
       )}
       <div className="flex min-h-dvh">

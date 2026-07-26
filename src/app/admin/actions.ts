@@ -248,12 +248,12 @@ export async function impersonate(formData: FormData) {
     name: session.name,
     impersonating: true,
   });
-  redirect("/");
+  redirect("/home");
 }
 
 export async function stopImpersonation() {
   const session = await requireSession();
-  if (!session.impersonating) redirect("/");
+  if (!session.impersonating) redirect("/home");
   await createSession({
     userId: session.userId,
     tenantId: null,

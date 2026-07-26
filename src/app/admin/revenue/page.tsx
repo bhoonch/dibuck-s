@@ -1,6 +1,14 @@
 import { db } from "@/lib/db";
 import { Kpi, PageTitle, Pill, Section } from "../ui";
-import { mrrAt, recentMonths, wasPaidAt, wasTrialAt, won, wonShort } from "../metrics";
+import {
+  mrrAt,
+  recentMonths,
+  wasExpiredTrialAt,
+  wasPaidAt,
+  wasTrialAt,
+  won,
+  wonShort,
+} from "../metrics";
 
 export default async function AdminRevenuePage() {
   const [subs, tenantCount] = await Promise.all([
@@ -20,6 +28,9 @@ export default async function AdminRevenuePage() {
   const mrr = mrrAt(subs, now);
   const paid = subs.filter((s) => wasPaidAt(s, now));
   const trial = subs.filter((s) => wasTrialAt(s, now));
+  // 체험이 끝났는데 유료 전환을 안 한 구독 — 결제 연동 전까지는 운영자가 수동 전환해야 할 목록
+  const expired = subs.filter((s) => wasExpiredTrialAt(s, now));
+  const expiredUpside = expired.reduce((sum, s) => sum + s.module.price, 0);
 
   // 월별 MRR — 각 달 말 기준으로 요금이 발생하던 구독의 합계
   const bars = recentMonths(7).map((m) => ({
@@ -111,6 +122,12 @@ export default async function AdminRevenuePage() {
               <p className="flex items-center gap-2 text-sm text-gray-600">
                 <Pill tone="warn">체험 {trial.length}건</Pill>
                 전환되면 월 {won(trialUpside)} 추가
+              </p>
+            )}
+            {expired.length > 0 && (
+              <p className="flex items-center gap-2 text-sm text-gray-600">
+                <Pill tone="danger">전환 대기 {expired.length}건</Pill>
+                체험 종료·잠김 — 전환하면 월 {won(expiredUpside)} 추가
               </p>
             )}
             <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs text-gray-600">

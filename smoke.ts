@@ -40,10 +40,10 @@ async function main() {
   const tenant = await db.tenant.findFirstOrThrow();
 
   // 공개 페이지 (쿠키 없음)
-  let failed = await check(["/login", "/signup"], "");
+  let failed = await check(["/", "/login", "/signup"], "");
   failed += await check(
     [
-      "/",
+      "/home",
       "/modules",
       "/modules/dunning",
       "/documents",
@@ -55,6 +55,7 @@ async function main() {
       "/settings/approval-line",
       "/settings/subscriptions",
       "/settings/account",
+      "/support",
     ],
     `session=${director}`,
   );

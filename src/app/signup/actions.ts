@@ -45,5 +45,5 @@ export async function signup(
     role: "DIRECTOR",
     name: user.name,
   });
-  redirect("/");
+  redirect("/home");
 }

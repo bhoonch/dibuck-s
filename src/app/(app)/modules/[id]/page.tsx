@@ -28,7 +28,7 @@ export default async function ModulePlaceholderPage({
         description="곧 사용할 수 있어요. 준비되면 알림으로 알려드릴게요."
       >
         <Button asChild variant="outline">
-          <Link href="/">홈으로</Link>
+          <Link href="/home">홈으로</Link>
         </Button>
       </EmptyState>
     </div>

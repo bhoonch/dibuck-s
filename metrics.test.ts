@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   mrrAt,
   wasActiveAt,
+  wasExpiredTrialAt,
   wasPaidAt,
   wasTrialAt,
   recentMonths,
@@ -39,27 +40,30 @@ const canceled = sub("CANCELED", "2026-02-01", "2026-05-20", 20000);
 assert.equal(wasActiveAt(canceled, d("2026-05-01")), true, "해지 전 달에는 매출로 잡힘");
 assert.equal(wasActiveAt(canceled, d("2026-06-01")), false, "해지 후에는 빠짐");
 
-// 3) 무료 체험 — 체험 기간에는 매출 0원, 끝나면 유료로 잡힌다
+// 3) 무료 체험 — 체험 기간에는 매출 0원, 만료돼도 결제가 없으니 매출 아님(전환 대기).
+//    유료 전환 시 운영자가 trialEndsAt을 null로 지워야 매출로 잡힌다.
 const trial = sub("ACTIVE", "2026-04-01", "2026-04-01", 50000, "2026-05-01");
 assert.equal(wasActiveAt(trial, d("2026-04-15")), true, "체험도 구독은 활성");
 assert.equal(wasTrialAt(trial, d("2026-04-15")), true, "기간 안이면 체험");
 assert.equal(wasPaidAt(trial, d("2026-04-15")), false, "체험 중에는 매출 없음");
 assert.equal(wasTrialAt(trial, d("2026-05-15")), false, "기간이 끝나면 체험 아님");
-assert.equal(wasPaidAt(trial, d("2026-05-15")), true, "체험 종료 후 유료로 전환");
+assert.equal(wasPaidAt(trial, d("2026-05-15")), false, "만료 후 미전환은 매출 아님 — 결제된 적 없음");
+assert.equal(wasExpiredTrialAt(trial, d("2026-05-15")), true, "만료 후에는 전환 대기 목록에 잡힘");
+assert.equal(wasExpiredTrialAt(trial, d("2026-04-15")), false, "체험 중에는 전환 대기 아님");
 assert.equal(wasPaidAt(trial, d("2026-03-01")), false, "가입 전에는 아무것도 아님");
 
-// 4) MRR 합계
+// 4) MRR 합계 — 만료 미전환 체험(trial)은 어느 시점에도 매출에 안 들어간다
 const subs = [alive, canceled, trial];
 assert.equal(mrrAt(subs, d("2026-04-15")), 50000, "4월 = 30000 + 20000, 체험 50000 제외");
 assert.equal(
   mrrAt(subs, d("2026-05-15")),
-  100000,
-  "5/15 = 30000 + 20000(해지 5/20 전이라 아직 살아있음) + 50000(체험 종료)",
+  50000,
+  "5/15 = 30000 + 20000(해지 5/20 전이라 아직 살아있음), 만료 미전환 50000 제외",
 );
 assert.equal(
   mrrAt(subs, d("2026-06-01")),
-  80000,
-  "6월 = 30000 + 50000, 해지분 20000 빠짐",
+  30000,
+  "6월 = 30000, 해지분 20000과 만료 미전환 50000 빠짐",
 );
 assert.equal(mrrAt(subs, d("2026-01-01")), 0, "전부 가입 전");
 

@@ -59,6 +59,6 @@ export async function requireSession(): Promise<Session> {
 /** 역할 검사 — 권한 없으면 홈으로 돌려보냄 */
 export async function requireRole(...roles: Role[]): Promise<Session> {
   const session = await requireSession();
-  if (!roles.includes(session.role)) redirect("/");
+  if (!roles.includes(session.role)) redirect("/home");
   return session;
 }

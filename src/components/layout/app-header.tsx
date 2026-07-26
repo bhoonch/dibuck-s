@@ -10,14 +10,14 @@ const titles: [prefix: string, title: string][] = [
   ["/notifications", "알림"],
   ["/settings", "설정"],
   ["/modules", "모듈 런처"],
-  ["/", "홈"],
+  ["/support", "고객 문의"],
+  ["/home", "홈"],
 ];
 
 export function AppHeader({ unread }: { unread: number }) {
   const pathname = usePathname();
   const searchRef = useRef<HTMLInputElement>(null);
-  const title =
-    titles.find(([p]) => (p === "/" ? pathname === "/" : pathname.startsWith(p)))?.[1] ?? "홈";
+  const title = titles.find(([p]) => pathname.startsWith(p))?.[1] ?? "홈";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

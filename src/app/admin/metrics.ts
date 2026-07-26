@@ -29,9 +29,15 @@ export function wasTrialAt(s: SubRow, at: Date) {
   return wasActiveAt(s, at) && !!s.trialEndsAt && s.trialEndsAt > at;
 }
 
-/** 그 시점에 요금이 발생하던 구독인가 */
+/** 그 시점에 요금이 발생하던 구독인가 — 유료 전환된 구독만(trialEndsAt null).
+ * 체험 종료 후 미전환은 결제가 없으므로 매출이 아니다(만료 잠금 대상). */
 export function wasPaidAt(s: SubRow, at: Date) {
-  return wasActiveAt(s, at) && !wasTrialAt(s, at);
+  return wasActiveAt(s, at) && !s.trialEndsAt;
+}
+
+/** 체험이 끝났는데 유료 전환 전 — 결제 연동 전까지 운영자 전환 대기 목록 */
+export function wasExpiredTrialAt(s: SubRow, at: Date) {
+  return wasActiveAt(s, at) && !!s.trialEndsAt && s.trialEndsAt <= at;
 }
 
 /** 해당 시점의 MRR — 체험 중인 구독은 빼고 센다 */

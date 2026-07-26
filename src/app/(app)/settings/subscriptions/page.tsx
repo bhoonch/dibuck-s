@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SubscribeButton } from "./subscribe-button";
 
@@ -55,18 +57,22 @@ export default async function SubscriptionsPage() {
                 </span>
                 <span
                   className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    m.trialEndsAt
-                      ? "bg-amber-50 text-amber-700"
-                      : m.subscribed
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-100 text-gray-500"
+                    m.trialExpired
+                      ? "bg-red-50 text-red-700"
+                      : m.trialEndsAt
+                        ? "bg-amber-50 text-amber-700"
+                        : m.subscribed
+                          ? "bg-green-50 text-green-700"
+                          : "bg-gray-100 text-gray-500"
                   }`}
                 >
-                  {m.trialEndsAt
-                    ? `무료 체험 D-${dday(m.trialEndsAt)}`
-                    : m.subscribed
-                      ? "사용 중"
-                      : "미구독"}
+                  {m.trialExpired
+                    ? "체험 종료"
+                    : m.trialEndsAt
+                      ? `무료 체험 D-${dday(m.trialEndsAt)}`
+                      : m.subscribed
+                        ? "사용 중"
+                        : "미구독"}
                 </span>
               </div>
               <p
@@ -86,17 +92,24 @@ export default async function SubscriptionsPage() {
                     /월
                   </span>
                 </span>
-                {isDirector && (
-                  <span className="ml-auto">
-                    <SubscribeButton
-                      moduleId={m.id}
-                      moduleName={m.name}
-                      price={m.price}
-                      subscribed={m.subscribed}
-                      trialEligible={!m.everSubscribed && m.trialDays > 0}
-                      trialDays={m.trialDays}
-                    />
-                  </span>
+                {m.trialExpired ? (
+                  // 결제(PG) 연동 전 — 만료된 체험은 셀프 재개 불가, 문의로 유료 전환
+                  <Button asChild variant="outline" className="ml-auto">
+                    <Link href="/support?category=구독">유료 전환 문의</Link>
+                  </Button>
+                ) : (
+                  isDirector && (
+                    <span className="ml-auto">
+                      <SubscribeButton
+                        moduleId={m.id}
+                        moduleName={m.name}
+                        price={m.price}
+                        subscribed={m.subscribed}
+                        trialEligible={!m.everSubscribed && m.trialDays > 0}
+                        trialDays={m.trialDays}
+                      />
+                    </span>
+                  )
                 )}
               </div>
             </div>

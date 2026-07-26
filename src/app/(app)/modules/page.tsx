@@ -43,10 +43,12 @@ export default async function ModuleLauncherPage() {
                   className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
                     m.subscribed
                       ? "bg-green-50 text-green-700"
-                      : "bg-gray-100 text-gray-500"
+                      : m.trialExpired
+                        ? "bg-red-50 text-red-700"
+                        : "bg-gray-100 text-gray-500"
                   }`}
                 >
-                  {m.subscribed ? "구독중" : "잠금"}
+                  {m.subscribed ? "구독중" : m.trialExpired ? "체험 종료" : "잠금"}
                 </span>
               </span>
               <span

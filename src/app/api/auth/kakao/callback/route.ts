@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       role: user.role,
       name: user.name,
     });
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/home", req.url));
   } catch {
     return fail(req, "kakao_failed");
   }

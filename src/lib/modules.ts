@@ -12,6 +12,8 @@ export type TenantModuleInfo = {
   subscribed: boolean;
   /** 구독 중이면서 아직 무료 체험 기간이 남아 있으면 종료일, 아니면 null */
   trialEndsAt: Date | null;
+  /** 체험이 끝났는데 유료 전환 전 — 모듈 잠금, 셀프 재구독 불가(유료 전환 문의) */
+  trialExpired: boolean;
   /** 한 번이라도 구독한 적 있는가 — 무료 체험은 모듈당 최초 1회 */
   everSubscribed: boolean;
 };
@@ -35,6 +37,9 @@ export async function getModulesForTenant(
   return modules.map((m) => {
     const row = rows.get(m.id);
     const active = row?.status === "ACTIVE";
+    // 체험 종료 후 미전환(trialEndsAt이 과거인 채 남아 있음) — 결제 연동(로드맵 5.6) 전까지는
+    // 잠그고 유료 전환 문의로 안내한다. 전환하면 운영자가 trialEndsAt을 null로 지운다.
+    const expired = !!row?.trialEndsAt && row.trialEndsAt <= now;
     return {
       id: m.id,
       name: m.name,
@@ -43,11 +48,9 @@ export async function getModulesForTenant(
       route: m.route,
       price: m.price,
       trialDays: m.trialDays,
-      subscribed: active,
-      trialEndsAt:
-        active && row?.trialEndsAt && row.trialEndsAt > now
-          ? row.trialEndsAt
-          : null,
+      subscribed: active && !expired,
+      trialEndsAt: active && !expired ? (row?.trialEndsAt ?? null) : null,
+      trialExpired: expired,
       everSubscribed: !!row,
     };
   });
@@ -58,5 +61,8 @@ export async function isSubscribed(tenantId: string, moduleId: string) {
   const sub = await db.tenantModule.findUnique({
     where: { tenantId_moduleId: { tenantId, moduleId } },
   });
-  return sub?.status === "ACTIVE";
+  return (
+    sub?.status === "ACTIVE" &&
+    (!sub.trialEndsAt || sub.trialEndsAt > new Date())
+  );
 }

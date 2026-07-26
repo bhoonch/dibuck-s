@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   Lock,
   LogOut,
+  MessageCircleQuestion,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -52,10 +53,11 @@ export function SideNav({
         : "text-gray-700 hover:bg-gray-100",
     );
   const coreItems = [
-    { name: "홈", href: "/", icon: Home },
+    { name: "홈", href: "/home", icon: Home },
     { name: "모듈 런처", href: "/modules", icon: LayoutGrid },
     { name: "문서함", href: "/documents", icon: FolderOpen, count: docCount },
     { name: "설정", href: "/settings", icon: Settings },
+    { name: "고객 문의", href: "/support", icon: MessageCircleQuestion },
   ];
 
   return (
@@ -87,10 +89,7 @@ export function SideNav({
           <Link
             key={item.href}
             href={item.href}
-            className={linkClass(
-              pathname === item.href ||
-                (item.href !== "/" && pathname.startsWith(item.href)),
-            )}
+            className={linkClass(pathname.startsWith(item.href))}
           >
             <item.icon className="size-4" />
             {item.name}

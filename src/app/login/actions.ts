@@ -29,7 +29,7 @@ export async function login(
     role: user.role,
     name: user.name,
   });
-  redirect("/");
+  redirect("/home");
 }
 
 export async function logout() {
