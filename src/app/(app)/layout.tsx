@@ -3,10 +3,10 @@ import { Megaphone } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
+import { pickAnnouncement } from "@/lib/announcements";
 import { roleLabels } from "@/lib/labels";
 import { SideNav } from "@/components/layout/side-nav";
 import { AppHeader } from "@/components/layout/app-header";
-import { stopImpersonation } from "@/app/admin/actions";
 
 export default async function AppLayout({
   children,
@@ -19,14 +19,20 @@ export default async function AppLayout({
   const now = new Date();
   const days = (n: number) => new Date(now.getTime() + n * 86400000);
 
-  const [tenant, modules, unread, announcement, docCount, expiring, complaints, me] =
+  const [tenant, modules, unread, announcements, docCount, expiring, complaints, me] =
     await Promise.all([
       db.tenant.findUnique({ where: { id: tenantId } }),
       getModulesForTenant(tenantId),
       db.notification.count({ where: { userId: session.userId, readAt: null } }),
-      db.announcement.findFirst({
-        where: { active: true },
+      // 게시 기간 안에 있는 공지만 — 대상(전체/구독/미구독) 필터는 아래에서
+      db.announcement.findMany({
+        where: {
+          active: true,
+          startsAt: { lte: now },
+          OR: [{ endsAt: null }, { endsAt: { gte: now } }],
+        },
         orderBy: { createdAt: "desc" },
+        take: 5,
       }),
       db.document.count({ where: { tenantId } }),
       db.document.count({
@@ -39,6 +45,13 @@ export default async function AppLayout({
       }),
     ]);
   if (!tenant) redirect("/login");
+
+  // 대상이 좁은 공지가 전체 공지를 이긴다 (src/lib/announcements.ts)
+  const announcement = pickAnnouncement(announcements, {
+    tenantId,
+    subscribedModuleIds: modules.filter((m) => m.subscribed).map((m) => m.id),
+    trialModuleIds: modules.filter((m) => m.trialEndsAt).map((m) => m.id),
+  });
 
   // 사이드바 모듈별 미처리 뱃지 — 문서 컨벤션(type+status+dueDate)으로 집계
   const moduleBadges: Record<string, number> = {
@@ -55,24 +68,6 @@ export default async function AppLayout({
 
   return (
     <>
-      {session.impersonating && (
-        <div className="sticky top-0 z-50 flex items-center gap-3 bg-gray-800 px-6 py-2 text-white">
-          <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider">
-            관리자 모드
-          </span>
-          <span className="text-sm text-gray-300">
-            {tenant.name} 계정 화면을 보고 있습니다.
-          </span>
-          <form action={stopImpersonation} className="ml-auto">
-            <button
-              type="submit"
-              className="rounded-md bg-white px-3 py-1 text-sm font-semibold text-gray-800 transition-colors hover:bg-gray-100"
-            >
-              관리자 콘솔로 복귀
-            </button>
-          </form>
-        </div>
-      )}
       {announcement && (
         <div className="flex items-center justify-center gap-2 border-b border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-800">
           <Megaphone className="size-4 shrink-0" />
@@ -81,6 +76,7 @@ export default async function AppLayout({
       )}
       <div className="flex min-h-dvh">
         <SideNav
+          impersonating={!!session.impersonating}
           tenantName={tenant.name}
           tenantMeta={tenantMeta || "단지 정보를 입력해 주세요"}
           userName={session.name}

@@ -36,17 +36,21 @@ export function AppHeader({ unread }: { unread: number }) {
       <div className="ml-auto flex items-center gap-2.5">
         <form
           action="/documents"
-          className="flex h-9 w-72 items-center gap-2 rounded-md border bg-background px-2.5"
+          title="검색하면 문서함에서 결과를 보여줍니다"
+          className="flex h-9 w-80 items-center gap-2 rounded-md border bg-background px-2.5"
         >
           <Search className="size-4 shrink-0 text-gray-400" />
           <input
             ref={searchRef}
             name="q"
-            placeholder="문서 통합 검색"
+            placeholder="문서 검색 — 제목·내용·문서번호"
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
           />
-          <kbd className="rounded border bg-card px-1.5 py-px font-mono text-xs text-gray-500">
-            ⌘K
+          <kbd
+            title="Ctrl+K를 누르면 바로 검색창에 입력할 수 있어요"
+            className="rounded border bg-card px-1.5 py-px font-mono text-xs text-gray-500"
+          >
+            Ctrl K
           </kbd>
         </form>
         <Link

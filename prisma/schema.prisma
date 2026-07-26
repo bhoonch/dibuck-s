@@ -21,6 +21,7 @@ model Tenant {
   households   Int? // 세대수
   buildingInfo String? // 동 구성 설명 (예: "101동~110동")
   approvalLine Json? // 결재선: 결재 순서대로 userId 배열
+  memo         String? // 관리자 전용 메모 (영업·CS 기록, 사용자에게 노출 안 됨)
   status       TenantStatus @default(ACTIVE)
   createdAt    DateTime     @default(now())
 
@@ -29,6 +30,7 @@ model Tenant {
   documents     Document[]
   notifications Notification[]
   units         Unit[]
+  inquiries     Inquiry[]
 }
 
 // ── 세대 마스터 (모든 모듈이 공유: 독촉장, 민원, 공지 발송 등) ──
@@ -60,6 +62,7 @@ model User {
   tenantId     String?
   tenant       Tenant?  @relation(fields: [tenantId], references: [id])
   email        String   @unique
+  kakaoId      String?  @unique // 카카오 로그인 연동 (최초 1회 이메일 매칭으로 연결)
   passwordHash String
   name         String
   title        String? // 직책 (표시용 자유 입력: 과장, 전기과장, 경비반장 등)
@@ -98,6 +101,10 @@ model TenantModule {
   moduleId     String
   module       Module             @relation(fields: [moduleId], references: [id])
   status       SubscriptionStatus @default(ACTIVE)
+  // 무료 체험: null=정식 구독 / 미래=체험 중 / 과거=체험 만료.
+  // enum에 TRIAL을 넣으면 기존 status:ACTIVE 조건이 전부 체험 단지를 빠뜨리고,
+  // 만료를 돌려줄 크론도 필요해진다. 타임스탬프는 읽는 시점 비교로 끝난다.
+  trialEndsAt  DateTime?
   subscribedAt DateTime           @default(now())
   updatedAt    DateTime           @default(now()) @updatedAt
 
@@ -107,10 +114,29 @@ model TenantModule {
 // ── 전 단지 공지 배너 (관리자 발송) ──────────────────────────
 
 model Announcement {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   message   String
-  active    Boolean  @default(true)
+  target    String    @default("ALL") // src/lib/announcements.ts 의 AnnouncementTarget
+  targetValue String? // MODULE·MODULE_NOT이면 moduleId, TENANTS면 단지 id 목록(쉼표 구분)
+  startsAt  DateTime  @default(now()) // 게시 시작 — 미래면 "예약"
+  endsAt    DateTime? // 게시 종료 (null이면 무기한)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+}
+
+// ── 고객 문의 (단지 → 운영자) ────────────────────────────────
+
+model Inquiry {
+  id        String   @id @default(cuid())
+  tenantId  String? // null = 아직 가입 전 (무료 체험 신청)
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  category  String // "기능 문의" | "구독" | "계정" | "결제" | "체험 신청"
+  title     String // 체험 신청이면 단지명(담당자)
+  contact   String? // 체험 신청 연락처
+  status    String   @default("open") // open(답변 대기) | answered(답변 완료)
   createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
 }
 
 // ── 공통 문서 저장소 ─────────────────────────────────────────

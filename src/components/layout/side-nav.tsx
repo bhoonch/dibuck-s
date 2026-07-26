@@ -9,9 +9,11 @@ import {
   Lock,
   LogOut,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout } from "@/app/login/actions";
+import { stopImpersonation } from "@/app/admin/actions";
 
 export type NavModule = {
   id: string;
@@ -28,6 +30,7 @@ export function SideNav({
   userRole,
   docCount,
   modules,
+  impersonating = false,
 }: {
   tenantName: string;
   tenantMeta: string;
@@ -35,6 +38,8 @@ export function SideNav({
   userRole: string;
   docCount: number;
   modules: NavModule[];
+  /** 관리자가 테스트로 사용자 화면을 보는 중 — 하단에 콘솔 복귀 버튼을 띄운다 */
+  impersonating?: boolean;
 }) {
   const pathname = usePathname();
   const subscribed = modules.filter((m) => m.subscribed);
@@ -137,16 +142,37 @@ export function SideNav({
       </nav>
 
       <div className="border-t border-gray-100 p-2">
+        {impersonating && (
+          <form action={stopImpersonation}>
+            <button
+              type="submit"
+              title="관리자 대시보드로 돌아갑니다"
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            >
+              <ShieldCheck className="size-4" />
+              관리자 대시보드
+              <span className="ml-auto font-mono text-xs text-gray-400">
+                테스트 중
+              </span>
+            </button>
+          </form>
+        )}
         <div className="flex items-center gap-2.5 p-2.5">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-white">
-            {userName.charAt(0)}
-          </span>
-          <span className="block min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold">
-              {userName}
+          <Link
+            href="/settings/account"
+            title="내 계정 설정"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md transition-colors hover:bg-gray-100"
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gray-800 text-xs font-semibold text-white">
+              {userName.charAt(0)}
             </span>
-            <span className="block text-xs text-gray-500">{userRole}</span>
-          </span>
+            <span className="block min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">
+                {userName}
+              </span>
+              <span className="block text-xs text-gray-500">{userRole}</span>
+            </span>
+          </Link>
           <form action={logout}>
             <button
               type="submit"

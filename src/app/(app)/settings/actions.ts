@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { hashSync } from "bcryptjs";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { TRIAL_DAYS } from "@/lib/modules";
+import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role } from "@/generated/prisma/enums";
 
 const STAFF_ROLES: Role[] = [Role.DIRECTOR, Role.ACCOUNTANT, Role.STAFF];
@@ -79,6 +81,27 @@ export async function removeStaff(userId: string) {
   revalidatePath("/settings/staff");
 }
 
+/** 소장이 직원 비밀번호 재설정 — 운영자까지 안 가고 단지 안에서 해결 */
+export async function directorResetStaffPassword(
+  _prev: TempPasswordResult,
+  formData: FormData,
+): Promise<TempPasswordResult> {
+  const session = await requireRole(Role.DIRECTOR);
+  const userId = String(formData.get("userId"));
+  if (userId === session.userId)
+    return { error: "본인 비밀번호는 설정 > 내 계정에서 변경해 주세요." };
+  const target = await db.user.findUnique({ where: { id: userId } });
+  if (target?.tenantId !== session.tenantId)
+    return { error: "다른 단지의 직원입니다." };
+
+  const password = tempPassword();
+  await db.user.update({
+    where: { id: userId },
+    data: { passwordHash: hashSync(password, 10) },
+  });
+  return { tempPassword: password, email: target.email, name: target.name };
+}
+
 export async function saveApprovalLine(formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);
   const ids = ["approver1", "approver2", "approver3"]
@@ -152,10 +175,21 @@ export async function uploadUnits(
 
 export async function setSubscription(moduleId: string, subscribe: boolean) {
   const session = await requireRole(Role.DIRECTOR);
-  await db.tenantModule.upsert({
-    where: { tenantId_moduleId: { tenantId: session.tenantId!, moduleId } },
-    update: { status: subscribe ? "ACTIVE" : "CANCELED" },
-    create: { tenantId: session.tenantId!, moduleId },
-  });
+  const tenantId = session.tenantId!;
+  const where = { tenantId_moduleId: { tenantId, moduleId } };
+
+  if (!subscribe) {
+    await db.tenantModule.update({ where, data: { status: "CANCELED" } });
+  } else {
+    const existing = await db.tenantModule.findUnique({ where });
+    if (existing) {
+      // 재구독 — 체험은 모듈당 최초 1회뿐, 남은 체험 기간이 있으면 그대로 이어진다
+      await db.tenantModule.update({ where, data: { status: "ACTIVE" } });
+    } else {
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+      await db.tenantModule.create({ data: { tenantId, moduleId, trialEndsAt } });
+    }
+  }
   revalidatePath("/", "layout"); // 사이드바·홈·설정 모두 갱신
 }

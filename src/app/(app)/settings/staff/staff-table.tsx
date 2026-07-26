@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { KeyRound, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Role } from "@/generated/prisma/enums";
 import { roleLabels } from "@/lib/labels";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TempPasswordNotice } from "@/components/temp-password-notice";
 import {
   Table,
   TableBody,
@@ -18,7 +19,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { addStaff, removeStaff, updateStaffRole } from "../actions";
+import {
+  addStaff,
+  directorResetStaffPassword,
+  removeStaff,
+  updateStaffRole,
+} from "../actions";
 
 type StaffRow = {
   id: string;
@@ -41,6 +47,10 @@ export function StaffTable({
 }) {
   const [, startTransition] = useTransition();
   const [addState, addAction, addPending] = useActionState(addStaff, undefined);
+  const [resetState, resetAction] = useActionState(
+    directorResetStaffPassword,
+    undefined,
+  );
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -62,6 +72,7 @@ export function StaffTable({
 
   return (
     <div className="space-y-8">
+      <TempPasswordNotice state={resetState} />
       <div className="overflow-x-auto rounded-lg border bg-card">
         <Table>
           <TableHeader>
@@ -119,20 +130,44 @@ export function StaffTable({
                 {isDirector && (
                   <TableCell>
                     {u.id !== myUserId && (
-                      <ConfirmDialog
-                        trigger={
-                          <Button variant="ghost" size="icon" aria-label="삭제">
-                            <Trash2 className="size-4 text-destructive" />
+                      <span className="flex items-center gap-1">
+                        <form
+                          action={resetAction}
+                          onSubmit={(e) => {
+                            if (
+                              !confirm(
+                                `${u.name} 님의 비밀번호를 재설정할까요?\n기존 비밀번호는 즉시 사용할 수 없게 됩니다.`,
+                              )
+                            )
+                              e.preventDefault();
+                          }}
+                        >
+                          <input type="hidden" name="userId" value={u.id} />
+                          <Button
+                            type="submit"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="비밀번호 재설정"
+                            title="임시 비밀번호 발급"
+                          >
+                            <KeyRound className="size-4 text-gray-500" />
                           </Button>
-                        }
-                        title={`${u.name} 님을 삭제할까요?`}
-                        description="삭제하면 더 이상 로그인할 수 없습니다. 작성한 문서는 남아 있습니다."
-                        confirmLabel="삭제"
-                        destructive
-                        onConfirm={() =>
-                          run(() => removeStaff(u.id), "삭제되었습니다.")
-                        }
-                      />
+                        </form>
+                        <ConfirmDialog
+                          trigger={
+                            <Button variant="ghost" size="icon" aria-label="삭제">
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          }
+                          title={`${u.name} 님을 삭제할까요?`}
+                          description="삭제하면 더 이상 로그인할 수 없습니다. 작성한 문서는 남아 있습니다."
+                          confirmLabel="삭제"
+                          destructive
+                          onConfirm={() =>
+                            run(() => removeStaff(u.id), "삭제되었습니다.")
+                          }
+                        />
+                      </span>
                     )}
                   </TableCell>
                 )}

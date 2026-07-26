@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageTitle } from "../../ui";
 import { ModuleForm } from "../module-form";
 
 export default async function EditModulePage({
@@ -14,7 +14,7 @@ export default async function EditModulePage({
 
   return (
     <>
-      <PageHeader title={`모듈 수정 — ${moduleData.name}`} />
+      <PageTitle eyebrow="모듈 수정" title={moduleData.name} />
       <ModuleForm module={moduleData} />
     </>
   );

@@ -1,14 +1,20 @@
-import { PageHeader } from "@/components/ui/page-header";
+import { db } from "@/lib/db";
+import { PageTitle } from "../../ui";
 import { ModuleForm } from "../module-form";
 
-export default function NewModulePage() {
+export default async function NewModulePage() {
+  const last = await db.module.findFirst({
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
   return (
     <>
-      <PageHeader
+      <PageTitle
         title="새 모듈 등록"
-        description="레지스트리에 등록하면 전 단지 런처에 노출됩니다."
+        description="레지스트리에 등록하면 전 단지 모듈 런처에 노출되고, 단지별로 구독·체험을 켤 수 있습니다."
       />
-      <ModuleForm />
+      <ModuleForm nextSortOrder={(last?.sortOrder ?? 0) + 1} />
     </>
   );
 }

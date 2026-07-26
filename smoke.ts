@@ -39,7 +39,9 @@ async function main() {
   const admin = await token("admin@test.com");
   const tenant = await db.tenant.findFirstOrThrow();
 
-  let failed = await check(
+  // 공개 페이지 (쿠키 없음)
+  let failed = await check(["/login", "/signup"], "");
+  failed += await check(
     [
       "/",
       "/modules",
@@ -52,6 +54,7 @@ async function main() {
       "/settings/staff",
       "/settings/approval-line",
       "/settings/subscriptions",
+      "/settings/account",
     ],
     `session=${director}`,
   );
@@ -59,11 +62,16 @@ async function main() {
     [
       "/admin",
       "/admin/tenants",
+      "/admin/tenants/new",
       `/admin/tenants/${tenant.id}`,
+      "/admin/revenue",
       "/admin/modules",
       "/admin/modules/new",
       "/admin/modules/dunning",
       "/admin/announcements",
+      "/admin/announcements/new",
+      "/admin/support",
+      "/admin/account",
     ],
     `session=${admin}`,
   );

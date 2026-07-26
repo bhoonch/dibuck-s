@@ -9,8 +9,16 @@ export default async function SubscriptionsPage() {
   const session = await requireSession();
   const modules = await getModulesForTenant(session.tenantId!);
   const subscribed = modules.filter((m) => m.subscribed);
-  const monthlyTotal = subscribed.reduce((sum, m) => sum + m.price, 0);
+  const trialing = subscribed.filter((m) => m.trialEndsAt);
+  // 체험 중인 모듈은 요금이 발생하지 않는다
+  const monthlyTotal = subscribed.reduce(
+    (sum, m) => (m.trialEndsAt ? sum : sum + m.price),
+    0,
+  );
   const isDirector = session.role === "DIRECTOR";
+  const now = new Date();
+  const dday = (d: Date) =>
+    Math.ceil((d.getTime() - now.getTime()) / 86400000);
 
   return (
     <div className="space-y-6">
@@ -21,6 +29,7 @@ export default async function SubscriptionsPage() {
         </span>
         <span className="text-sm text-muted-foreground">
           / 모듈 {subscribed.length}개 사용 중
+          {trialing.length > 0 && ` (무료 체험 ${trialing.length}개 제외)`}
         </span>
       </Card>
 
@@ -46,12 +55,18 @@ export default async function SubscriptionsPage() {
                 </span>
                 <span
                   className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    m.subscribed
-                      ? "bg-green-50 text-green-700"
-                      : "bg-gray-100 text-gray-500"
+                    m.trialEndsAt
+                      ? "bg-amber-50 text-amber-700"
+                      : m.subscribed
+                        ? "bg-green-50 text-green-700"
+                        : "bg-gray-100 text-gray-500"
                   }`}
                 >
-                  {m.subscribed ? "사용 중" : "미구독"}
+                  {m.trialEndsAt
+                    ? `무료 체험 D-${dday(m.trialEndsAt)}`
+                    : m.subscribed
+                      ? "사용 중"
+                      : "미구독"}
                 </span>
               </div>
               <p
@@ -78,6 +93,7 @@ export default async function SubscriptionsPage() {
                       moduleName={m.name}
                       price={m.price}
                       subscribed={m.subscribed}
+                      trialEligible={!m.everSubscribed}
                     />
                   </span>
                 )}

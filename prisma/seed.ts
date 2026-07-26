@@ -49,11 +49,15 @@ async function main() {
     });
   }
 
+  // dunning·notice는 정식 구독, contracts는 무료 체험 중(데모용)
+  const trialEndsAt = new Date();
+  trialEndsAt.setDate(trialEndsAt.getDate() + 14);
   for (const moduleId of ["dunning", "notice", "contracts"]) {
+    const trial = moduleId === "contracts" ? trialEndsAt : null;
     await db.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: tenant.id, moduleId } },
-      update: { status: "ACTIVE" },
-      create: { tenantId: tenant.id, moduleId },
+      update: { status: "ACTIVE", trialEndsAt: trial },
+      create: { tenantId: tenant.id, moduleId, trialEndsAt: trial },
     });
   }
 
@@ -96,7 +100,17 @@ async function main() {
     });
   }
 
-  console.log("seed 완료: 모듈 8개, 데모 단지 1개, 계정 4개");
+  if ((await db.inquiry.count()) === 0) {
+    await db.inquiry.createMany({
+      data: [
+        { tenantId: tenant.id, category: "기능 문의", title: "독촉장 PDF에 단지 로고를 넣을 수 있나요?", status: "open" },
+        { tenantId: tenant.id, category: "구독", title: "설비 이력 모듈 체험해 보고 싶습니다", status: "open" },
+        { tenantId: tenant.id, category: "계정", title: "직원 계정 추가 방법 문의", status: "answered" },
+      ],
+    });
+  }
+
+  console.log("seed 완료: 모듈 8개, 데모 단지 1개, 계정 4개, 문의 3건");
 }
 
 main().finally(() => db.$disconnect());
