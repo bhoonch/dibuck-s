@@ -1,18 +1,12 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  fieldInput,
+  fieldLabel,
+  genBtn,
+} from "@/components/gian-ui";
 import { classify } from "@/lib/gian/rules";
 import { generateGian } from "../actions";
 
@@ -22,6 +16,10 @@ const docTypeLabel = {
   ltp_work: "공사 추진 기안서 · 5단 결재 (+감사·회장)",
 };
 
+/**
+ * 기안·품의 입력 폼 — 올림 목업의 `.form-card` 양식(620px 단일 카드, ①~⑤).
+ * 판정 배지·장충금 경고는 목업 `.verdict` / `.ltp-warn` 그대로.
+ */
 export function GianForm() {
   const [state, formAction, pending] = useActionState(generateGian, undefined);
   const [work, setWork] = useState("");
@@ -42,159 +40,203 @@ export function GianForm() {
   );
 
   return (
-    <form action={formAction}>
-      <Card className="max-w-2xl gap-0 py-0">
-        <CardHeader className="gap-0.5 border-b border-gray-100 px-4 py-3">
-          <CardTitle className="text-lg tracking-tight">새 기안·품의</CardTitle>
-          <CardDescription>
-            다섯 항목만 입력하면 법적 검토를 마친 초안이 완성됩니다. 예산이
-            없으면 기안서, 있으면 품의서로 자동 판별됩니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 p-4">
-          <div className="space-y-2">
-            <Label htmlFor="work">공사·사업명 (안건)</Label>
-            <Input
-              id="work"
-              name="work"
-              placeholder="예: 지하주차장 노후 등기구 LED 교체 공사"
-              value={work}
-              onChange={(e) => setWork(e.target.value)}
-              required
+    <form action={formAction} className="mx-auto mt-2 max-w-[620px]">
+      <div className="rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-[30px] pb-[26px] text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
+        <h1 className="text-[21px] font-extrabold tracking-[-.01em] text-balance">
+          어떤 문서를 올릴까요?
+        </h1>
+        <p className="mt-1 mb-6 text-[14px] text-[var(--gian-ink-soft)]">
+          5개 항목만 입력하면 법적 근거와 계약 방식까지 검토된 초안이 나옵니다.
+        </p>
+
+        <div className="mb-[18px]">
+          <label htmlFor="work" className={fieldLabel}>
+            ① 무슨 일인가요?
+          </label>
+          <input
+            id="work"
+            name="work"
+            className={fieldInput}
+            placeholder="예: 지하주차장 노후 등기구 LED 교체 공사"
+            value={work}
+            onChange={(e) => setWork(e.target.value)}
+            autoComplete="off"
+            required
+          />
+        </div>
+
+        <div className="mb-[18px]">
+          <label htmlFor="location" className={fieldLabel}>
+            ② 어디인가요?
+          </label>
+          <input
+            id="location"
+            name="location"
+            className={fieldInput}
+            placeholder="예: 지하주차장 1~2층 전구역"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="mb-[18px]">
+          <label htmlFor="amount" className={fieldLabel}>
+            ③ 예산
+            <span className="text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+              금액이 없으면 기안서로 작성됩니다
+            </span>
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              id="amount"
+              name="amount"
+              inputMode="numeric"
+              className={`${fieldInput} flex-1 tabular-nums`}
+              placeholder="4,500,000"
+              value={amount}
+              onChange={(e) => {
+                const n = e.target.value.replace(/[^0-9]/g, "");
+                setAmount(n ? Number(n).toLocaleString("ko-KR") : "");
+              }}
+              autoComplete="off"
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="location">위치·대상</Label>
-            <Input
-              id="location"
-              name="location"
-              placeholder="예: 지하주차장 1~2층 전구역"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="amount">예산 (원)</Label>
-            <div className="flex items-center gap-3">
-              <Input
-                id="amount"
-                name="amount"
-                inputMode="numeric"
-                placeholder="없으면 비워두세요 → 기안서"
-                value={amount}
-                onChange={(e) => {
-                  const n = e.target.value.replace(/[^0-9]/g, "");
-                  setAmount(n ? Number(n).toLocaleString("ko-KR") : "");
-                }}
+            <span className="text-[var(--gian-ink-soft)]">원</span>
+            <label className="flex shrink-0 items-center gap-1.5 text-[13.5px]">
+              <input
+                type="checkbox"
+                name="vat"
+                checked={vat}
+                onChange={(e) => setVat(e.target.checked)}
+                className="size-4 accent-[var(--gian-navy)]"
               />
-              <label className="flex shrink-0 items-center gap-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  name="vat"
-                  checked={vat}
-                  onChange={(e) => setVat(e.target.checked)}
-                  className="size-4"
-                />
-                VAT 포함
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              예산을 비우면 <b>기안서</b>, 입력하면 <b>품의서</b>가 자동
-              적용됩니다. 장기수선 대상 공사(옥상 방수·승강기 등)는{" "}
-              <b>공사 추진 기안서</b>로 바뀝니다.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="why">왜 필요한가요?</Label>
-            <textarea
-              id="why"
-              name="why"
-              rows={3}
-              placeholder="예: 형광등이 자주 고장 나고 어두워서 민원이 계속 들어옵니다"
-              value={why}
-              onChange={(e) => setWhy(e.target.value)}
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="schedule">일정 (선택)</Label>
-            <Input
-              id="schedule"
-              name="schedule"
-              placeholder="예: 8월 중 계약, 9월 초 공사"
-            />
+              VAT 포함
+            </label>
           </div>
 
-          {/* 판정 배지 — 전부 코드 판정, 결과 화면과 동일 규칙 */}
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {docTypeLabel[cls.docType]}
-            </span>
-            {cls.context === "direct" && (
-              <span className="rounded-full bg-green-50 px-2.5 py-1 font-medium text-green-700">
-                수의계약 가능 — VAT 제외{" "}
-                {cls.vatExcluded.toLocaleString("ko-KR")}원 ≤ 500만 원
+          {/* 판정 배지 (목업 .verdict) — 전부 코드 판정, 결과 화면과 같은 규칙 */}
+          <div className="mt-2.5 space-y-2.5">
+            <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-paper)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-ink-soft)]">
+              <span className="mt-[7px] size-2 shrink-0 rounded-full bg-current" />
+              <span>
+                <b className="block text-[14px] text-[var(--gian-ink)]">
+                  {docTypeLabel[cls.docType]}
+                </b>
+                예산을 비우면 기안서, 입력하면 품의서로 자동 판별됩니다.
               </span>
+            </div>
+            {cls.context === "direct" && (
+              <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-ok-soft)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-ok)]">
+                <span className="mt-[7px] size-2 shrink-0 rounded-full bg-current" />
+                <span>
+                  <b className="block text-[14px]">수의계약 대상</b>
+                  VAT 제외 {cls.vatExcluded.toLocaleString("ko-KR")}원 ≤ 500만
+                  원 — 2개사 이상 견적이 필요합니다.
+                </span>
+              </div>
             )}
             {cls.context === "bid" && (
-              <span className="rounded-full bg-red-50 px-2.5 py-1 font-medium text-red-700">
-                500만 원 초과 — 입대의 의결 + K-apt 전자입찰
-              </span>
+              <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-stamp-soft)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-stamp)]">
+                <span className="mt-[7px] size-2 shrink-0 rounded-full bg-current" />
+                <span>
+                  <b className="block text-[14px]">경쟁입찰 대상</b>
+                  VAT 제외 {cls.vatExcluded.toLocaleString("ko-KR")}원 &gt; 500만
+                  원 — 입주자대표회의 의결 후 K-apt 전자입찰로 선정해야 합니다.
+                </span>
+              </div>
+            )}
+            {cls.docType === "ltp_work" && (
+              <div className="rounded-md bg-[var(--gian-warn-soft)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-warn)]">
+                <b className="block">장기수선계획 대상일 수 있습니다.</b>
+                수선유지비가 아닌 장기수선충당금 사용 대상인지 검토가 필요합니다
+                (공동주택관리법 제29·30조).
+              </div>
             )}
           </div>
-          {cls.docType === "ltp_work" && (
-            <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <p>
-                <b>장기수선계획 대상일 수 있습니다.</b> 수선유지비가 아닌
-                장기수선충당금 사용 대상인지 검토가 필요합니다 (공동주택관리법
-                제29·30조).
-              </p>
-            </div>
-          )}
+        </div>
 
-          {/* 수의계약이면 견적 2개사 이상 — 법적 요건이라 서버에서도 검증한다 */}
-          {cls.context === "direct" && (
-            <div className="space-y-2 rounded-lg border bg-background p-3">
-              <p className="text-sm font-medium">
-                견적 비교 <span className="text-destructive">*</span>
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  수의계약은 2개사 이상 견적이 필요합니다 — 최저가가 선정
-                  업체가 됩니다
-                </span>
-              </p>
+        <div className="mb-[18px]">
+          <label htmlFor="schedule" className={fieldLabel}>
+            ④ 언제 하나요?
+            <span className="text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+              선택
+            </span>
+          </label>
+          <input
+            id="schedule"
+            name="schedule"
+            className={fieldInput}
+            placeholder="예: 8월 중 계약, 9월 초 공사"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="mb-[18px]">
+          <label htmlFor="why" className={fieldLabel}>
+            ⑤ 왜 필요한가요?
+            <span className="text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+              키워드만 적어도 됩니다 (예: 누수, 민원, 노후)
+            </span>
+          </label>
+          <textarea
+            id="why"
+            name="why"
+            rows={3}
+            className={`${fieldInput} min-h-[84px] resize-y`}
+            placeholder="예: 형광등이 자주 고장 나고 어두워서 민원이 계속 들어옵니다"
+            value={why}
+            onChange={(e) => setWhy(e.target.value)}
+          />
+        </div>
+
+        {/* 수의계약이면 견적 2개사 이상 — 법적 요건이라 서버에서도 검증한다 */}
+        {cls.context === "direct" && (
+          <div className="mb-[18px] rounded-md border border-[var(--gian-line)] bg-[var(--gian-paper)] p-3.5">
+            <p className="mb-2 text-[13.5px] font-bold">
+              견적 비교 <span className="text-[var(--gian-stamp)]">*</span>
+              <span className="ml-2 text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+                2개사 이상 — 최저가가 선정 업체가 됩니다
+              </span>
+            </p>
+            <div className="space-y-2">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="grid grid-cols-2 gap-2">
-                  <Input
+                  <input
                     name={`vendor${i}`}
+                    className={`${fieldInput} bg-[var(--gian-card)] py-2 text-[14px]`}
                     placeholder={`업체 ${i}${i === 3 ? " (선택)" : ""}`}
                   />
-                  <Input
+                  <input
                     name={`quote${i}`}
                     inputMode="numeric"
+                    className={`${fieldInput} bg-[var(--gian-card)] py-2 text-[14px] tabular-nums`}
                     placeholder="견적 금액 (원)"
                   />
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {state?.error && (
-            <p className="text-sm text-destructive">{state.error}</p>
+        {state?.error && (
+          <p className="mb-2 text-[13.5px] text-[var(--gian-stamp)]">
+            {state.error}
+          </p>
+        )}
+
+        <button type="submit" className={genBtn} disabled={pending}>
+          {pending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> 초안 생성 중… (10~30초)
+            </>
+          ) : (
+            "초안 생성"
           )}
-        </CardContent>
-        <CardFooter className="justify-end border-t border-gray-100 px-4 py-3">
-          <Button type="submit" size="lg" disabled={pending}>
-            {pending ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> 초안 생성 중… (10~30초)
-              </>
-            ) : (
-              "초안 생성"
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
+        </button>
+        <p className="mt-3.5 text-center text-[12.5px] text-[var(--gian-ink-soft)]">
+          생성된 문서는 초안이며, 최종 검토 책임은 관리주체에 있습니다.
+        </p>
+      </div>
     </form>
   );
 }

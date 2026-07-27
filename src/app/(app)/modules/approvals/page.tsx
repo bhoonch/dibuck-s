@@ -103,6 +103,12 @@ export default async function GianModulePage() {
           </table>
         </div>
       )}
+      {docs.length > 0 && (
+        <p className="mt-2.5 text-xs text-muted-foreground">
+          문서함 자동 저장 · 보존기한 5년 (공동주택관리법 시행령 — 관리 서류
+          보존)
+        </p>
+      )}
     </>
   );
 }

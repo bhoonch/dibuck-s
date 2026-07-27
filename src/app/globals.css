@@ -219,3 +219,27 @@
     font-size: 106.25%;
   }
 }
+
+/*
+ * 기안·품의 모듈 디자인 토큰 — 올림 목업(ollim-mvp-mockup.html)의 팔레트.
+ * 공문서 화면은 앱 UI가 아니라 "종이"라서 앱 팔레트(Slate + #2563EB)와 다른
+ * 문서용 색을 쓴다. 이 토큰은 /modules/approvals 화면과 A4 렌더러 전용이다.
+ */
+:root {
+  --gian-paper: #faf9f5;
+  --gian-card: #ffffff;
+  --gian-ink: #23303c;
+  --gian-ink-soft: #5b6672;
+  --gian-navy: #1e4066;
+  --gian-navy-deep: #16324f;
+  --gian-stamp: #b3382c;
+  --gian-stamp-soft: #f7e9e6;
+  --gian-ok: #2e7d4f;
+  --gian-ok-soft: #e8f2eb;
+  --gian-warn: #9a6b12;
+  --gian-warn-soft: #f8f0dd;
+  --gian-line: #e4e1d8;
+  --gian-line-strong: #c9c5b8;
+  --gian-doc-line: #8a94a0;
+  --gian-shadow: 0 1px 3px rgba(35, 48, 60, 0.08), 0 8px 24px rgba(35, 48, 60, 0.06);
+}

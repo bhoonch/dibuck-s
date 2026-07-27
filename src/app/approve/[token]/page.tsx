@@ -1,7 +1,11 @@
 import { db } from "@/lib/db";
 import { tokenState } from "@/lib/gian/approval";
 import type { GianDraft } from "@/lib/gian/claude";
-import { externalRoleLabels, type ExternalRole } from "@/lib/gian/rules";
+import {
+  externalRoleLabels,
+  type DocType,
+  type ExternalRole,
+} from "@/lib/gian/rules";
 import { GianPaper, type PaperStep } from "@/components/gian-paper";
 import { SignForm } from "./sign-form";
 
@@ -38,13 +42,19 @@ export default async function ApproveByTokenPage({
     );
 
   const doc = step!.document;
-  const meta = doc.meta as { draft: GianDraft } | null;
+  const meta = doc.meta as { draft: GianDraft; cls?: { docType: DocType } } | null;
   if (!meta?.draft)
     return shell(
       <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
         문서를 표시할 수 없습니다. 관리사무소에 문의해 주세요.
       </div>,
     );
+
+  // 명의는 지금의 단지명을 읽는다 (문서 화면과 같은 규칙)
+  const tenant = await db.tenant.findUnique({
+    where: { id: doc.tenantId },
+    select: { name: true },
+  });
 
   const paperSteps: PaperStep[] = doc.approvalSteps.map((s) => ({
     order: s.order,
@@ -73,7 +83,15 @@ export default async function ApproveByTokenPage({
         <SignForm token={token} signerName={step!.name} />
       )}
       <div className="overflow-x-auto">
-        <GianPaper draft={meta.draft} steps={paperSteps} id="sign-sheet" />
+        <GianPaper
+          draft={meta.draft}
+          steps={paperSteps}
+          docNo={doc.docNo}
+          office={`${tenant?.name ?? ""} 관리사무소`}
+          docType={meta.cls?.docType}
+          createdAt={doc.createdAt}
+          id="sign-sheet"
+        />
       </div>
     </>,
   );
