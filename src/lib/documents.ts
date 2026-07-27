@@ -12,14 +12,22 @@ const docNoPrefixes: Record<string, string> = {
   approval: "품의",
 };
 
-/* ponytail: count+1 채번 — 동시 생성이 겹치면 중복 가능, 문제되면 DB 시퀀스로 전환 */
+/**
+ * 다음 문서번호. count+1이 아니라 **현재 최대 번호 + 1** 이다 —
+ * count는 문서를 하나 지우면 줄어들어 이미 쓴 번호를 다시 발급한다(공문서엔 치명적).
+ * 동시 생성 충돌은 @@unique([tenantId, docNo])가 막고, createDocument가 재시도한다.
+ */
 export async function nextDocNo(tenantId: string, type: string) {
   const year = new Date().getFullYear();
   const prefix = docNoPrefixes[type] ?? "문서";
-  const count = await db.document.count({
-    where: { tenantId, type, docNo: { startsWith: `${prefix}-${year}-` } },
+  const head = `${prefix}-${year}-`;
+  const latest = await db.document.findFirst({
+    where: { tenantId, type, docNo: { startsWith: head } },
+    orderBy: { docNo: "desc" },
+    select: { docNo: true },
   });
-  return `${prefix}-${year}-${String(count + 1).padStart(4, "0")}`;
+  const last = Number(latest?.docNo?.slice(head.length)) || 0;
+  return `${head}${String(last + 1).padStart(4, "0")}`;
 }
 
 /**
@@ -47,19 +55,31 @@ export async function createDocument({
   createdById?: string;
   notify?: { type: string; title: string; body?: string };
 }) {
-  const doc = await db.document.create({
-    data: {
-      tenantId,
-      moduleId,
-      docNo: await nextDocNo(tenantId, type),
-      type,
-      title,
-      content,
-      attachments,
-      status,
-      createdById,
-    },
-  });
+  // 채번과 저장 사이에 다른 요청이 같은 번호를 가져갈 수 있다.
+  // 유니크 제약이 걸리면 다시 채번해서 재시도한다 (락보다 싸고, 실패해도 조용하지 않다).
+  let doc;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      doc = await db.document.create({
+        data: {
+          tenantId,
+          moduleId,
+          docNo: await nextDocNo(tenantId, type),
+          type,
+          title,
+          content,
+          attachments,
+          status,
+          createdById,
+        },
+      });
+      break;
+    } catch (e) {
+      const duplicate =
+        typeof e === "object" && e !== null && "code" in e && e.code === "P2002";
+      if (!duplicate || attempt >= 4) throw e;
+    }
+  }
   if (notify) {
     await notifyTenant({
       tenantId,

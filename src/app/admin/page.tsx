@@ -12,10 +12,12 @@ import {
   tableRow,
 } from "./ui";
 import { mrrAt, recentMonths, wonShort, deltaPercent, ymd } from "./metrics";
+import { requireAdmin } from "@/lib/auth";
 
 const COLS = "1fr 90px 90px 90px 90px";
 
 export default async function AdminOverviewPage() {
+  await requireAdmin();
   const months = recentMonths(2);
   const thisMonth = months[1].start;
 

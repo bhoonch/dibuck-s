@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
 import { PageTitle } from "../../ui";
 import { ModuleForm } from "../module-form";
+import { requireAdmin } from "@/lib/auth";
 
 export default async function NewModulePage() {
+  await requireAdmin();
   const last = await db.module.findFirst({
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },

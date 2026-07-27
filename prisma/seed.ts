@@ -7,22 +7,59 @@ const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
+/**
+ * 모듈 레지스트리.
+ * isActive=false = 아직 안 만든 모듈 — 요금표(`/`)·구독 관리·사이드바가 모두 이 플래그를
+ * 읽으므로, 켜는 순간 팔린다. 자리표시 페이지뿐인 모듈을 켜 두면 무료 체험 30일이
+ * 없는 소프트웨어를 상대로 소진되고 가입자는 "체험 종료 → 잠김"으로 끝난다.
+ * 모듈 라우트를 실제로 구현할 때 해당 줄의 isActive를 true로 바꿀 것.
+ */
 const MODULES = [
-  { id: "dunning", name: "미납 독촉장", description: "관리비 미납 세대 독촉장을 한 번에 만들어요", icon: "FileWarning", route: "/modules/dunning", price: 30000, sortOrder: 1 },
-  { id: "notice", name: "공지문 자동완성", description: "상황만 고르면 공지문 초안이 완성돼요", icon: "Megaphone", route: "/modules/notice", price: 20000, sortOrder: 2 },
-  { id: "contracts", name: "계약서 관리", description: "계약 만료 전에 미리 알려드려요", icon: "FileText", route: "/modules/contracts", price: 20000, sortOrder: 3 },
-  { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 4 },
-  { id: "facilities", name: "설비 이력관리", description: "점검 주기 관리와 수리 이력", icon: "Wrench", route: "/modules/facilities", price: 20000, sortOrder: 5 },
-  { id: "minutes", name: "회의록 자동완성", description: "메모만 넘기면 회의록이 정리돼요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 6 },
-  { id: "approvals", name: "전자결재", description: "품의서 작성과 결재선 승인", icon: "Stamp", route: "/modules/approvals", price: 30000, sortOrder: 7 },
-  { id: "safety-training", name: "산업보건 교육일지", description: "법정 교육 기록과 기한 알림", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 8 },
+  { id: "dunning", name: "미납 독촉장", description: "관리비 미납 세대 독촉장을 한 번에 만들어요", icon: "FileWarning", route: "/modules/dunning", price: 30000, sortOrder: 1, isActive: false },
+  { id: "notice", name: "공지문 자동완성", description: "상황만 고르면 공지문 초안이 완성돼요", icon: "Megaphone", route: "/modules/notice", price: 20000, sortOrder: 2, isActive: false },
+  { id: "contracts", name: "계약서 관리", description: "계약 만료 전에 미리 알려드려요", icon: "FileText", route: "/modules/contracts", price: 20000, sortOrder: 3, isActive: false },
+  { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 4, isActive: false },
+  { id: "facilities", name: "설비 이력관리", description: "점검 주기 관리와 수리 이력", icon: "Wrench", route: "/modules/facilities", price: 20000, sortOrder: 5, isActive: false },
+  { id: "minutes", name: "회의록 자동완성", description: "메모만 넘기면 회의록이 정리돼요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 6, isActive: false },
+  { id: "approvals", name: "전자결재", description: "품의서 작성과 결재선 승인", icon: "Stamp", route: "/modules/approvals", price: 30000, sortOrder: 7, isActive: false },
+  { id: "safety-training", name: "산업보건 교육일지", description: "법정 교육 기록과 기한 알림", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 8, isActive: false },
 ];
 
-async function main() {
+/** 모듈 레지스트리 — 운영에도 필요한 기준 데이터 */
+async function seedModules() {
   for (const m of MODULES) {
     await db.module.upsert({ where: { id: m.id }, update: m, create: m });
   }
+}
 
+/**
+ * 최초 운영자 계정. 셀프 가입(/signup)은 소장만 만들 수 있어서 SUPER_ADMIN을
+ * 만들 다른 경로가 없다 — 데모 시드에 끼워 두면 운영 DB에 test1234 계정이 생긴다.
+ * 자격증명은 환경변수로 받고, 없으면 그냥 건너뛴다.
+ */
+async function bootstrapAdmin() {
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) return;
+  if (password.length < 12)
+    throw new Error("ADMIN_PASSWORD는 12자 이상이어야 합니다.");
+
+  await db.user.upsert({
+    where: { email },
+    update: {},
+    create: {
+      email,
+      name: process.env.ADMIN_NAME?.trim() || "운영자",
+      role: "SUPER_ADMIN",
+      tenantId: null,
+      passwordHash: hashSync(password, 10),
+    },
+  });
+  console.log(`운영자 계정 준비 완료: ${email}`);
+}
+
+/** 개발용 데모 데이터 — 운영 DB에 들어가면 가짜 MRR로 지표가 오염된다 */
+async function seedDemo() {
   const tenant = await db.tenant.upsert({
     where: { id: "demo-tenant" },
     update: {},
@@ -36,6 +73,8 @@ async function main() {
 
   const passwordHash = hashSync("test1234", 10);
   const users = [
+    // 데모 운영자 — seedDemo는 운영에서 실행되지 않으므로 여기 있어야 안전하다.
+    // 운영 최초 관리자는 bootstrapAdmin(ADMIN_EMAIL/ADMIN_PASSWORD)이 만든다.
     { email: "admin@test.com", name: "운영자", title: null, role: "SUPER_ADMIN", tenantId: null },
     { email: "test1@test.com", name: "김소장", title: "관리소장", role: "DIRECTOR", tenantId: tenant.id },
     { email: "test2@test.com", name: "이경리", title: "경리주임", role: "ACCOUNTANT", tenantId: tenant.id },
@@ -49,7 +88,13 @@ async function main() {
     });
   }
 
-  // dunning·notice는 정식 구독, contracts는 무료 체험 중(데모용)
+  // dunning·notice는 정식 구독, contracts는 무료 체험 중(데모용).
+  // 이 셋은 개발 화면을 채우려고 여기서만 판매 상태로 켠다 — 운영에서는 꺼진 채로
+  // 남아야 하므로 MODULES 쪽 isActive는 건드리지 않는다.
+  await db.module.updateMany({
+    where: { id: { in: ["dunning", "notice", "contracts"] } },
+    data: { isActive: true },
+  });
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
   for (const moduleId of ["dunning", "notice", "contracts"]) {
@@ -110,7 +155,18 @@ async function main() {
     });
   }
 
-  console.log("seed 완료: 모듈 8개, 데모 단지 1개, 계정 4개, 문의 3건");
+  console.log("데모 데이터 완료: 단지 1개, 계정 3개, 문의 3건");
+}
+
+async function main() {
+  await seedModules();
+  await bootstrapAdmin();
+
+  if (process.env.NODE_ENV === "production") {
+    console.log("운영 환경 — 데모 데이터는 건너뜁니다.");
+    return;
+  }
+  await seedDemo();
 }
 
 main().finally(() => db.$disconnect());

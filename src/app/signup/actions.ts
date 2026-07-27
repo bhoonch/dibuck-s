@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
 import { createSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { normalizeEmail } from "@/lib/utils";
 
 /**
  * 셀프 회원가입 — 단지 + 소장 계정을 한 번에 만들고 바로 로그인.
@@ -16,7 +17,7 @@ export async function signup(
 ) {
   const tenantName = String(formData.get("tenantName") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
+  const email = normalizeEmail(formData.get("email"));
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
 
@@ -26,18 +27,26 @@ export async function signup(
   if (password.length < 8)
     return { error: "비밀번호는 8자 이상이어야 합니다." };
   if (password !== confirm) return { error: "비밀번호가 서로 다릅니다." };
+  // 사전 조회만으로는 동시 가입을 막지 못한다 — 유니크 제약(P2002)까지 받아서 처리한다
   if (await db.user.findUnique({ where: { email } }))
     return { error: "이미 사용 중인 이메일입니다. 로그인해 주세요." };
 
-  const user = await db.user.create({
-    data: {
-      email,
-      name,
-      role: "DIRECTOR",
-      passwordHash: hashSync(password, 10),
-      tenant: { create: { name: tenantName } },
-    },
-  });
+  let user;
+  try {
+    user = await db.user.create({
+      data: {
+        email,
+        name,
+        role: "DIRECTOR",
+        passwordHash: hashSync(password, 10),
+        tenant: { create: { name: tenantName } },
+      },
+    });
+  } catch (e) {
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "P2002")
+      return { error: "이미 사용 중인 이메일입니다. 로그인해 주세요." };
+    throw e;
+  }
 
   await createSession({
     userId: user.id,

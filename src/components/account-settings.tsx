@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { changeMyPassword, updateMyProfile } from "@/app/account/actions";
+import {
+  changeMyPassword,
+  deleteMyTenant,
+  updateMyProfile,
+} from "@/app/account/actions";
 
 function Feedback({
   state,
@@ -36,15 +40,19 @@ export function AccountSettings({
   title,
   email,
   showTitle,
+  tenantName,
 }: {
   name: string;
   title: string | null;
   email: string;
   /** 직책은 단지 직원에게만 의미 있음 — 운영자 화면에서는 숨김 */
   showTitle: boolean;
+  /** 탈퇴는 단지 단위라 소장만 — 운영자·직원 화면에서는 숨김 */
+  tenantName?: string;
 }) {
   const [profileState, profileAction] = useActionState(updateMyProfile, undefined);
   const [pwState, pwAction] = useActionState(changeMyPassword, undefined);
+  const [leaveState, leaveAction] = useActionState(deleteMyTenant, undefined);
 
   return (
     <div className="grid max-w-4xl items-start gap-6 lg:grid-cols-2">
@@ -127,6 +135,54 @@ export function AccountSettings({
           </CardFooter>
         </Card>
       </form>
+
+      {tenantName && (
+        <form action={leaveAction} className="lg:col-span-2">
+          <Card className="gap-0 border-destructive/40 py-0">
+            <CardHeader className={cardHeader}>
+              <CardTitle className="text-lg tracking-tight text-destructive">
+                서비스 탈퇴
+              </CardTitle>
+              <CardDescription>
+                단지와 모든 데이터(문서·세대·직원 계정·문의)를 즉시 삭제합니다. 되돌릴 수
+                없습니다.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="leave-name">
+                  확인을 위해 단지명 입력 ({tenantName})
+                </Label>
+                <Input
+                  id="leave-name"
+                  name="confirmName"
+                  placeholder={tenantName}
+                  autoComplete="off"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="leave-password">현재 비밀번호</Label>
+                <Input
+                  id="leave-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Feedback state={leaveState} successText="" />
+              </div>
+            </CardContent>
+            <CardFooter className={cardFooter}>
+              <Button type="submit" size="lg" variant="destructive">
+                탈퇴하고 모든 데이터 삭제
+              </Button>
+            </CardFooter>
+          </Card>
+        </form>
+      )}
     </div>
   );
 }

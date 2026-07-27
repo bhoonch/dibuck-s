@@ -25,7 +25,7 @@ export async function createInquiry(
       tenantId: session.tenantId,
       category,
       title: title.slice(0, 500),
-      contact: contact || null,
+      contact: contact.slice(0, 100) || null,
     },
   });
   revalidatePath("/support");

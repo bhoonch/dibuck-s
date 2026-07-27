@@ -12,10 +12,12 @@ import {
   tableRow,
 } from "../ui";
 import { recentMonths, won, ymd } from "../metrics";
+import { requireAdmin } from "@/lib/auth";
 
 const COLS = "1fr 90px 80px 110px 80px";
 
 export default async function AdminSubscribersPage() {
+  await requireAdmin();
   const thisMonth = recentMonths(1)[0].start;
 
   const [tenants, newThisMonth, canceledThisMonth, cancels] = await Promise.all([
@@ -49,6 +51,9 @@ export default async function AdminSubscribersPage() {
   const subscribing = tenants.filter((t) => t.modules.length > 0).length;
   const isTrial = (m: { trialEndsAt: Date | null }) =>
     !!m.trialEndsAt && m.trialEndsAt > now;
+  // 결제된 것만 매출 — 체험 중이든 만료 미전환이든 돈을 받은 적이 없다
+  // (metrics.ts wasPaidAt과 같은 기준: trialEndsAt === null 만 유료)
+  const isPaid = (m: { trialEndsAt: Date | null }) => !m.trialEndsAt;
   const trialTenants = tenants.filter((t) => t.modules.some(isTrial)).length;
 
   // 같은 단지명 재가입 = 무료 체험을 다시 받으려는 우회일 수 있다 — 자동 차단 대신 표시만
@@ -135,7 +140,7 @@ export default async function AdminSubscribersPage() {
           {tenants.map((t) => {
             // 체험 중인 모듈은 요금 0원
             const fee = t.modules.reduce(
-              (sum, m) => (isTrial(m) ? sum : sum + m.module.price),
+              (sum, m) => (isPaid(m) ? sum + m.module.price : sum),
               0,
             );
             const trials = t.modules.filter(isTrial).length;

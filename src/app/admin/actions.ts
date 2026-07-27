@@ -11,6 +11,7 @@ import {
   targetNeedsTenants,
 } from "@/lib/announcements";
 import { parseWon } from "@/lib/won";
+import { kstDayEnd, kstDayStart, normalizeEmail } from "@/lib/utils";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role, TenantStatus } from "@/generated/prisma/enums";
 
@@ -21,9 +22,13 @@ export async function toggleTenantModule(formData: FormData) {
   const subscribe = formData.get("subscribe") === "true";
   await db.tenantModule.upsert({
     where: { tenantId_moduleId: { tenantId, moduleId } },
-    // 정식 구독으로 켜는 경로 — 남아 있던 체험 기한은 지운다
-    update: { status: subscribe ? "ACTIVE" : "CANCELED", trialEndsAt: null },
-    create: { tenantId, moduleId },
+    // 체험 기한은 "정식 구독으로 켜는" 경로에서만 지운다.
+    // 해지에서도 지우면 만료 잠금이 풀려 무료 정식 구독이 되고, 지난 체험 기간이
+    // 소급해서 유료 매출(wasPaidAt)로 잡힌다.
+    update: subscribe
+      ? { status: "ACTIVE", trialEndsAt: null }
+      : { status: "CANCELED" },
+    create: { tenantId, moduleId, status: subscribe ? "ACTIVE" : "CANCELED" },
   });
   revalidatePath(`/admin/tenants/${tenantId}`);
   revalidatePath("/admin/revenue");
@@ -93,7 +98,7 @@ export async function adminAddStaff(
 ): Promise<StaffActionState> {
   await requireRole(Role.SUPER_ADMIN);
   const tenantId = String(formData.get("tenantId"));
-  const email = String(formData.get("email") ?? "").trim();
+  const email = normalizeEmail(formData.get("email"));
   const name = String(formData.get("name") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim() || null;
   const role = String(formData.get("role")) as Role;
@@ -126,7 +131,8 @@ export async function adminResetPassword(
   const password = tempPassword();
   await db.user.update({
     where: { id: userId },
-    data: { passwordHash: hashSync(password, 10) },
+    // passwordChangedAt 갱신 = 기존 세션이 즉시 끊긴다 (재설정의 원래 의도)
+    data: { passwordHash: hashSync(password, 10), passwordChangedAt: new Date() },
   });
   return { tempPassword: password, email: user.email, name: user.name };
 }
@@ -198,14 +204,16 @@ export async function postAnnouncement(formData: FormData) {
     if (!targetValue) throw new Error("대상 단지를 한 곳 이상 선택해 주세요.");
   }
 
-  const parseDate = (key: string) => {
+  // 운영자가 고른 날짜는 KST 기준이다. new Date("2026-07-27")은 UTC 자정 = KST 09시라
+  // 시작일은 오전 9시까지 "예약"으로 보이고 종료일은 당일 오전 9시에 공지가 사라진다.
+  const parseDate = (key: string, edge: (v: string) => Date) => {
     const raw = String(formData.get(key) ?? "").trim();
     if (!raw) return null;
-    const d = new Date(raw);
+    const d = edge(raw);
     return Number.isNaN(d.getTime()) ? null : d;
   };
-  const startsAt = parseDate("startsAt") ?? new Date();
-  const endsAt = parseDate("endsAt");
+  const startsAt = parseDate("startsAt", kstDayStart) ?? new Date();
+  const endsAt = parseDate("endsAt", kstDayEnd);
   if (endsAt && endsAt < startsAt)
     throw new Error("게시 종료일이 시작일보다 빠릅니다.");
   await db.announcement.create({

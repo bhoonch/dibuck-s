@@ -5,9 +5,13 @@ import { hashSync } from "bcryptjs";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
+import { normalizeEmail } from "@/lib/utils";
 import { Role } from "@/generated/prisma/enums";
 
 const STAFF_ROLES: Role[] = [Role.DIRECTOR, Role.ACCOUNTANT, Role.STAFF];
+
+/** 세대 엑셀 1회 업로드 상한 — 국내 최대 단지도 1만 세대를 넘지 않는다 */
+const MAX_UNIT_ROWS = 20000;
 
 export async function updateTenantInfo(formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);
@@ -29,7 +33,7 @@ export async function addStaff(
   formData: FormData,
 ) {
   const session = await requireRole(Role.DIRECTOR);
-  const email = String(formData.get("email") ?? "").trim();
+  const email = normalizeEmail(formData.get("email"));
   const name = String(formData.get("name") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim() || null;
   const role = String(formData.get("role")) as Role;
@@ -76,8 +80,22 @@ export async function removeStaff(userId: string) {
   const target = await db.user.findUnique({ where: { id: userId } });
   if (target?.tenantId !== session.tenantId)
     throw new Error("다른 단지의 직원입니다.");
-  await db.user.delete({ where: { id: userId } }); // 알림은 cascade, 문서 작성자는 null 처리
+  await db.$transaction(async (tx) => {
+    await tx.user.delete({ where: { id: userId } }); // 알림은 cascade, 문서 작성자는 null 처리
+    // 결재선에 남으면 없는 사람에게 결재가 걸린다 — 같은 트랜잭션에서 빼낸다
+    const tenant = await tx.tenant.findUniqueOrThrow({
+      where: { id: session.tenantId! },
+      select: { approvalLine: true },
+    });
+    const line = Array.isArray(tenant.approvalLine) ? tenant.approvalLine : [];
+    if (line.includes(userId))
+      await tx.tenant.update({
+        where: { id: session.tenantId! },
+        data: { approvalLine: line.filter((id) => id !== userId) },
+      });
+  });
   revalidatePath("/settings/staff");
+  revalidatePath("/settings/approval-line");
 }
 
 /** 소장이 직원 비밀번호 재설정 — 운영자까지 안 가고 단지 안에서 해결 */
@@ -96,7 +114,8 @@ export async function directorResetStaffPassword(
   const password = tempPassword();
   await db.user.update({
     where: { id: userId },
-    data: { passwordHash: hashSync(password, 10) },
+    // passwordChangedAt 갱신 = 그 직원의 기존 세션이 즉시 끊긴다
+    data: { passwordHash: hashSync(password, 10), passwordChangedAt: new Date() },
   });
   return { tempPassword: password, email: target.email, name: target.name };
 }
@@ -142,9 +161,12 @@ export async function uploadUnits(
   }
 
   const cell = (r: unknown[], i: number) => String(r[i] ?? "").trim();
+  // 헤더 행만 걸러낸다 — "동"으로 끝나는 머리글("동", "동 번호")은 버리고
+  // 실제 동 이름("101동", "가동")은 살린다
+  const isHeader = (v: string) => v === "동" || /^동\s*\S*$/.test(v);
   const units = rows
     .filter((r) => Array.isArray(r) && cell(r, 0) && cell(r, 1))
-    .filter((r) => !cell(r, 0).includes("동") || /\d/.test(cell(r, 0))) // 헤더 행 제외
+    .filter((r) => !isHeader(cell(r, 0)))
     .map((r) => ({
       tenantId: session.tenantId!,
       dong: cell(r, 0).replace(/동$/, ""),
@@ -154,22 +176,34 @@ export async function uploadUnits(
     }));
   if (units.length === 0)
     return { error: "등록할 세대가 없습니다. A열=동, B열=호 형식인지 확인해 주세요." };
+  if (units.length > MAX_UNIT_ROWS)
+    return {
+      error: `한 번에 ${MAX_UNIT_ROWS.toLocaleString()}세대까지 등록할 수 있습니다. 파일을 나눠 올려 주세요.`,
+    };
 
-  if (formData.get("replace") === "on")
-    await db.unit.deleteMany({ where: { tenantId: session.tenantId! } });
-  let saved = 0;
-  for (const u of units) {
-    await db.unit.upsert({
-      where: {
-        tenantId_dong_ho: { tenantId: u.tenantId, dong: u.dong, ho: u.ho },
-      },
-      update: { name: u.name, phone: u.phone },
-      create: u,
-    });
-    saved++;
-  }
+  // 같은 파일 안의 중복 (동,호)는 뒤엣것만 남긴다 — createMany가 유니크 제약에 걸린다
+  const unique = [...new Map(units.map((u) => [`${u.dong}/${u.ho}`, u])).values()];
+
+  // 전체 삭제 후 재삽입은 반드시 한 트랜잭션 — 중간에 실패하면 세대 마스터가 통째로 날아간다
+  const replace = formData.get("replace") === "on";
+  await db.$transaction(async (tx) => {
+    if (replace) {
+      await tx.unit.deleteMany({ where: { tenantId: session.tenantId! } });
+      await tx.unit.createMany({ data: unique });
+      return;
+    }
+    for (const u of unique) {
+      await tx.unit.upsert({
+        where: {
+          tenantId_dong_ho: { tenantId: u.tenantId, dong: u.dong, ho: u.ho },
+        },
+        update: { name: u.name, phone: u.phone },
+        create: u,
+      });
+    }
+  });
   revalidatePath("/settings/units");
-  return { success: `${saved}세대를 등록했습니다.` };
+  return { success: `${unique.length}세대를 등록했습니다.` };
 }
 
 export async function setSubscription(moduleId: string, subscribe: boolean) {
@@ -178,7 +212,11 @@ export async function setSubscription(moduleId: string, subscribe: boolean) {
   const where = { tenantId_moduleId: { tenantId, moduleId } };
 
   if (!subscribe) {
-    await db.tenantModule.update({ where, data: { status: "CANCELED" } });
+    // 없는 구독을 해지해도 P2025 500이 나지 않게 — 중복 제출·오래된 탭에서 들어온다
+    await db.tenantModule.updateMany({
+      where: { tenantId, moduleId },
+      data: { status: "CANCELED" },
+    });
   } else {
     const existing = await db.tenantModule.findUnique({ where });
     if (existing) {
@@ -189,8 +227,13 @@ export async function setSubscription(moduleId: string, subscribe: boolean) {
       // 재구독 — 체험은 모듈당 최초 1회뿐, 남은 체험 기간이 있으면 그대로 이어진다
       await db.tenantModule.update({ where, data: { status: "ACTIVE" } });
     } else {
-      // 체험 표준 기간은 모듈 관리에서 설정 — 전 단지 동일 적용, 0이면 체험 없이 시작
-      const mod = await db.module.findUniqueOrThrow({ where: { id: moduleId } });
+      // 체험 표준 기간은 모듈 관리에서 설정 — 전 단지 동일 적용, 0이면 체험 없이 시작.
+      // isActive 검사는 목록 필터가 아니라 여기 있어야 한다 — 서버 액션은 직접 호출 가능이라
+      // 판매 중단한 모듈 id를 넣으면 새 체험까지 받아 갈 수 있다
+      const mod = await db.module.findUnique({
+        where: { id: moduleId, isActive: true },
+      });
+      if (!mod) throw new Error("구독할 수 없는 모듈입니다.");
       let trialEndsAt: Date | null = null;
       if (mod.trialDays > 0) {
         trialEndsAt = new Date();

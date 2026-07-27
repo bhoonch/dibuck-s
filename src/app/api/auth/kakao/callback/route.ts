@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/auth";
+import { normalizeEmail } from "@/lib/utils";
 
 const fail = (req: NextRequest, error: string) =>
   NextResponse.redirect(new URL(`/login?error=${error}`, req.url));
@@ -45,10 +46,20 @@ export async function GET(req: NextRequest) {
     if (!meRes.ok) return fail(req, "kakao_failed");
     const me = (await meRes.json()) as {
       id: number;
-      kakao_account?: { email?: string };
+      kakao_account?: {
+        email?: string;
+        is_email_valid?: boolean;
+        is_email_verified?: boolean;
+      };
     };
     const kakaoId = String(me.id);
-    const email = me.kakao_account?.email;
+    const acc = me.kakao_account;
+    // 인증된 이메일만 기존 계정 연결에 쓴다 — 미인증 이메일을 믿으면
+    // 남의 이메일을 등록한 카카오 계정으로 그 계정을 통째로 가져갈 수 있다
+    const email =
+      acc?.is_email_valid && acc?.is_email_verified && acc.email
+        ? normalizeEmail(acc.email)
+        : undefined;
 
     let user = await db.user.findUnique({
       where: { kakaoId },

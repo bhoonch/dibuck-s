@@ -4,11 +4,14 @@ import { db } from "@/lib/db";
 import { describeTarget } from "@/lib/announcements";
 import { toggleAnnouncement } from "../actions";
 import { PageTitle, Pill, btnPrimary, btnRow, tableHead, tableRow } from "../ui";
+import { requireAdmin } from "@/lib/auth";
+import { mdKst } from "@/lib/utils";
 
 const COLS = "1fr 120px 170px 90px 100px";
-const md = (d: Date) => d.toISOString().slice(5, 10);
+const md = mdKst;
 
 export default async function AdminAnnouncementsPage() {
+  await requireAdmin();
   const [announcements, modules] = await Promise.all([
     db.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
     db.module.findMany({ select: { id: true, name: true } }),
@@ -20,7 +23,7 @@ export default async function AdminAnnouncementsPage() {
     <>
       <PageTitle
         title="공지 관리"
-        description="전 단지 화면 상단에 배너로 표시됩니다. 게시 중인 공지가 여럿이면 최근 것이 노출됩니다."
+        description="전 단지 화면 상단에 배너로 표시됩니다. 한 단지에 여러 공지가 걸리면 대상이 좁은 것이 노출됩니다(직접 선택 > 모듈 > 체험 > 구독 여부 > 전체)."
       >
         <Link href="/admin/announcements/new" className={btnPrimary}>
           <Plus className="size-4" /> 새 공지 작성

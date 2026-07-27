@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
 import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
+import { ymdKst, dayKst } from "@/lib/utils";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -27,28 +28,57 @@ export default async function HomePage() {
   const dday = (d: Date) =>
     Math.max(0, Math.ceil((d.getTime() - now.getTime()) / 86400000));
 
-  const [approvals, contracts, complaints, inspections, complaintsDone, approvalsDone, modules, recentDocs] =
-    await Promise.all([
+  // 목록은 상위 10건만, 숫자는 count로 따로 센다 —
+  // take한 배열의 length를 KPI·처리율에 쓰면 37건이 10건으로 보이고 처리율이 부풀려진다
+  const where = {
+    approval: { tenantId, type: "approval", status: "pending" },
+    contract: { tenantId, type: "contract", dueDate: { gte: now, lte: days(30) } },
+    complaint: { tenantId, type: "complaint", status: "open" },
+    inspection: { tenantId, type: "inspection", dueDate: { gte: now, lte: days(7) } },
+  };
+
+  const [
+    approvals,
+    contracts,
+    complaints,
+    inspections,
+    counts,
+    complaintsDone,
+    approvalsDone,
+    modules,
+    recentDocs,
+  ] = await Promise.all([
       db.document.findMany({
-        where: { tenantId, type: "approval", status: "pending" },
+        where: where.approval,
         orderBy: { createdAt: "asc" },
         take: 10,
       }),
       db.document.findMany({
-        where: { tenantId, type: "contract", dueDate: { gte: now, lte: days(30) } },
+        where: where.contract,
         orderBy: { dueDate: "asc" },
         take: 10,
       }),
       db.document.findMany({
-        where: { tenantId, type: "complaint", status: "open" },
+        where: where.complaint,
         orderBy: { createdAt: "asc" },
         take: 10,
       }),
       db.document.findMany({
-        where: { tenantId, type: "inspection", dueDate: { gte: now, lte: days(7) } },
+        where: where.inspection,
         orderBy: { dueDate: "asc" },
         take: 10,
       }),
+      Promise.all([
+        db.document.count({ where: where.approval }),
+        db.document.count({ where: where.contract }),
+        db.document.count({ where: where.complaint }),
+        db.document.count({ where: where.inspection }),
+      ]).then(([approval, contract, complaint, inspection]) => ({
+        approval,
+        contract,
+        complaint,
+        inspection,
+      })),
       db.document.count({ where: { tenantId, type: "complaint", status: "done" } }),
       db.document.count({ where: { tenantId, type: "approval", status: "final" } }),
       getModulesForTenant(tenantId),
@@ -64,7 +94,7 @@ export default async function HomePage() {
     ...approvals.map((d) => ({
       id: d.id,
       title: d.title,
-      meta: `${d.createdAt.toISOString().slice(0, 10)} 요청`,
+      meta: `${ymdKst(d.createdAt)} 요청`,
       tag: "결재",
       dot: "bg-blue-600",
       tagStyle: "bg-blue-50 text-blue-800",
@@ -75,7 +105,7 @@ export default async function HomePage() {
     ...contracts.map((d) => ({
       id: d.id,
       title: d.title,
-      meta: `만료 ${d.dueDate!.toISOString().slice(0, 10)}`,
+      meta: `만료 ${ymdKst(d.dueDate!)}`,
       tag: `D-${dday(d.dueDate!)}`,
       dot: "bg-amber-600",
       tagStyle: "bg-amber-50 text-amber-700",
@@ -86,7 +116,7 @@ export default async function HomePage() {
     ...complaints.map((d) => ({
       id: d.id,
       title: d.title,
-      meta: `${d.createdAt.toISOString().slice(0, 10)} 접수`,
+      meta: `${ymdKst(d.createdAt)} 접수`,
       tag: "민원",
       dot: "bg-red-600",
       tagStyle: "bg-red-50 text-red-700",
@@ -97,7 +127,7 @@ export default async function HomePage() {
     ...inspections.map((d) => ({
       id: d.id,
       title: d.title,
-      meta: `점검 ${d.dueDate!.toISOString().slice(0, 10)}`,
+      meta: `점검 ${ymdKst(d.dueDate!)}`,
       tag: `D-${dday(d.dueDate!)}`,
       dot: "bg-sky-600",
       tagStyle: "bg-sky-50 text-sky-600",
@@ -110,24 +140,24 @@ export default async function HomePage() {
     .slice(0, 8);
 
   const total =
-    approvals.length + contracts.length + complaints.length + inspections.length;
+    counts.approval + counts.contract + counts.complaint + counts.inspection;
   const tiles = [
-    { label: "결재 대기", count: approvals.length, dot: "bg-blue-600", href: "/documents?type=approval" },
-    { label: "계약 만료 D-30", count: contracts.length, dot: "bg-amber-600", href: "/documents?type=contract" },
-    { label: "미처리 민원", count: complaints.length, dot: "bg-red-600", href: "/documents?type=complaint" },
-    { label: "점검 예정", count: inspections.length, dot: "bg-sky-600", href: "/documents?type=inspection" },
+    { label: "결재 대기", count: counts.approval, dot: "bg-blue-600", href: "/documents?type=approval" },
+    { label: "계약 만료 D-30", count: counts.contract, dot: "bg-amber-600", href: "/documents?type=contract" },
+    { label: "미처리 민원", count: counts.complaint, dot: "bg-red-600", href: "/documents?type=complaint" },
+    { label: "점검 예정", count: counts.inspection, dot: "bg-sky-600", href: "/documents?type=inspection" },
   ];
 
   const rate = (num: number, den: number) =>
     den === 0 ? 0 : Math.round((num / den) * 1000) / 10;
   const progress = [
-    { label: "민원 처리율", value: rate(complaintsDone, complaintsDone + complaints.length), color: "bg-blue-600" },
-    { label: "결재 처리율", value: rate(approvalsDone, approvalsDone + approvals.length), color: "bg-green-600" },
-    { label: "계약 갱신 여유", value: contracts.length === 0 ? 100 : 0, color: "bg-amber-600" },
+    { label: "민원 처리율", value: rate(complaintsDone, complaintsDone + counts.complaint), color: "bg-blue-600" },
+    { label: "결재 처리율", value: rate(approvalsDone, approvalsDone + counts.approval), color: "bg-green-600" },
+    { label: "계약 갱신 여유", value: counts.contract === 0 ? 100 : 0, color: "bg-amber-600" },
   ];
 
   const subscribed = modules.filter((m) => m.subscribed);
-  const dateLine = `${now.toISOString().slice(0, 10)} (${WEEKDAYS[now.getDay()]})`;
+  const dateLine = `${ymdKst(now)} (${WEEKDAYS[dayKst(now)]})`;
 
   return (
     <>
@@ -261,7 +291,7 @@ export default async function HomePage() {
                     </span>
                     <span className="block font-mono text-xs text-gray-400">
                       {docTypeLabels[d.type] ?? d.type} ·{" "}
-                      {d.createdAt.toISOString().slice(0, 10)}
+                      {ymdKst(d.createdAt)}
                     </span>
                   </span>
                   <span

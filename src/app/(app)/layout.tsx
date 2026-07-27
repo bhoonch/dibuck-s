@@ -32,8 +32,8 @@ export default async function AppLayout({
           startsAt: { lte: now },
           OR: [{ endsAt: null }, { endsAt: { gte: now } }],
         },
+        // take 없음 — 최신순으로 먼저 자르면 좁은 대상 공지가 전체 공지에 묻힌다
         orderBy: { createdAt: "desc" },
-        take: 5,
       }),
       db.document.count({ where: { tenantId } }),
       db.document.count({
@@ -45,7 +45,8 @@ export default async function AppLayout({
         select: { title: true },
       }),
     ]);
-  if (!tenant) redirect("/login");
+  // 이용 중지는 로그인만 막아선 부족하다 — 이미 로그인한 세션도 여기서 끊는다
+  if (!tenant || tenant.status === "SUSPENDED") redirect("/login?error=suspended");
 
   // 대상이 좁은 공지가 전체 공지를 이긴다 (src/lib/announcements.ts)
   const announcement = pickAnnouncement(announcements, {

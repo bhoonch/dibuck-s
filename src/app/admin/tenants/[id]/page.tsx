@@ -22,12 +22,14 @@ import {
   setTenantStatus,
   toggleTenantModule,
 } from "../../actions";
+import { requireAdmin } from "@/lib/auth";
 
 export default async function AdminTenantDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdmin();
   const { id } = await params;
   const since30d = new Date();
   since30d.setDate(since30d.getDate() - 30);
@@ -61,16 +63,31 @@ export default async function AdminTenantDetailPage({
       .map((m) => [m.moduleId, m] as const),
   );
   const activeSet = subs;
-  const trialDaysLeft = (moduleId: string) => {
-    const end = subs.get(moduleId)?.trialEndsAt;
-    if (!end || end <= now) return null;
-    return Math.ceil((end.getTime() - now.getTime()) / 86400000);
+  /**
+   * 구독 행의 세 상태를 구분한다. "체험 없음(정식 유료)"과 "체험 만료(미결제)"를
+   * 둘 다 null로 뭉뚱그리면 만료 건이 유료로 표시되고 매출에 잡히면서
+   * 정작 전환 버튼은 사라진다.
+   */
+  const moduleState = (moduleId: string) => {
+    const row = subs.get(moduleId);
+    if (!row) return { kind: "off" as const };
+    if (!row.trialEndsAt) return { kind: "paid" as const };
+    if (row.trialEndsAt <= now) return { kind: "expired" as const };
+    return {
+      kind: "trial" as const,
+      daysLeft: Math.ceil((row.trialEndsAt.getTime() - now.getTime()) / 86400000),
+    };
   };
-  // 체험 중인 모듈은 요금이 발생하지 않는다
+  // 체험 중·만료 미전환 모듈은 요금이 발생하지 않는다 (metrics.ts wasPaidAt과 같은 기준)
   const fee = modules
-    .filter((m) => subs.has(m.id) && trialDaysLeft(m.id) === null)
+    .filter((m) => moduleState(m.id).kind === "paid")
     .reduce((sum, m) => sum + m.price, 0);
-  const trialCount = modules.filter((m) => trialDaysLeft(m.id) !== null).length;
+  const trialCount = modules.filter(
+    (m) => moduleState(m.id).kind === "trial",
+  ).length;
+  const expiredCount = modules.filter(
+    (m) => moduleState(m.id).kind === "expired",
+  ).length;
 
   // 온보딩 상태 — 기존 데이터에서 파생 (별도 저장 없음)
   const onboarding = [
@@ -122,11 +139,15 @@ export default async function AdminTenantDetailPage({
           label="월 요금"
           value={won(fee)}
           delta={
-            trialCount > 0
-              ? `구독 ${activeSet.size}개 (체험 ${trialCount}개 제외)`
-              : `구독 모듈 ${activeSet.size}개`
+            [
+              `구독 ${activeSet.size}개`,
+              trialCount > 0 ? `체험 ${trialCount}개 제외` : null,
+              expiredCount > 0 ? `전환 대기 ${expiredCount}개` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
           }
-          tone={trialCount > 0 ? "warn" : "muted"}
+          tone={expiredCount > 0 ? "danger" : trialCount > 0 ? "warn" : "muted"}
         />
         <Kpi
           label="등록 세대"
@@ -231,8 +252,8 @@ export default async function AdminTenantDetailPage({
           className="xl:col-span-2"
         >
           {modules.map((m) => {
-            const on = subs.has(m.id);
-            const daysLeft = trialDaysLeft(m.id);
+            const state = moduleState(m.id);
+            const on = state.kind !== "off";
             return (
               <div
                 key={m.id}
@@ -244,14 +265,16 @@ export default async function AdminTenantDetailPage({
                     월 {m.price.toLocaleString()}원
                   </span>
                 </span>
-                {daysLeft !== null ? (
-                  <Pill tone="warn">체험 D-{daysLeft}</Pill>
-                ) : on ? (
+                {state.kind === "trial" ? (
+                  <Pill tone="warn">체험 D-{state.daysLeft}</Pill>
+                ) : state.kind === "expired" ? (
+                  <Pill tone="danger">체험 만료 · 전환 대기</Pill>
+                ) : state.kind === "paid" ? (
                   <Pill tone="success">유료</Pill>
                 ) : null}
 
                 {/* 미구독: 기간 골라 체험 시작 / 체험 중: 기간 재설정 + 유료 전환 */}
-                {(!on || daysLeft !== null) && (
+                {(state.kind === "off" || state.kind === "trial") && (
                   <form action={setModuleTrial} className="flex items-center gap-1.5">
                     <input type="hidden" name="tenantId" value={tenant.id} />
                     <input type="hidden" name="moduleId" value={m.id} />
@@ -271,11 +294,13 @@ export default async function AdminTenantDetailPage({
                         ))}
                     </select>
                     <button type="submit" className={btnRow}>
-                      {daysLeft !== null ? "기간 재설정" : "체험 시작"}
+                      {state.kind === "trial" ? "기간 재설정" : "체험 시작"}
                     </button>
                   </form>
                 )}
-                {daysLeft !== null && (
+                {/* 체험 중이든 이미 만료됐든 유료 전환은 여기서 끝난다 —
+                    만료 건에 버튼이 없으면 잠긴 단지를 풀 방법이 사라진다 */}
+                {(state.kind === "trial" || state.kind === "expired") && (
                   <form action={setModuleTrial}>
                     <input type="hidden" name="tenantId" value={tenant.id} />
                     <input type="hidden" name="moduleId" value={m.id} />

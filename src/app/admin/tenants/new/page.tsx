@@ -3,8 +3,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createTenant } from "../../actions";
 import { PageTitle, btnOutline, btnSubmit } from "../../ui";
+import { requireAdmin } from "@/lib/auth";
 
-export default function AdminNewTenantPage() {
+export default async function AdminNewTenantPage() {
+  await requireAdmin();
   return (
     <>
       <PageTitle

@@ -1,7 +1,9 @@
 # 디벅 (dibuck) — 프로젝트 진행 상황
 
 아파트 관리사무소 직원용 모듈 구독형 SaaS.
-(최종 업데이트: 2026-07-27 — 셀프서비스 정합 점검 완료: 체험 만료 잠금, 공개 랜딩·요금표(`/`, 홈은 `/home`), 고객 문의 등록 UI. **다음 작업: 남은 B2B 잔재 완전 제거 — 5.5 이메일 인프라 → 5.6 결제 자동화 → 카카오 신규 가입·셀프 탈퇴. 5단계 모듈(미납 독촉장)은 그 뒤** — 사용자 우선순위 결정)
+(최종 업데이트: 2026-07-27 — 전수 버그·보안 점검과 수정 완료: 세션 DB 재검증, 카카오 계정 탈취 차단, 관리자 페이지 개별 가드, 체험 만료 전환 경로 복구, 문서번호·세대 업로드 정합, KST 날짜 통일, 셀프 탈퇴 구현. **다음 작업: 5.5 이메일 인프라 → 5.6 결제 자동화 → 카카오 신규 가입. 5단계 모듈(미납 독촉장)은 그 뒤** — 사용자 우선순위 결정)
+
+⚠️ **모듈 라우트를 구현하기 전까지 해당 모듈은 `isActive: false`다** — 켜는 순간 요금표에 올라가고 무료 체험이 소진되기 시작한다. 구현 완료 시 `prisma/seed.ts`의 MODULES에서 해당 줄만 `true`로 바꿀 것.
 
 ## 완료된 단계 (1~4단계)
 
@@ -139,7 +141,48 @@
 - 사이드바 "고객 문의" + 문의 폼(유형 라디오·내용·연락처) + 내 문의 내역·상태. `?category=구독` 프리셀렉트 — 체험 만료 배너·구독 관리의 "유료 전환 문의"가 여기로 연결
 - `Inquiry` 스키마 변경 없음. 답변 본문 컬럼은 없음 — 답변은 전화/이메일, 상태만 완료 처리(기존 의도 유지)
 
-남은 B2B 잔재(로드맵으로 해소): 비밀번호 셀프 재설정·이메일 인증(5.5), 결제 자동화(5.6), 카카오 신규 가입·셀프 탈퇴(5.6 이후)
+남은 B2B 잔재(로드맵으로 해소): 비밀번호 셀프 재설정·이메일 인증(5.5), 결제 자동화(5.6), 카카오 신규 가입(5.6 이후). **셀프 탈퇴는 아래 전수 점검에서 구현 완료.**
+
+### 전수 버그·보안 점검과 수정 (2026-07-27)
+
+코드 전체를 인증·구독/과금·업무기능·관리자 네 영역으로 나눠 점검하고 발견 30건을 고쳤다.
+
+**세션이 이제 DB를 신뢰한다 (`src/lib/auth.ts`)** — 가장 큰 구조 변경.
+- `getSession`은 JWT 검증 후 **DB를 한 번 더 조회**한다(React `cache()`로 요청당 1회). 이전에는 7일짜리 토큰만 믿어서 계정 삭제·권한 강등·단지 이용 중지가 전부 무시됐다("이용 중지"는 신규 로그인만 막는 상태였다)
+- 권한(`role`)·소속(`tenantId`)·이름은 항상 DB가 정답. 삭제된 계정과 `SUSPENDED` 단지는 세션 자체가 무효
+- **임퍼서네이션은 예외** — 토큰의 권한(단지 DIRECTOR)이 DB(SUPER_ADMIN)와 다른 게 정상이라, 발급자가 아직 운영자인지만 확인하고 토큰 값을 쓴다
+- `User.passwordChangedAt` + JWT `iat` 비교로 **비밀번호 변경이 기존 세션을 실제로 끊는다**. `iat` 없는 토큰은 거부(fail closed) — 배포 시 기존 쿠키가 한 번 로그아웃된다
+- ⚠️ 마이그레이션 함정: `DEFAULT CURRENT_TIMESTAMP` 백필은 `timestamptz → timestamp(3)` 변환 때 **DB 세션 시간대(KST) 벽시계**를 넣는다. Prisma가 그걸 UTC로 읽어 전원이 9시간 미래가 되고 통째로 로그아웃됐다. `..._fix_password_changed_at_backfill`이 `createdAt` 기준으로 되돌린다. **앞으로 시각 컬럼을 추가할 때 DB 기본값으로 백필하지 말 것**
+
+**보안**
+- 카카오 콜백이 `is_email_valid`·`is_email_verified`를 확인한다. 이전엔 미인증 이메일로 남의 계정에 연결돼 **계정 탈취가 가능**했다
+- `/admin` 페이지 11곳에 `requireAdmin()` 개별 호출. 레이아웃은 인증 경계가 아니다(Next.js 인증 가이드 "Layouts and auth checks") — 소프트 내비게이션에서 다시 실행되지 않는다
+- 로그인·비밀번호 확인에 시도 제한(`src/lib/rate-limit.ts`, 계정당 10분 10회). ponytail: 프로세스 메모리 — 인스턴스를 늘리면 Redis로
+- `xlsx`를 SheetJS 공식 배포판 0.20.3으로 교체(npm 최신 0.18.5는 프로토타입 오염·ReDoS 미패치). `npm install https://cdn.sheetjs.com/...` 형태라 `package.json`의 URL 의존성은 의도된 것
+- 이메일을 `normalizeEmail()`로 통일. `@unique`가 대소문자를 구분해 `Kim@x.com`으로 가입하면 `kim@x.com`으로 로그인이 안 됐다
+
+**돈 경로**
+- `toggleTenantModule`이 **해지할 때도** `trialEndsAt`을 지워서, 만료 잠긴 모듈을 껐다 켜면 무료 정식 구독이 되고 지난 체험 기간이 유료 매출로 소급됐다 → 켜는 경로에서만 지운다
+- 단지 상세의 만료 체험이 "유료"로 표시되고 월 요금에 합산되면서 **정작 전환 버튼이 없었다**(전환 대기 건에 전환 UI가 없는 상태). `moduleState()` 3상태(paid/trial/expired)로 분리하고 만료 건에 "전환 대기" 배지 + 유료 전환 버튼을 붙였다. 단지 목록의 월 요금도 같은 기준(`isPaid`)으로 수정
+- `setSubscription`이 `Module.isActive`를 확인한다 — 서버 액션 직접 호출로 판매 중단 모듈에 새 체험을 받을 수 있었다
+- 스스로 해지한 모듈에 "체험 종료 잠김" 배너가 영구히 뜨던 문제(`modules.ts`의 `expired`가 `status`를 무시)
+
+**데이터 정합**
+- 문서번호: `count+1` → **최대 번호+1** + `@@unique([tenantId, docNo])` + 충돌 시 재채번. count 방식은 문서를 하나 지우면 이미 쓴 번호를 다시 발급했다
+- 세대 엑셀 업로드를 `$transaction`으로 감쌌다. 전체 삭제 후 행별 upsert 중 실패하면 세대 마스터가 통째로 날아갔다. 2만 행 상한 + `createMany` 배치, "가동/나동" 행이 헤더로 오인돼 버려지던 판정도 수정
+- `removeStaff`가 `tenant.approvalLine`에서 삭제된 직원을 빼낸다(유령 결재자)
+- 홈 KPI·처리율이 `take: 10`한 배열 길이를 써서 37건이 10건으로 보이고 처리율이 부풀려졌다 → `count()` 사용
+- 공지 배너의 `take: 5`를 제거. 최신순으로 먼저 자르면 "좁은 대상이 전체 공지를 이긴다" 규칙이 깨졌다(순수 함수는 정상, 호출부 결함)
+- **날짜를 KST로 통일**(`ymdKst`/`mdKst`/`dayKst`/`kstDayStart`/`kstDayEnd` in `src/lib/utils.ts`). `toISOString().slice(0,10)`은 오전 9시 이전에 하루가 밀렸고, 공지 게시 종료일은 당일 오전 9시에 사라졌다. 검증: `npx tsx dates.test.ts`
+
+**셀프서비스**
+- **셀프 탈퇴 구현**(`deleteMyTenant`) — 설정 > 내 계정에서 소장이 단지명+비밀번호를 확인 입력하면 단지와 모든 데이터를 삭제하고 로그아웃. 개인정보보호법상 삭제 요구 대응은 선택이 아닌데 경로가 아예 없었다. Tenant 자식 관계에 cascade가 없어 트랜잭션에서 순서대로 지운다
+- **시드를 부트스트랩/데모로 분리** — 운영 최초 관리자는 `ADMIN_EMAIL`·`ADMIN_PASSWORD`(12자 이상)로 만들고, 데모 데이터는 `NODE_ENV=production`이면 실행되지 않는다. 이전엔 `admin@test.com`/`test1234`와 가짜 MRR 5만원이 운영 DB에 들어갈 수 있었고, 그 시드 말고는 최초 관리자를 만들 방법도 없었다
+- **미구현 모듈 8개를 `isActive: false`로** — 요금표(`/`)·구독 관리·사이드바가 전부 이 플래그를 읽는다. 자리표시 페이지뿐인 모듈을 팔면 30일 체험이 없는 소프트웨어를 상대로 소진되고 가입자는 "체험 종료 → 잠김"으로 끝난다. **모듈 라우트를 구현할 때 해당 줄을 `true`로 바꿀 것**(개발 시드는 데모용 3개만 켠다)
+- 알림 개별 읽음 처리(`openNotification`) — 알림을 다 눌러도 헤더 배지가 안 줄었다
+- 정지 안내 문구를 "관리사무소로 문의"에서 운영팀으로(사용자가 곧 관리사무소다), 어드민의 낡은 문구 2곳 수정, 문의 목록에 연락처 상시 노출
+
+**남긴 것**: 다단지 롤업(로드맵 9번)과 충돌하는 `User.email` 전역 unique는 5.5 착수 전 결정 필요. 모듈 가격 변경이 기존 구독자에게 즉시 소급되는 문제는 5.6 `Billing` 스키마에서 가격 스냅샷으로. 데이터 내보내기는 미구현(PIPA는 삭제만 요구).
 
 ### 아직 실데이터가 없는 부분
 
@@ -242,7 +285,8 @@
 - Next.js 16(App Router) + TypeScript + Tailwind v4 + shadcn/ui, PostgreSQL 18 + Prisma 7(`prisma-client` 생성기, `@prisma/adapter-pg`, DB URL은 `prisma.config.ts`)
 - 실행: `npm run dev` → http://localhost:3000
 - 데모 계정 (비밀번호 모두 `test1234`): `test1@test.com`(소장) / `test2@test.com`(경리) / `test3@test.com`(직원) / `admin@test.com`(관리자)
+- 운영 최초 관리자: `.env`에 `ADMIN_EMAIL`·`ADMIN_PASSWORD`(12자 이상, 선택 `ADMIN_NAME`)를 넣고 시드 실행. 데모 데이터는 `NODE_ENV=production`이면 건너뛴다
 - 스모크 테스트: `npx tsx smoke.ts` (dev 서버 실행 중이어야 함, 26페이지 검사)
 - 카카오 로그인은 `.env`에 `KAKAO_REST_API_KEY`(+선택 `KAKAO_CLIENT_SECRET`)를 넣어야 활성화 — 없으면 로그인 페이지에서 버튼 숨김
-- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정)
+- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한)
 - ⚠️ 스키마 변경 후 `prisma generate` 하면 dev 서버 재시작 필요 (구버전 클라이언트 캐시로 500 발생)

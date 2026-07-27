@@ -1,8 +1,11 @@
 import { db } from "@/lib/db";
 import { PageTitle } from "../../ui";
 import { AnnouncementForm } from "../announcement-form";
+import { requireAdmin } from "@/lib/auth";
+import { ymdKst } from "@/lib/utils";
 
 export default async function AdminNewAnnouncementPage() {
+  await requireAdmin();
   const [modules, tenants] = await Promise.all([
     db.module.findMany({
       orderBy: { sortOrder: "asc" },
@@ -23,7 +26,7 @@ export default async function AdminNewAnnouncementPage() {
       <AnnouncementForm
         modules={modules}
         tenants={tenants}
-        today={new Date().toISOString().slice(0, 10)}
+        today={ymdKst(new Date())}
       />
     </>
   );

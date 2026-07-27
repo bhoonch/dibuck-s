@@ -4,10 +4,12 @@ import { db } from "@/lib/db";
 import { saveModulePrice } from "../actions";
 import { PageTitle, Pill, btnPrimary, btnRow, tableHead, tableRow } from "../ui";
 import { PriceInput } from "./price-input";
+import { requireAdmin } from "@/lib/auth";
 
 const COLS = "60px 1fr 140px 110px 90px 90px 110px";
 
 export default async function AdminModulesPage() {
+  await requireAdmin();
   const modules = await db.module.findMany({
     orderBy: { sortOrder: "asc" },
     include: {

@@ -1,3 +1,4 @@
+import { ymdKst } from "@/lib/utils";
 /** 관리자 지표 계산 공용 헬퍼 — 단지 수 규모에서는 JS 집계로 충분하다. */
 
 export type SubRow = {
@@ -59,4 +60,4 @@ export function deltaPercent(current: number, previous: number) {
   return ((current - previous) / previous) * 100;
 }
 
-export const ymd = (d: Date) => d.toISOString().slice(0, 10);
+export const ymd = ymdKst;

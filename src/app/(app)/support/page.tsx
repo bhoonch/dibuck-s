@@ -41,7 +41,9 @@ export default async function SupportPage({
                 <span className="min-w-0 flex-1 text-sm text-gray-700">
                   {q.title}
                   <span className="mt-0.5 block font-mono text-xs text-gray-400">
-                    {q.createdAt.toLocaleDateString("ko-KR")}
+                    {q.createdAt.toLocaleDateString("ko-KR", {
+                      timeZone: "Asia/Seoul",
+                    })}
                   </span>
                 </span>
                 <span

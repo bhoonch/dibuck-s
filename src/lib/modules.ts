@@ -39,7 +39,8 @@ export async function getModulesForTenant(
     const active = row?.status === "ACTIVE";
     // 체험 종료 후 미전환(trialEndsAt이 과거인 채 남아 있음) — 결제 연동(로드맵 5.6) 전까지는
     // 잠그고 유료 전환 문의로 안내한다. 전환하면 운영자가 trialEndsAt을 null로 지운다.
-    const expired = !!row?.trialEndsAt && row.trialEndsAt <= now;
+    // 스스로 해지한 모듈은 잠긴 게 아니라 안 쓰는 것 — 만료 배너를 띄우면 안 된다.
+    const expired = active && !!row.trialEndsAt && row.trialEndsAt <= now;
     return {
       id: m.id,
       name: m.name,

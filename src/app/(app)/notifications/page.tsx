@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { BellOff, CheckCheck } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -6,7 +5,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { markAllRead } from "./actions";
+import { markAllRead, openNotification } from "./actions";
 
 export default async function NotificationsPage() {
   const session = await requireSession();
@@ -49,6 +48,7 @@ export default async function NotificationsPage() {
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
                   {n.createdAt.toLocaleDateString("ko-KR", {
+                    timeZone: "Asia/Seoul", // 서버 TZ와 무관하게 한국 날짜로
                     year: "numeric",
                     month: "long",
                     day: "numeric",
@@ -56,9 +56,16 @@ export default async function NotificationsPage() {
                 </p>
               </div>
             );
+            // 클릭 = 읽음 처리 후 이동. Link로 두면 배지가 영원히 안 줄어든다
             return (
               <li key={n.id}>
-                {n.link ? <Link href={n.link}>{body}</Link> : body}
+                <form action={openNotification}>
+                  <input type="hidden" name="id" value={n.id} />
+                  <input type="hidden" name="link" value={n.link ?? ""} />
+                  <button type="submit" className="block w-full text-left">
+                    {body}
+                  </button>
+                </form>
               </li>
             );
           })}

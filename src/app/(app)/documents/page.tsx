@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DocumentsTable, type DocRow } from "./documents-table";
+import { ymdKst } from "@/lib/utils";
 
 export default async function DocumentsPage({
   searchParams,
@@ -44,7 +45,7 @@ export default async function DocumentsPage({
     type: d.type,
     moduleName: (d.moduleId && moduleNames.get(d.moduleId)) || "-",
     status: d.status,
-    createdAt: d.createdAt.toISOString().slice(0, 10),
+    createdAt: ymdKst(d.createdAt),
   }));
 
   return (

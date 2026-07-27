@@ -2,10 +2,12 @@ import { db } from "@/lib/db";
 import { setInquiryStatus } from "../actions";
 import { PageTitle, Pill, btnRow, tableHead, tableRow } from "../ui";
 import { ymd } from "../metrics";
+import { requireAdmin } from "@/lib/auth";
 
 const COLS = "160px 1fr 110px 100px 100px 110px";
 
 export default async function AdminSupportPage() {
+  await requireAdmin();
   const inquiries = await db.inquiry.findMany({
     // "open" > "answered" — 답변 대기가 위로
     orderBy: [{ status: "desc" }, { createdAt: "desc" }],
@@ -51,8 +53,12 @@ export default async function AdminSupportPage() {
                 <span className="truncate text-sm font-medium">
                   {q.tenant?.name ?? q.title}
                 </span>
+                {/* 답변은 전화·이메일로 하므로 연락처가 항상 보여야 한다 */}
                 <span className="truncate text-sm text-gray-600">
-                  {isTrial ? `무료 체험 신청 · ${q.contact ?? "연락처 없음"}` : q.title}
+                  {isTrial ? "무료 체험 신청" : q.title}
+                  <span className="ml-2 font-mono text-xs text-gray-500">
+                    {q.contact ?? "연락처 없음"}
+                  </span>
                 </span>
                 <span>
                   {isTrial ? (
@@ -91,8 +97,8 @@ export default async function AdminSupportPage() {
       </section>
 
       <p className="mt-3 text-xs text-gray-500">
-        단지 화면의 문의 등록 UI는 아직 없습니다 — 지금은 접수된 문의의 처리
-        상태만 관리합니다.
+        문의는 단지 화면의 &ldquo;고객 문의&rdquo;(/support)에서 접수됩니다. 답변 본문은
+        저장하지 않습니다 — 전화·이메일로 답변한 뒤 여기서 상태만 완료 처리하세요.
       </p>
     </>
   );

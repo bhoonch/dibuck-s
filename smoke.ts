@@ -16,6 +16,9 @@ async function token(email: string) {
     name: user.name,
   })
     .setProtectedHeader({ alg: "HS256" })
+    // createSession과 동일하게 iat를 넣는다 — 없는 토큰은 비밀번호 변경 검사에서
+    // 안전한 쪽(거부)으로 처리된다 (src/lib/auth.ts)
+    .setIssuedAt()
     .setExpirationTime("1h")
     .sign(new TextEncoder().encode(process.env.AUTH_SECRET!));
 }

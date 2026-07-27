@@ -68,6 +68,8 @@ model User {
   title        String? // 직책 (표시용 자유 입력: 과장, 전기과장, 경비반장 등)
   role         Role     @default(STAFF)
   createdAt    DateTime @default(now())
+  // 비밀번호를 바꾼 시각 — 이 시각 이전에 발급된 세션 토큰은 무효(탈취 세션 차단)
+  passwordChangedAt DateTime @default(now())
 
   documents     Document[]
   notifications Notification[]
@@ -159,6 +161,8 @@ model Document {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // 공문서 번호는 단지 안에서 유일해야 한다 — 채번이 겹치면 DB가 막는다
+  @@unique([tenantId, docNo])
   @@index([tenantId, type])
   @@index([tenantId, createdAt])
 }

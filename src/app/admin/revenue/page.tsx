@@ -9,8 +9,10 @@ import {
   won,
   wonShort,
 } from "../metrics";
+import { requireAdmin } from "@/lib/auth";
 
 export default async function AdminRevenuePage() {
+  await requireAdmin();
   const [subs, tenantCount] = await Promise.all([
     db.tenantModule.findMany({
       select: {
