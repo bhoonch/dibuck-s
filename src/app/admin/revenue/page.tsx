@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
-import { Kpi, PageTitle, Pill, Section } from "../ui";
+import { Kpi, PageTitle, Pill, Section, tableRow } from "../ui";
 import {
   mrrAt,
   recentMonths,
@@ -8,6 +9,7 @@ import {
   wasTrialAt,
   won,
   wonShort,
+  ymd,
 } from "../metrics";
 import { requireAdmin } from "@/lib/auth";
 
@@ -42,6 +44,45 @@ export default async function AdminRevenuePage() {
     (sum, b) => sum + (b.payments[0]?.amount ?? 0),
     0,
   );
+
+  // 이탈 위험: 7일 안에 체험이 끝나는데 카드가 없는 단지. 단지 단위로 묶는다
+  const asOf = new Date();
+  const soon = new Date(asOf.getTime() + 7 * 86400000);
+  const risky = await db.tenantModule.findMany({
+    where: {
+      status: "ACTIVE",
+      trialEndsAt: { gt: asOf, lte: soon },
+      tenant: { status: "ACTIVE", OR: [{ billing: null }, { billing: { billingKey: null } }] },
+    },
+    include: {
+      module: { select: { name: true } },
+      tenant: { select: { id: true, name: true } },
+    },
+    orderBy: { trialEndsAt: "asc" },
+  });
+  const riskMap = new Map<
+    string,
+    { tenantId: string; tenantName: string; modules: string[]; endsAt: Date }
+  >();
+  for (const r of risky) {
+    const hit = riskMap.get(r.tenant.id);
+    if (hit) hit.modules.push(r.module.name);
+    else
+      riskMap.set(r.tenant.id, {
+        tenantId: r.tenant.id,
+        tenantName: r.tenant.name,
+        modules: [r.module.name],
+        endsAt: r.trialEndsAt!,
+      });
+  }
+  const atRisk = [...riskMap.values()].map((r) => ({
+    ...r,
+    modules: r.modules.join(", "),
+    daysLeft: Math.max(
+      1,
+      Math.ceil((r.endsAt.getTime() - asOf.getTime()) / 86400000),
+    ),
+  }));
 
   const now = new Date();
   const mrr = mrrAt(subs, now);
@@ -163,6 +204,37 @@ export default async function AdminRevenuePage() {
           </div>
         </Section>
       </div>
+
+      {/* 이탈 위험 — 체험이 곧 끝나는데 카드가 없다. 그대로 두면 잠기고 그대로 떠난다 */}
+      <Section title="이탈 위험 — 체험 D-7, 카드 미등록">
+        {atRisk.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-gray-500">
+            체험 종료가 임박한 카드 미등록 단지가 없습니다.
+          </p>
+        ) : (
+          atRisk.map((r) => (
+            <div
+              key={r.tenantId}
+              className={tableRow}
+              style={{ gridTemplateColumns: "1fr 200px 110px 90px" }}
+            >
+              <Link
+                href={`/admin/tenants/${r.tenantId}`}
+                className="truncate text-sm font-medium text-blue-700 hover:underline"
+              >
+                {r.tenantName}
+              </Link>
+              <span className="truncate text-sm text-gray-600">{r.modules}</span>
+              <span className="font-mono text-xs text-gray-500">{ymd(r.endsAt)}</span>
+              <span className="text-right">
+                <Pill tone={r.daysLeft <= 3 ? "danger" : "warn"}>
+                  D-{r.daysLeft}
+                </Pill>
+              </span>
+            </div>
+          ))
+        )}
+      </Section>
     </>
   );
 }

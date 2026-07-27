@@ -20,6 +20,10 @@ const KST_OFFSET = 9 * 60 * 60 * 1000
 export const ymdKst = (d: Date) =>
   new Date(d.getTime() + KST_OFFSET).toISOString().slice(0, 10)
 
+/** KST 기준 "YYYY-MM-DD HH:mm" — 감사 로그처럼 시각까지 필요한 곳 */
+export const ymdhmKst = (d: Date) =>
+  `${ymdKst(d)} ${new Date(d.getTime() + KST_OFFSET).toISOString().slice(11, 16)}`
+
 /** KST 기준 "MM-DD" */
 export const mdKst = (d: Date) => ymdKst(d).slice(5)
 

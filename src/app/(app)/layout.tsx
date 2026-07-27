@@ -82,6 +82,22 @@ export default async function AppLayout({
   );
   const names = (list: typeof modules) => list.map((m) => m.name).join(", ");
 
+  // 남은 일수에 따라 배너 강도를 올린다 — 30일 내내 같은 톤이면 아무도 안 읽는다
+  const trialDaysLeft = endingSoon.length
+    ? Math.max(
+        1,
+        Math.ceil(
+          (Math.min(...endingSoon.map((m) => m.trialEndsAt!.getTime())) -
+            now.getTime()) /
+            86400000,
+        ),
+      )
+    : 0;
+  const trialTone =
+    expiredTrials.length > 0 || trialDaysLeft <= 3
+      ? "border-red-100 bg-red-50 text-red-700"
+      : "border-amber-100 bg-amber-50 text-amber-800";
+
   // 결제 경고는 체험 안내보다 위 — 정지는 전 모듈이 잠긴 상태다
   const billingAlert =
     billing?.status === "SUSPENDED"
@@ -103,6 +119,14 @@ export default async function AppLayout({
         <div className="flex items-center justify-center gap-2 border-b border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-800">
           <Megaphone className="size-4 shrink-0" />
           {announcement.message}
+          {announcement.linkUrl && (
+            <Link
+              href={announcement.linkUrl}
+              className="font-semibold underline underline-offset-2"
+            >
+              {announcement.linkLabel || "자세히 보기"}
+            </Link>
+          )}
         </div>
       )}
       {billingAlert && (
@@ -118,7 +142,9 @@ export default async function AppLayout({
         </div>
       )}
       {(expiredTrials.length > 0 || endingSoon.length > 0) && (
-        <div className="flex items-center justify-center gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        <div
+          className={`flex items-center justify-center gap-2 border-b px-4 py-2 text-sm ${trialTone}`}
+        >
           <Hourglass className="size-4 shrink-0" />
           {expiredTrials.length > 0 ? (
             <>
@@ -132,18 +158,13 @@ export default async function AppLayout({
             </>
           ) : (
             <>
-              {names(endingSoon)} 무료 체험이{" "}
-              {Math.max(
-                1,
-                Math.ceil(
-                  (Math.min(
-                    ...endingSoon.map((m) => m.trialEndsAt!.getTime()),
-                  ) -
-                    now.getTime()) /
-                    86400000,
-                ),
-              )}
-              일 뒤 종료됩니다.
+              {names(endingSoon)} 무료 체험이 {trialDaysLeft}일 뒤 종료됩니다.
+              <Link
+                href="/settings/billing"
+                className="font-semibold underline underline-offset-2"
+              >
+                {trialDaysLeft <= 3 ? "지금 카드 등록하기" : "카드 등록"}
+              </Link>
             </>
           )}
         </div>

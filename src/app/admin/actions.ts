@@ -11,7 +11,8 @@ import {
   targetNeedsTenants,
 } from "@/lib/announcements";
 import { parseWon } from "@/lib/won";
-import { kstDayEnd, kstDayStart, normalizeEmail } from "@/lib/utils";
+import { kstDayEnd, kstDayStart, normalizeEmail, ymdKst } from "@/lib/utils";
+import { logAdmin } from "@/lib/admin-log";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role, TenantStatus } from "@/generated/prisma/enums";
 
@@ -29,6 +30,10 @@ export async function toggleTenantModule(formData: FormData) {
       ? { status: "ACTIVE", trialEndsAt: null }
       : { status: "CANCELED" },
     create: { tenantId, moduleId, status: subscribe ? "ACTIVE" : "CANCELED" },
+  });
+  await logAdmin("module_toggle", {
+    tenantId,
+    detail: `${moduleId} ${subscribe ? "구독" : "해지"}`,
   });
   revalidatePath(`/admin/tenants/${tenantId}`);
   revalidatePath("/admin/revenue");
@@ -55,6 +60,12 @@ export async function setModuleTrial(formData: FormData) {
     update: { status: "ACTIVE", trialEndsAt },
     create: { tenantId, moduleId, trialEndsAt },
   });
+  await logAdmin("module_trial", {
+    tenantId,
+    detail: trialEndsAt
+      ? `${moduleId} 체험 ~${ymdKst(trialEndsAt)}`
+      : `${moduleId} 유료 전환`,
+  });
   revalidatePath(`/admin/tenants/${tenantId}`);
   revalidatePath("/admin/revenue");
 }
@@ -65,7 +76,15 @@ export async function setTenantStatus(formData: FormData) {
   const status = String(formData.get("status")) as TenantStatus;
   if (!Object.values(TenantStatus).includes(status))
     throw new Error("잘못된 상태입니다.");
-  await db.tenant.update({ where: { id: tenantId }, data: { status } });
+  const tenant = await db.tenant.update({
+    where: { id: tenantId },
+    data: { status },
+  });
+  await logAdmin("tenant_status", {
+    tenantId,
+    tenantName: tenant.name,
+    detail: status === "SUSPENDED" ? "이용 중지" : "이용 재개",
+  });
   revalidatePath(`/admin/tenants/${tenantId}`);
   revalidatePath("/admin/tenants");
 }
@@ -113,6 +132,7 @@ export async function adminAddStaff(
   await db.user.create({
     data: { tenantId, email, name, title, role, passwordHash: hashSync(password, 10) },
   });
+  await logAdmin("staff_add", { tenantId, detail: `${name} (${email})` });
   revalidatePath(`/admin/tenants/${tenantId}`);
   return { tempPassword: password, email, name };
 }
@@ -133,6 +153,10 @@ export async function adminResetPassword(
     where: { id: userId },
     // passwordChangedAt 갱신 = 기존 세션이 즉시 끊긴다 (재설정의 원래 의도)
     data: { passwordHash: hashSync(password, 10), passwordChangedAt: new Date() },
+  });
+  await logAdmin("password_reset", {
+    tenantId: user.tenantId,
+    detail: `${user.name} (${user.email})`,
   });
   return { tempPassword: password, email: user.email, name: user.name };
 }
@@ -216,8 +240,16 @@ export async function postAnnouncement(formData: FormData) {
   const endsAt = parseDate("endsAt", kstDayEnd);
   if (endsAt && endsAt < startsAt)
     throw new Error("게시 종료일이 시작일보다 빠릅니다.");
+  // 링크는 앱 안(/settings/billing 등)만 허용한다 — 외부 주소를 그대로 넣게 두면
+  // 공지 배너가 피싱 링크를 우리 이름으로 실어 나르는 통로가 된다
+  const rawLink = String(formData.get("linkUrl") ?? "").trim();
+  const linkUrl = rawLink.startsWith("/") && !rawLink.startsWith("//") ? rawLink : null;
+  const linkLabel = linkUrl
+    ? String(formData.get("linkLabel") ?? "").trim() || null
+    : null;
+
   await db.announcement.create({
-    data: { message, target, targetValue, startsAt, endsAt },
+    data: { message, target, targetValue, startsAt, endsAt, linkUrl, linkLabel },
   });
   revalidatePath("/admin/announcements");
   revalidatePath("/", "layout");
@@ -256,12 +288,14 @@ export async function impersonate(formData: FormData) {
     name: session.name,
     impersonating: true,
   });
+  await logAdmin("impersonate", { tenantId: tenant.id, tenantName: tenant.name });
   redirect("/home");
 }
 
 export async function stopImpersonation() {
   const session = await requireSession();
   if (!session.impersonating) redirect("/home");
+  await logAdmin("impersonate_stop", { tenantId: session.tenantId ?? undefined });
   await createSession({
     userId: session.userId,
     tenantId: null,

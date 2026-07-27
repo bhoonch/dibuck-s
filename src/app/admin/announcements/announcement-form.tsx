@@ -153,6 +153,26 @@ export function AnnouncementForm({
             <p className={hint}>비워 두면 내릴 때까지 계속 게시됩니다.</p>
           </div>
         </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="linkUrl">링크 (선택)</Label>
+            <Input
+              id="linkUrl"
+              name="linkUrl"
+              placeholder="/settings/billing"
+              pattern="/[^/].*"
+            />
+            <p className={hint}>
+              배너에 버튼이 붙습니다. 앱 안 주소만 됩니다(예: /settings/subscriptions).
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="linkLabel">링크 문구 (선택)</Label>
+            <Input id="linkLabel" name="linkLabel" placeholder="자세히 보기" />
+            <p className={hint}>비워 두면 &quot;자세히 보기&quot;로 표시됩니다.</p>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

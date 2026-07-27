@@ -5,6 +5,7 @@ import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
 import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
 import { ymdKst, dayKst } from "@/lib/utils";
+import { OnboardingChecklist } from "@/components/onboarding-checklist";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -47,6 +48,9 @@ export default async function HomePage() {
     approvalsDone,
     modules,
     recentDocs,
+    tenant,
+    unitCount,
+    staffCount,
   ] = await Promise.all([
       db.document.findMany({
         where: where.approval,
@@ -88,6 +92,13 @@ export default async function HomePage() {
         take: 4,
         select: { id: true, title: true, type: true, status: true, createdAt: true },
       }),
+      // 시작 가이드 판정용 — 전부 실데이터로 본다
+      db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { households: true, address: true },
+      }),
+      db.unit.count({ where: { tenantId } }),
+      db.user.count({ where: { tenantId } }),
     ]);
 
   const tasks: TaskItem[] = [
@@ -159,8 +170,40 @@ export default async function HomePage() {
   const subscribed = modules.filter((m) => m.subscribed);
   const dateLine = `${ymdKst(now)} (${WEEKDAYS[dayKst(now)]})`;
 
+  // 시작 가이드 — 소장만. 직원에게는 자기가 못 하는 일이 할 일로 보이면 안 된다
+  const onboarding =
+    session.role === "DIRECTOR"
+      ? [
+          {
+            label: "단지 정보 입력",
+            desc: "주소·세대수를 채워 주세요",
+            href: "/settings",
+            done: !!tenant?.households && !!tenant?.address,
+          },
+          {
+            label: "세대 등록",
+            desc: "엑셀로 한 번에 올릴 수 있어요",
+            href: "/settings/units",
+            done: unitCount > 0,
+          },
+          {
+            label: "직원 등록",
+            desc: "함께 쓸 직원 계정을 만드세요",
+            href: "/settings/staff",
+            done: staffCount >= 2,
+          },
+          {
+            label: "모듈 구독",
+            desc: "필요한 모듈부터 무료로 체험하세요",
+            href: "/settings/subscriptions",
+            done: subscribed.length > 0,
+          },
+        ]
+      : [];
+
   return (
     <>
+      {onboarding.length > 0 && <OnboardingChecklist steps={onboarding} />}
       <div className="mb-5">
         <p className="mb-1 font-mono text-xs text-gray-500">{dateLine}</p>
         <h2 className="text-2xl font-semibold tracking-tight">

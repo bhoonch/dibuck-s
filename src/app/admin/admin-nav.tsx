@@ -12,6 +12,7 @@ export const adminItems = [
   { name: "모듈 관리 · 가격", title: "모듈 관리", href: "/admin/modules" },
   { name: "공지 관리", title: "공지 관리", href: "/admin/announcements" },
   { name: "고객 문의", title: "고객 문의", href: "/admin/support" },
+  { name: "작업 이력", title: "작업 이력", href: "/admin/logs" },
 ];
 
 export function isActive(pathname: string, href: string) {

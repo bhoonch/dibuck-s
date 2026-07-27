@@ -209,10 +209,33 @@ model Announcement {
   message   String
   target    String    @default("ALL") // src/lib/announcements.ts 의 AnnouncementTarget
   targetValue String? // MODULE·MODULE_NOT이면 moduleId, TENANTS면 단지 id 목록(쉼표 구분)
+  /// 배너에 붙는 "자세히 보기" 링크(선택). 별도 배너 시스템을 만들지 않고
+  /// 공지에 컬럼 하나를 더한 이유는 대상 타게팅 규칙을 두 벌 유지하지 않기 위해서다.
+  linkUrl   String?
+  linkLabel String?
   startsAt  DateTime  @default(now()) // 게시 시작 — 미래면 "예약"
   endsAt    DateTime? // 게시 종료 (null이면 무기한)
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
+}
+
+// ── 운영자 감사 로그 ─────────────────────────────────────────
+
+/// 운영자가 남의 단지에 한 일을 남긴다. **관계(FK)를 걸지 않았다** —
+/// 단지나 계정이 삭제돼도 "누가 무엇을 했는지"는 남아야 하는 게 감사 로그의 목적이다.
+/// 그래서 이름도 그 시점 값을 복사해 둔다.
+model AdminLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  adminName  String
+  action     String // src/lib/admin-log.ts 의 AdminAction
+  tenantId   String?
+  tenantName String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([tenantId])
 }
 
 // ── 고객 문의 (단지 → 운영자) ────────────────────────────────

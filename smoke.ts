@@ -79,6 +79,7 @@ async function main() {
       "/admin/announcements",
       "/admin/announcements/new",
       "/admin/support",
+      "/admin/logs",
       "/admin/account",
     ],
     `session=${admin}`,
