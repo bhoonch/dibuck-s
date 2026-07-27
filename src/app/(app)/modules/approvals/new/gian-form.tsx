@@ -2,11 +2,8 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import {
-  fieldInput,
-  fieldLabel,
-  genBtn,
-} from "@/components/gian-ui";
+import { Button } from "@/components/ui/button";
+import { fieldInput, fieldLabel } from "@/components/gian-ui";
 import { classify } from "@/lib/gian/rules";
 import { generateGian } from "../actions";
 
@@ -41,15 +38,12 @@ export function GianForm() {
 
   return (
     <form action={formAction} className="mx-auto mt-2 max-w-[620px]">
-      <div className="rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-[30px] pb-[26px] text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
-        <h1 className="text-[21px] font-extrabold tracking-[-.01em] text-balance">
+      <div className="rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-7 pb-6 text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
+        <h2 className="mb-6 text-lg font-bold tracking-tight text-balance">
           어떤 문서를 올릴까요?
-        </h1>
-        <p className="mt-1 mb-6 text-[14px] text-[var(--gian-ink-soft)]">
-          5개 항목만 입력하면 법적 근거와 계약 방식까지 검토된 초안이 나옵니다.
-        </p>
+        </h2>
 
-        <div className="mb-[18px]">
+        <div className="mb-4">
           <label htmlFor="work" className={fieldLabel}>
             ① 무슨 일인가요?
           </label>
@@ -65,7 +59,7 @@ export function GianForm() {
           />
         </div>
 
-        <div className="mb-[18px]">
+        <div className="mb-4">
           <label htmlFor="location" className={fieldLabel}>
             ② 어디인가요?
           </label>
@@ -80,10 +74,10 @@ export function GianForm() {
           />
         </div>
 
-        <div className="mb-[18px]">
+        <div className="mb-4">
           <label htmlFor="amount" className={fieldLabel}>
             ③ 예산
-            <span className="text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+            <span className="text-xs font-normal text-[var(--gian-ink-soft)]">
               금액이 없으면 기안서로 작성됩니다
             </span>
           </label>
@@ -92,7 +86,7 @@ export function GianForm() {
               id="amount"
               name="amount"
               inputMode="numeric"
-              className={`${fieldInput} flex-1 tabular-nums`}
+              className={`${fieldInput} flex-1 font-mono`}
               placeholder="4,500,000"
               value={amount}
               onChange={(e) => {
@@ -101,8 +95,8 @@ export function GianForm() {
               }}
               autoComplete="off"
             />
-            <span className="text-[var(--gian-ink-soft)]">원</span>
-            <label className="flex shrink-0 items-center gap-1.5 text-[13.5px]">
+            <span className="text-sm text-[var(--gian-ink-soft)]">원</span>
+            <label className="flex shrink-0 items-center gap-1.5 text-sm">
               <input
                 type="checkbox"
                 name="vat"
@@ -116,37 +110,37 @@ export function GianForm() {
 
           {/* 판정 배지 (목업 .verdict) — 전부 코드 판정, 결과 화면과 같은 규칙 */}
           <div className="mt-2.5 space-y-2.5">
-            <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-paper)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-ink-soft)]">
+            <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-paper)] px-3.5 py-2.5 text-sm leading-relaxed text-[var(--gian-ink-soft)]">
               <span className="mt-[7px] size-2 shrink-0 rounded-full bg-current" />
               <span>
-                <b className="block text-[14px] text-[var(--gian-ink)]">
+                <b className="block text-sm text-[var(--gian-ink)]">
                   {docTypeLabel[cls.docType]}
                 </b>
                 예산을 비우면 기안서, 입력하면 품의서로 자동 판별됩니다.
               </span>
             </div>
             {cls.context === "direct" && (
-              <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-ok-soft)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-ok)]">
+              <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-ok-soft)] px-3.5 py-2.5 text-sm leading-relaxed text-[var(--gian-ok)]">
                 <span className="mt-[7px] size-2 shrink-0 rounded-full bg-current" />
                 <span>
-                  <b className="block text-[14px]">수의계약 대상</b>
+                  <b className="block text-sm">수의계약 대상</b>
                   VAT 제외 {cls.vatExcluded.toLocaleString("ko-KR")}원 ≤ 500만
                   원 — 2개사 이상 견적이 필요합니다.
                 </span>
               </div>
             )}
             {cls.context === "bid" && (
-              <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-stamp-soft)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-stamp)]">
+              <div className="flex items-start gap-2.5 rounded-md bg-[var(--gian-stamp-soft)] px-3.5 py-2.5 text-sm leading-relaxed text-[var(--gian-stamp)]">
                 <span className="mt-[7px] size-2 shrink-0 rounded-full bg-current" />
                 <span>
-                  <b className="block text-[14px]">경쟁입찰 대상</b>
+                  <b className="block text-sm">경쟁입찰 대상</b>
                   VAT 제외 {cls.vatExcluded.toLocaleString("ko-KR")}원 &gt; 500만
                   원 — 입주자대표회의 의결 후 K-apt 전자입찰로 선정해야 합니다.
                 </span>
               </div>
             )}
             {cls.docType === "ltp_work" && (
-              <div className="rounded-md bg-[var(--gian-warn-soft)] px-3.5 py-[11px] text-[13.5px] leading-[1.55] text-[var(--gian-warn)]">
+              <div className="rounded-md bg-[var(--gian-warn-soft)] px-3.5 py-2.5 text-sm leading-relaxed text-[var(--gian-warn)]">
                 <b className="block">장기수선계획 대상일 수 있습니다.</b>
                 수선유지비가 아닌 장기수선충당금 사용 대상인지 검토가 필요합니다
                 (공동주택관리법 제29·30조).
@@ -155,10 +149,10 @@ export function GianForm() {
           </div>
         </div>
 
-        <div className="mb-[18px]">
+        <div className="mb-4">
           <label htmlFor="schedule" className={fieldLabel}>
             ④ 언제 하나요?
-            <span className="text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+            <span className="text-xs font-normal text-[var(--gian-ink-soft)]">
               선택
             </span>
           </label>
@@ -171,10 +165,10 @@ export function GianForm() {
           />
         </div>
 
-        <div className="mb-[18px]">
+        <div className="mb-4">
           <label htmlFor="why" className={fieldLabel}>
             ⑤ 왜 필요한가요?
-            <span className="text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+            <span className="text-xs font-normal text-[var(--gian-ink-soft)]">
               키워드만 적어도 됩니다 (예: 누수, 민원, 노후)
             </span>
           </label>
@@ -191,10 +185,10 @@ export function GianForm() {
 
         {/* 수의계약이면 견적 2개사 이상 — 법적 요건이라 서버에서도 검증한다 */}
         {cls.context === "direct" && (
-          <div className="mb-[18px] rounded-md border border-[var(--gian-line)] bg-[var(--gian-paper)] p-3.5">
-            <p className="mb-2 text-[13.5px] font-bold">
+          <div className="mb-4 rounded-md border border-[var(--gian-line)] bg-[var(--gian-paper)] p-3.5">
+            <p className="mb-2 text-sm font-bold">
               견적 비교 <span className="text-[var(--gian-stamp)]">*</span>
-              <span className="ml-2 text-[12.5px] font-normal text-[var(--gian-ink-soft)]">
+              <span className="ml-2 text-xs font-normal text-[var(--gian-ink-soft)]">
                 2개사 이상 — 최저가가 선정 업체가 됩니다
               </span>
             </p>
@@ -203,13 +197,13 @@ export function GianForm() {
                 <div key={i} className="grid grid-cols-2 gap-2">
                   <input
                     name={`vendor${i}`}
-                    className={`${fieldInput} bg-[var(--gian-card)] py-2 text-[14px]`}
+                    className={`${fieldInput} bg-[var(--gian-card)]`}
                     placeholder={`업체 ${i}${i === 3 ? " (선택)" : ""}`}
                   />
                   <input
                     name={`quote${i}`}
                     inputMode="numeric"
-                    className={`${fieldInput} bg-[var(--gian-card)] py-2 text-[14px] tabular-nums`}
+                    className={`${fieldInput} bg-[var(--gian-card)] font-mono`}
                     placeholder="견적 금액 (원)"
                   />
                 </div>
@@ -219,12 +213,10 @@ export function GianForm() {
         )}
 
         {state?.error && (
-          <p className="mb-2 text-[13.5px] text-[var(--gian-stamp)]">
-            {state.error}
-          </p>
+          <p className="mb-2 text-sm text-destructive">{state.error}</p>
         )}
 
-        <button type="submit" className={genBtn} disabled={pending}>
+        <Button type="submit" size="lg" className="w-full" disabled={pending}>
           {pending ? (
             <>
               <Loader2 className="size-4 animate-spin" /> 초안 생성 중… (10~30초)
@@ -232,8 +224,8 @@ export function GianForm() {
           ) : (
             "초안 생성"
           )}
-        </button>
-        <p className="mt-3.5 text-center text-[12.5px] text-[var(--gian-ink-soft)]">
+        </Button>
+        <p className="mt-3 text-center text-xs text-[var(--gian-ink-soft)]">
           생성된 문서는 초안이며, 최종 검토 책임은 관리주체에 있습니다.
         </p>
       </div>

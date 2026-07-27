@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
+import type { GianDraft } from "@/lib/gian/claude";
 import { createNoticeFrom, findNoticeFor } from "@/lib/gian/notice";
 import { Role } from "@/generated/prisma/enums";
 
@@ -57,6 +58,55 @@ export async function actOnGianStep(
   const result = await actOnStep(stepId, action, comment);
   revalidatePath(`/modules/approvals/${step.document.id}`);
   return result.error ? { error: result.error } : undefined;
+}
+
+/**
+ * 초안 직접 수정 저장 — 결재 전 문서만.
+ * 절 개수는 원본 draft를 따르고(폼이 그만큼만 그린다), 각 필드는 줄 단위로 자른다.
+ * 문서함 검색용 content도 같이 갱신한다 — 안 하면 수정 전 문장으로 검색된다.
+ */
+export async function saveGianDraft(formData: FormData) {
+  const docId = String(formData.get("docId") ?? "");
+  const { doc } = await myDoc(docId);
+  if (!doc) return;
+  if (doc.status !== "draft" && doc.status !== "rejected") return;
+
+  const meta = doc.meta as { draft?: GianDraft } | null;
+  if (!meta?.draft) return;
+
+  const lines = (key: string) =>
+    String(formData.get(key) ?? "")
+      .split(/\r?\n/)
+      .map((l) => l.replace(/\s+$/, ""))
+      .filter((l) => l.trim());
+
+  const title = String(formData.get("title") ?? "").trim() || meta.draft.title;
+  const draft: GianDraft = {
+    ...meta.draft,
+    title,
+    legalBasis: lines("legalBasis"),
+    sections: meta.draft.sections.map((sec, i) => ({
+      heading: String(formData.get(`heading${i}`) ?? "").trim() || sec.heading,
+      lines: lines(`lines${i}`),
+    })),
+    attachments: lines("attachments"),
+  };
+
+  await db.document.update({
+    where: { id: doc.id },
+    data: {
+      title,
+      content: [
+        draft.title,
+        ...draft.legalBasis,
+        ...draft.sections.flatMap((s) => [s.heading, ...s.lines]),
+        ...draft.attachments,
+      ].join("\n"),
+      meta: { ...(doc.meta as object), draft },
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
+  redirect(`/modules/approvals/${doc.id}`);
 }
 
 /**

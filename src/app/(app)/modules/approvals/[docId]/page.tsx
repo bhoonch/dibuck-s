@@ -11,13 +11,8 @@ import {
   type ExternalRole,
 } from "@/lib/gian/rules";
 import { Role } from "@/generated/prisma/enums";
-import {
-  actBtn,
-  actBtnPrimary,
-  panel,
-  panelItem,
-  panelTitle,
-} from "@/components/gian-ui";
+import { Button } from "@/components/ui/button";
+import { panel, panelItem, panelTitle } from "@/components/gian-ui";
 import { GianPaper, PrintStyle, type PaperStep } from "@/components/gian-paper";
 import { GianSteps } from "@/components/gian-steps";
 import { NoticePaper } from "@/components/notice-paper";
@@ -84,16 +79,15 @@ export default async function GianDocumentPage({
           <div className="flex gap-2">
             <PrintButton />
             {meta.sourceDocId && (
-              <Link
-                href={`/modules/approvals/${meta.sourceDocId}`}
-                className={actBtn}
-              >
-                원본 결재 문서
-              </Link>
+              <Button asChild variant="outline">
+                <Link href={`/modules/approvals/${meta.sourceDocId}`}>
+                  원본 결재 문서
+                </Link>
+              </Button>
             )}
-            <Link href="/modules/approvals" className={actBtn}>
-              목록
-            </Link>
+            <Button asChild variant="ghost">
+              <Link href="/modules/approvals">목록</Link>
+            </Button>
           </div>
         </div>
         <NoticePaper
@@ -169,10 +163,10 @@ export default async function GianDocumentPage({
       {/* ── 결과 머리: 문서 유형 인장 + 액션 (목업 .result-head) ── */}
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-[3px] border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-[13px] font-bold tracking-[.18em] text-[var(--gian-stamp)]">
+          <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
             {docTypeLabel}
           </span>
-          <span className="font-mono text-[13px] text-[var(--gian-ink-soft)]">
+          <span className="font-mono text-sm text-[var(--gian-ink-soft)]">
             {doc.docNo}
           </span>
           <span
@@ -183,18 +177,23 @@ export default async function GianDocumentPage({
         </div>
         <div className="flex flex-wrap gap-2">
           <PrintButton />
-          <Link href="/modules/approvals/new" className={actBtn}>
-            다시 만들기
-          </Link>
-          <Link href="/modules/approvals" className={actBtn}>
-            목록
-          </Link>
+          {doc.status === "draft" && (
+            <Button asChild variant="outline">
+              <Link href={`/modules/approvals/${doc.id}/edit`}>내용 수정</Link>
+            </Button>
+          )}
+          <Button asChild variant="outline">
+            <Link href="/modules/approvals/new">다시 만들기</Link>
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="/modules/approvals">목록</Link>
+          </Button>
         </div>
       </div>
 
       {/* ── 문서 + 검토 패널 (목업 .result-grid: 1fr / 320px) ── */}
-      <div className="grid items-start gap-[22px] lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="min-w-0">
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col items-center">
           <GianPaper
             draft={draft}
             steps={paperSteps}
@@ -206,25 +205,22 @@ export default async function GianDocumentPage({
 
           {/* 이어서 만들기 (목업 .followup) — 결재가 끝난 문서에서만 */}
           {doc.status === "final" && (
-            <div className="mt-4 rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-[18px] py-4 print:hidden">
-              <h4 className="text-[13.5px] font-extrabold">이어서 만들기</h4>
-              <p className="mt-1 mb-3 text-[12.5px] text-[var(--gian-ink-soft)]">
+            <div className="mt-4 w-full max-w-[210mm] rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-4 py-4 print:hidden">
+              <h4 className="text-sm font-bold">이어서 만들기</h4>
+              <p className="mt-1 mb-3 text-xs text-[var(--gian-ink-soft)]">
                 이 문서의 입력을 그대로 재사용합니다 — 다시 입력할 필요 없어요.
               </p>
               {notice ? (
-                <Link
-                  href={`/modules/approvals/${notice.id}`}
-                  className={actBtnPrimary}
-                >
-                  입주민 공고문 {notice.docNo}
-                </Link>
+                <Button asChild>
+                  <Link href={`/modules/approvals/${notice.id}`}>
+                    입주민 공고문 {notice.docNo}
+                  </Link>
+                </Button>
               ) : (
                 // 자동 파생이 실패했을 때의 복구 경로
                 <form action={makeGianNotice}>
                   <input type="hidden" name="docId" value={doc.id} />
-                  <button type="submit" className={actBtnPrimary}>
-                    입주민 공고문 만들기
-                  </button>
+                  <Button type="submit">입주민 공고문 만들기</Button>
                 </form>
               )}
             </div>

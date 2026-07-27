@@ -104,6 +104,10 @@ export async function generateGian(
   // 결정적 유의사항이 항상 앞 — LLM이 빠뜨려도 법적 경고는 나간다
   const legalNotices = [...new Set([...legalNoticesFor(cls), ...draft.legalNotices])];
   const needsClarification = [...draft.needsClarification];
+  if (internal.length === 0)
+    needsClarification.push(
+      "결재선이 비어 있습니다 — 설정 > 결재선에서 결재자를 지정해야 상신할 수 있습니다. (문서의 결재란은 공란으로 인쇄됩니다)",
+    );
   if (missing.length > 0)
     needsClarification.push(
       `결재선에 ${missing.map((r) => externalRoleLabels[r]).join("·")}이(가) 등록되지 않았습니다 — 설정 > 결재선에서 등록해야 상신할 수 있습니다.`,

@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { InquiryForm } from "./inquiry-form";
 
 export default async function SupportPage({
@@ -18,12 +19,10 @@ export default async function SupportPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">고객 문의</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          구독·계정·기능 관련 문의를 남기면 운영팀이 확인 후 연락드립니다.
-        </p>
-      </div>
+      <PageHeader
+        title="고객 문의"
+        description="구독·계정·기능 관련 문의를 남기면 운영팀이 확인 후 연락드립니다."
+      />
 
       <Card className="max-w-2xl p-6">
         <InquiryForm defaultCategory={category} />

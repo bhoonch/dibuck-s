@@ -2,7 +2,8 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { Check, Copy, Loader2, RefreshCw, Send, X } from "lucide-react";
-import { actBtn, actBtnPrimary, genBtn, panel, panelTitle } from "@/components/gian-ui";
+import { Button } from "@/components/ui/button";
+import { panel, panelTitle } from "@/components/gian-ui";
 import {
   actOnGianStep,
   reissueGianToken,
@@ -73,10 +74,10 @@ export function ApprovalPanel({
         {steps.map((s, i) => (
           <span key={s.id} className="flex items-center gap-1.5">
             {i > 0 && (
-              <span className="text-[12px] text-[var(--gian-ink-soft)]">▸</span>
+              <span className="text-xs text-[var(--gian-ink-soft)]">▸</span>
             )}
             <span
-              className={`rounded border px-2.5 py-1 text-[13px] font-semibold ${
+              className={`rounded border px-2.5 py-1 text-xs font-semibold ${
                 s.status === "pending"
                   ? "border-[var(--gian-navy)] bg-[var(--gian-card)] text-[var(--gian-navy)]"
                   : "border-[var(--gian-line-strong)] bg-[var(--gian-paper)]"
@@ -87,7 +88,7 @@ export function ApprovalPanel({
           </span>
         ))}
         {steps.length === 0 && (
-          <span className="text-[13px] text-[var(--gian-ink-soft)]">
+          <span className="text-sm text-[var(--gian-ink-soft)]">
             아직 상신 전입니다.
           </span>
         )}
@@ -99,14 +100,14 @@ export function ApprovalPanel({
           {steps.map((s) => (
             <li
               key={s.id}
-              className="flex items-center gap-2 py-[5px] text-[13px] [&+li]:border-t [&+li]:border-[var(--gian-line)]"
+              className="flex items-center gap-2 py-1.5 text-sm [&+li]:border-t [&+li]:border-[var(--gian-line)]"
             >
               <span
                 className={`size-2 shrink-0 rounded-full ${dotColor[s.status] ?? "bg-[var(--gian-line-strong)]"}`}
               />
               <span className="flex-1 font-semibold">{s.label}</span>
               <span
-                className={`text-[12px] ${
+                className={`text-xs ${
                   s.status === "approved"
                     ? "font-bold text-[var(--gian-ok)]"
                     : s.status === "rejected"
@@ -125,7 +126,7 @@ export function ApprovalPanel({
           {steps
             .filter((s) => s.comment)
             .map((s) => (
-              <li key={s.id} className="text-[12px] text-[var(--gian-ink-soft)]">
+              <li key={s.id} className="text-xs text-[var(--gian-ink-soft)]">
                 {s.label} — &ldquo;{s.comment}&rdquo;
               </li>
             ))}
@@ -136,15 +137,15 @@ export function ApprovalPanel({
       {canSubmit && (docStatus === "draft" || docStatus === "rejected") && (
         <div className="mt-3 space-y-2 border-t border-[var(--gian-line)] pt-3">
           {rejected && docStatus === "rejected" && (
-            <p className="rounded-md bg-[var(--gian-stamp-soft)] p-2 text-[12.5px] text-[var(--gian-stamp)]">
+            <p className="rounded-md bg-[var(--gian-stamp-soft)] p-2 text-xs text-[var(--gian-stamp)]">
               {rejected.label}이(가) 반려했습니다
               {rejected.comment ? ` — "${rejected.comment}"` : ""}. 다시
               상신하면 결재가 처음부터 진행됩니다.
             </p>
           )}
-          <button
-            type="button"
-            className={genBtn}
+          <Button
+            size="lg"
+            className="w-full"
             disabled={pending}
             onClick={() => run(() => submitGian(docId))}
           >
@@ -154,7 +155,7 @@ export function ApprovalPanel({
               <Send className="size-4" />
             )}
             {docStatus === "rejected" ? "다시 상신" : "결재 상신"}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -169,32 +170,24 @@ export function ApprovalPanel({
             name="comment"
             rows={2}
             placeholder="의견 (반려 시 필수)"
-            className="w-full rounded-[5px] border border-[var(--gian-line-strong)] bg-[var(--gian-paper)] px-3 py-2 text-[13.5px]"
+            className="w-full rounded-md border border-[var(--gian-line-strong)] bg-[var(--gian-paper)] px-3 py-2 text-sm"
           />
           <div className="flex gap-2">
-            <button
-              type="submit"
-              name="action"
-              value="approve"
-              className={actBtnPrimary}
-              disabled={actPending}
-            >
+            <Button type="submit" name="action" value="approve" disabled={actPending}>
               <Check className="size-4" /> 승인
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               name="action"
               value="reject"
-              className={`${actBtn} text-[var(--gian-stamp)] hover:border-[var(--gian-stamp)] hover:text-[var(--gian-stamp)]`}
+              variant="destructive"
               disabled={actPending}
             >
               <X className="size-4" /> 반려
-            </button>
+            </Button>
           </div>
           {actState?.error && (
-            <p className="text-[12px] text-[var(--gian-stamp)]">
-              {actState.error}
-            </p>
+            <p className="text-xs text-destructive">{actState.error}</p>
           )}
         </form>
       )}
@@ -202,15 +195,14 @@ export function ApprovalPanel({
       {/* 외부 결재자 차례 — 서명 링크 전달 */}
       {current?.isExternal && (
         <div className="mt-3 space-y-2 border-t border-[var(--gian-line)] pt-3">
-          <p className="text-[12.5px] text-[var(--gian-ink-soft)]">
+          <p className="text-xs text-[var(--gian-ink-soft)]">
             {current.label} 차례입니다. 서명 링크를 카카오톡·문자로 전달하세요.
             {current.tokenExpired && " (링크가 만료되어 재발급이 필요합니다)"}
           </p>
           <div className="flex flex-wrap gap-2">
             {current.token && !current.tokenExpired && (
-              <button
-                type="button"
-                className={actBtn}
+              <Button
+                variant="outline"
                 onClick={() => {
                   navigator.clipboard.writeText(
                     `${window.location.origin}/approve/${current.token}`,
@@ -221,27 +213,26 @@ export function ApprovalPanel({
               >
                 <Copy className="size-4" />
                 {copied ? "복사됨!" : "서명 링크 복사"}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              className={actBtn}
+            <Button
+              variant="outline"
               disabled={pending}
               onClick={() => run(() => reissueGianToken(current.id))}
             >
               <RefreshCw className="size-4" /> 링크 재발급
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {docStatus === "final" && (
-        <p className="mt-3 border-t border-[var(--gian-line)] pt-3 text-[13px] font-bold text-[var(--gian-ok)]">
+        <p className="mt-3 border-t border-[var(--gian-line)] pt-3 text-sm font-bold text-[var(--gian-ok)]">
           결재가 완료된 문서입니다.
         </p>
       )}
       {error && (
-        <p className="mt-2 text-[12px] text-[var(--gian-stamp)]">{error}</p>
+        <p className="mt-2 text-xs text-destructive">{error}</p>
       )}
     </div>
   );

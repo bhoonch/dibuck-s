@@ -27,7 +27,7 @@ export function NoticePaper({
   return (
     <div
       id={id}
-      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[12pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm]"
+      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[12pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none"
     >
       {/* 3분할 헤더 */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[5mm]">

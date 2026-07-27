@@ -1,6 +1,6 @@
 /**
- * 기안·품의 진행 단계 표시 — 목업의 `.steps`.
- * 입력 → 초안 확인 → 결재. 현재 단계만 진하게(navy) 칠한다.
+ * 기안·품의 진행 단계 표시 — 목업의 `.steps` 구성.
+ * 입력 → 초안 확인 → 결재. 글자 크기는 공용 체계(text-sm/text-xs).
  */
 const LABELS = ["문서 정보 입력", "초안 확인", "결재"];
 
@@ -14,18 +14,18 @@ export function GianSteps({ current }: { current: 1 | 2 | 3 }) {
           )}
           <div className="flex items-center gap-2.5">
             <span
-              className={`grid size-6 place-items-center rounded-full text-[12.5px] font-bold ${
+              className={`grid size-6 place-items-center rounded-full border text-xs font-bold ${
                 i + 1 === current
-                  ? "border-[1.5px] border-[var(--gian-navy)] bg-[var(--gian-navy)] text-[var(--gian-paper)]"
-                  : "border-[1.5px] border-[var(--gian-line-strong)] bg-[var(--gian-card)] text-[var(--gian-ink-soft)]"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-[var(--gian-line-strong)] bg-[var(--gian-card)] text-[var(--gian-ink-soft)]"
               }`}
             >
               {i + 1}
             </span>
             <span
-              className={`text-[13.5px] ${
+              className={`text-sm ${
                 i + 1 === current
-                  ? "font-bold text-[var(--gian-ink)]"
+                  ? "font-bold text-foreground"
                   : "text-[var(--gian-ink-soft)]"
               }`}
             >

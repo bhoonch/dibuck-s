@@ -187,7 +187,9 @@ export default async function AppLayout({
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <AppHeader unread={unread} />
-          <main className="w-full max-w-[1440px] flex-1 p-6">{children}</main>
+          <main className="w-full max-w-[1440px] flex-1 p-6 lg:px-10 lg:py-8">
+            {children}
+          </main>
         </div>
       </div>
     </>
