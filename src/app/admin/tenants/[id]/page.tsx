@@ -264,6 +264,10 @@ export default async function AdminTenantDetailPage({
                   <span className="ml-2 font-mono text-xs text-gray-500">
                     월 {m.price.toLocaleString()}원
                   </span>
+                  {/* 이 목록은 판매 중단 모듈도 보여준다 — 사용자 화면과 어긋나지 않게 표시 */}
+                  {!m.isActive && (
+                    <span className="ml-2 text-xs text-gray-400">판매 중단</span>
+                  )}
                 </span>
                 {state.kind === "trial" ? (
                   <Pill tone="warn">체험 D-{state.daysLeft}</Pill>

@@ -70,9 +70,11 @@ export default async function SubscriptionsPage() {
                     ? "체험 종료"
                     : m.trialEndsAt
                       ? `무료 체험 D-${dday(m.trialEndsAt)}`
-                      : m.subscribed
-                        ? "사용 중"
-                        : "미구독"}
+                      : m.retired
+                        ? "판매 중단"
+                        : m.subscribed
+                          ? "사용 중"
+                          : "미구독"}
                 </span>
               </div>
               <p
@@ -84,6 +86,13 @@ export default async function SubscriptionsPage() {
               </p>
               <p className="mt-1 flex-1 text-xs text-gray-500">
                 {m.description}
+                {/* 판매 중단 = 신규 구독만 막힌 상태. 쓰던 단지는 계속 쓰고 해지도 된다 */}
+                {m.retired && (
+                  <span className="mt-1 block text-gray-400">
+                    신규 판매가 중단된 모듈입니다. 지금 구독은 그대로 유지되지만,
+                    해지하면 다시 구독할 수 없습니다.
+                  </span>
+                )}
               </p>
               <div className="mt-3 flex items-center border-t border-gray-100 pt-3">
                 <span className="font-mono text-sm font-semibold">

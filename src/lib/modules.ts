@@ -16,22 +16,32 @@ export type TenantModuleInfo = {
   trialExpired: boolean;
   /** 한 번이라도 구독한 적 있는가 — 무료 체험은 모듈당 최초 1회 */
   everSubscribed: boolean;
+  /** 판매 중단(isActive=false)인데 기존 구독이라 계속 쓰는 중 — 신규 구독은 불가 */
+  retired: boolean;
 };
 
-/** 레지스트리 전체 + 해당 단지의 구독 여부. 사이드바·런처가 공용으로 사용 */
+/**
+ * 레지스트리 + 해당 단지의 구독 상태. 사이드바·런처·구독 관리가 공용으로 사용.
+ *
+ * isActive=false는 "신규 판매 중단"이지 "기존 구독 회수"가 아니다.
+ * 목록에서 그냥 빼 버리면 이미 쓰던 단지가 모듈에 못 들어가고 해지 버튼도 사라지는데
+ * TenantModule 행은 ACTIVE로 남아 운영자 화면에서는 요금이 계속 잡힌다.
+ * 그래서 구독 중이면 판매 중단이어도 계속 보여 주고(retired), 미구독이면 감춘다.
+ */
 export async function getModulesForTenant(
   tenantId: string,
 ): Promise<TenantModuleInfo[]> {
-  const [modules, subs] = await Promise.all([
-    db.module.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-    }),
+  const [all, subs] = await Promise.all([
+    db.module.findMany({ orderBy: { sortOrder: "asc" } }),
     db.tenantModule.findMany({
       where: { tenantId },
       select: { moduleId: true, status: true, trialEndsAt: true },
     }),
   ]);
+  const activeIds = new Set(
+    subs.filter((s) => s.status === "ACTIVE").map((s) => s.moduleId),
+  );
+  const modules = all.filter((m) => m.isActive || activeIds.has(m.id));
   const now = new Date();
   const rows = new Map(subs.map((s) => [s.moduleId, s]));
   return modules.map((m) => {
@@ -53,6 +63,7 @@ export async function getModulesForTenant(
       trialEndsAt: active && !expired ? (row?.trialEndsAt ?? null) : null,
       trialExpired: expired,
       everSubscribed: !!row,
+      retired: !m.isActive,
     };
   });
 }
