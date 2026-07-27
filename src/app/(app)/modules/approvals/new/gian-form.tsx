@@ -98,6 +98,11 @@ export function GianForm() {
                 VAT 포함
               </label>
             </div>
+            <p className="text-xs text-muted-foreground">
+              예산을 비우면 <b>기안서</b>, 입력하면 <b>품의서</b>가 자동
+              적용됩니다. 장기수선 대상 공사(옥상 방수·승강기 등)는{" "}
+              <b>공사 추진 기안서</b>로 바뀝니다.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="why">왜 필요한가요?</Label>
