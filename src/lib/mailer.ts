@@ -67,6 +67,19 @@ function layout(bodyHtml: string, cta: { label: string; url: string; danger?: bo
     </div>`;
 }
 
+const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+const ymd = (d: Date) =>
+  new Date(d.getTime() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, ".");
+
+/** 결제·체험 안내는 전부 실패해도 크론을 멈추지 않는다 — 메일 하나 때문에 청구가 밀리면 안 된다 */
+export async function trySend(fn: () => Promise<void>) {
+  try {
+    await fn();
+  } catch (err) {
+    console.error("[mailer] 안내 메일 발송 실패", err);
+  }
+}
+
 // ── 비밀번호 재설정 ────────────────────────────────────────────
 export async function sendPasswordReset(to: string, name: string, token: string) {
   await send(
@@ -78,6 +91,114 @@ export async function sendPasswordReset(to: string, name: string, token: string)
        링크는 <b>1시간</b> 동안만 유효하고, 한 번 사용하면 만료됩니다.</p>
        <p style="color:#64748b;font-size:14px;">본인이 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.</p>`,
       { label: "새 비밀번호 설정하기", url: `${APP_URL}/reset-password/${token}` },
+    ),
+  );
+}
+
+// ── 무료 체험 ──────────────────────────────────────────────────
+export async function sendTrialEndingSoon(
+  to: string,
+  name: string,
+  moduleNames: string,
+  daysLeft: number,
+) {
+  await send(
+    to,
+    `[디벅] 무료 체험이 ${daysLeft}일 남았습니다`,
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p><b>${moduleNames}</b> 무료 체험이 <b>${daysLeft}일</b> 뒤 종료됩니다.</p>
+       <p>결제 카드를 등록해 두시면 체험이 끝나는 날 자동으로 이어집니다.
+       입력하신 데이터와 설정은 그대로 유지됩니다.</p>`,
+      { label: "결제 카드 등록하기", url: `${APP_URL}/settings/billing` },
+    ),
+  );
+}
+
+export async function sendTrialExpired(to: string, name: string, moduleNames: string) {
+  await send(
+    to,
+    "[디벅] 무료 체험이 종료되었습니다",
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p><b>${moduleNames}</b> 무료 체험이 끝나 해당 모듈이 잠겼습니다.</p>
+       <p>결제 카드를 등록하시면 바로 다시 사용하실 수 있고, 그동안 입력하신 데이터도 그대로입니다.</p>`,
+      { label: "결제 카드 등록하기", url: `${APP_URL}/settings/billing` },
+    ),
+  );
+}
+
+// ── 결제 ───────────────────────────────────────────────────────
+export async function sendRenewalNotice(
+  to: string,
+  name: string,
+  amount: number,
+  billingAt: Date,
+  daysLeft: number,
+) {
+  await send(
+    to,
+    `[디벅] ${daysLeft}일 뒤 ${won(amount)}이 결제됩니다`,
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p><b>${ymd(billingAt)}</b>에 등록하신 카드로 <b>${won(amount)}</b>이 자동 결제될 예정입니다.</p>
+       <p>카드 한도와 유효기간을 미리 확인해 주세요. 구독을 조정하시려면 결제 화면에서 변경하실 수 있습니다.</p>`,
+      { label: "결제 정보 확인하기", url: `${APP_URL}/settings/billing` },
+    ),
+  );
+}
+
+export async function sendPaymentSuccess(
+  to: string,
+  name: string,
+  amount: number,
+  nextAt: Date,
+  receiptUrl?: string,
+) {
+  await send(
+    to,
+    `[디벅] ${won(amount)} 결제가 완료되었습니다`,
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p>정기 결제가 정상적으로 처리되었습니다.</p>
+       <table style="border-collapse:collapse;margin:12px 0;font-size:14px;">
+         <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">결제 금액</td><td style="padding:8px 16px;">${won(amount)}</td></tr>
+         <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">다음 결제일</td><td style="padding:8px 16px;">${ymd(nextAt)}</td></tr>
+       </table>`,
+      { label: "영수증 보기", url: receiptUrl ?? `${APP_URL}/settings/billing` },
+    ),
+  );
+}
+
+export async function sendPaymentFailed(
+  to: string,
+  name: string,
+  reason: string,
+  daysLeft: number,
+) {
+  await send(
+    to,
+    "[디벅] 결제에 실패했습니다 — 카드를 확인해 주세요",
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p>정기 결제가 처리되지 않았습니다.</p>
+       <p style="color:#dc2626;">실패 사유: ${reason}</p>
+       <p>매일 자동으로 다시 시도합니다. <b>${daysLeft}일</b> 안에 결제되지 않으면 서비스 이용이 일시 정지됩니다.
+       카드 한도·유효기간을 확인하시거나 다른 카드로 바꿔 주세요.</p>`,
+      { label: "결제 수단 변경하기", url: `${APP_URL}/settings/billing`, danger: true },
+    ),
+  );
+}
+
+export async function sendSuspended(to: string, name: string) {
+  await send(
+    to,
+    "[디벅] 서비스 이용이 일시 정지되었습니다",
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p>결제가 계속 실패해 서비스 이용이 일시 정지되었습니다. 모듈에 들어가실 수 없는 상태입니다.</p>
+       <p><b>데이터는 그대로 보관되어 있습니다.</b> 카드를 바꾸고 결제하시면 즉시 다시 사용하실 수 있습니다.</p>`,
+      { label: "지금 결제하고 이용 재개", url: `${APP_URL}/settings/billing`, danger: true },
     ),
   );
 }

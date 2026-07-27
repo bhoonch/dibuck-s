@@ -31,6 +31,80 @@ model Tenant {
   notifications Notification[]
   units         Unit[]
   inquiries     Inquiry[]
+  billing       Billing?
+}
+
+// ── 결제 (토스페이먼츠 자동결제) ─────────────────────────────
+
+/// 단지의 결제 수단과 청구 주기. Tenant에 컬럼으로 붙이지 않은 이유는
+/// Tenant.status(이용 중지)와 결제 상태가 서로 다른 뜻인데 이름이 겹치기 때문이다.
+model Billing {
+  tenantId String @id
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// 토스에 넘기는 고객 식별자. 단지 id를 그대로 쓰지 않는다 —
+  /// 빌링키는 customerKey와 쌍으로만 결제되므로 추측 가능한 값이면 안 된다.
+  customerKey String        @unique
+  billingKey  String? // 카드 정보 대신 저장하는 키. 카드번호는 우리가 갖지 않는다
+  cardCompany String?
+  cardNumber  String? // 토스가 마스킹해서 주는 값 (예: "43301234****123*")
+  status      BillingStatus @default(NONE)
+
+  /// 다음 청구일(KST 그날 00:00). null = 청구할 게 없음(카드 미등록 또는 전 모듈 해지)
+  nextBillingAt DateTime?
+  /// 청구 기준일(1~31). 매달 +1개월로 계산하면 1/31 → 2/28 → 3/28처럼 날짜가 앞으로 밀린다.
+  /// 기준일을 따로 들고 그 달 말일로 잘라 쓰면 31일 가입자도 계속 말일에 청구된다.
+  billingDay    Int?
+  /// 결제 실패로 PAST_DUE가 된 시각 — 여기서 유예 7일과 재시도(D+3·D+7)를 센다
+  pastDueSince  DateTime?
+  /// 기간 말 해지 예약. 이미 낸 달은 끝까지 쓰게 하고 다음 청구일에 실제로 끊는다
+  cancelRequestedAt DateTime?
+
+  payments  Payment[]
+  updatedAt DateTime  @updatedAt
+
+  @@index([nextBillingAt])
+}
+
+enum BillingStatus {
+  NONE /// 카드 미등록
+  ACTIVE /// 정상 — 체험이 끝나도 잠기지 않고 청구된다
+  PAST_DUE /// 결제 실패, 유예 중 — 서비스는 계속 쓸 수 있다
+  SUSPENDED /// 유예 초과 — 전 모듈 잠금, 셀프 재결제로 풀린다
+}
+
+/// 청구 이력. items에 **가격 스냅샷**을 남겨서, 모듈 가격이 바뀌어도
+/// 과거 청구 내역이 소급되어 달라지지 않게 한다.
+model Payment {
+  id       String  @id @default(cuid())
+  tenantId String
+  billing  Billing @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+
+  orderId String        @unique // 토스 주문번호 — 재시도마다 새로 만든다
+  amount  Int
+  status  PaymentStatus
+  /// [{ moduleId, name, price }] — 청구 시점의 모듈 구성과 가격
+  items   Json
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  paymentKey String?
+  receiptUrl String?
+  failCode   String?
+  failReason String?
+  /// 같은 청구 주기의 몇 번째 시도인가 (1=최초, 2=D+3 재시도, 3=D+7 재시도)
+  attempt    Int      @default(1)
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  @@index([tenantId, createdAt])
+}
+
+enum PaymentStatus {
+  PAID
+  FAILED
 }
 
 // ── 세대 마스터 (모든 모듈이 공유: 독촉장, 민원, 공지 발송 등) ──

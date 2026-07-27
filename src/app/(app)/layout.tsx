@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Hourglass, Megaphone } from "lucide-react";
+import { AlertTriangle, Hourglass, Megaphone } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
@@ -20,8 +20,17 @@ export default async function AppLayout({
   const now = new Date();
   const days = (n: number) => new Date(now.getTime() + n * 86400000);
 
-  const [tenant, modules, unread, announcements, docCount, expiring, complaints, me] =
-    await Promise.all([
+  const [
+    tenant,
+    modules,
+    unread,
+    announcements,
+    docCount,
+    expiring,
+    complaints,
+    me,
+    billing,
+  ] = await Promise.all([
       db.tenant.findUnique({ where: { id: tenantId } }),
       getModulesForTenant(tenantId),
       db.notification.count({ where: { userId: session.userId, readAt: null } }),
@@ -44,6 +53,10 @@ export default async function AppLayout({
         where: { id: session.userId },
         select: { title: true },
       }),
+      db.billing.findUnique({
+        where: { tenantId },
+        select: { status: true },
+      }),
     ]);
   // 이용 중지는 로그인만 막아선 부족하다 — 이미 로그인한 세션도 여기서 끊는다
   if (!tenant || tenant.status === "SUSPENDED") redirect("/login?error=suspended");
@@ -61,13 +74,21 @@ export default async function AppLayout({
     complaints,
   };
 
-  // 체험 만료 안내 — 크론 없이 접속 시점에 계산해서 배너로만 알린다.
-  // ponytail: 알림 센터 fan-out 없음(발송 이력 추적이 필요해짐) — 결제 연동(5.6) 때 결제 유도로 대체
+  // 체험 만료 안내 — 접속 시점에 계산해서 배너로 알린다(메일은 크론이 따로 보낸다).
+  // 카드가 등록돼 있으면 만료가 잠금이 아니라 청구로 이어지므로 trialExpired가 뜨지 않는다.
   const expiredTrials = modules.filter((m) => m.trialExpired);
   const endingSoon = modules.filter(
     (m) => m.trialEndsAt && m.trialEndsAt.getTime() - now.getTime() <= 7 * 86400000,
   );
   const names = (list: typeof modules) => list.map((m) => m.name).join(", ");
+
+  // 결제 경고는 체험 안내보다 위 — 정지는 전 모듈이 잠긴 상태다
+  const billingAlert =
+    billing?.status === "SUSPENDED"
+      ? "결제가 되지 않아 서비스가 일시 정지되었습니다. 데이터는 그대로 보관되어 있습니다."
+      : billing?.status === "PAST_DUE"
+        ? "결제에 실패했습니다. 카드를 확인해 주세요 — 유예 기간이 지나면 이용이 정지됩니다."
+        : null;
 
   const tenantMeta = [
     tenant.buildingInfo,
@@ -84,6 +105,18 @@ export default async function AppLayout({
           {announcement.message}
         </div>
       )}
+      {billingAlert && (
+        <div className="flex items-center justify-center gap-2 border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <AlertTriangle className="size-4 shrink-0" />
+          {billingAlert}
+          <Link
+            href="/settings/billing"
+            className="font-semibold underline underline-offset-2"
+          >
+            결제 확인하기
+          </Link>
+        </div>
+      )}
       {(expiredTrials.length > 0 || endingSoon.length > 0) && (
         <div className="flex items-center justify-center gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           <Hourglass className="size-4 shrink-0" />
@@ -91,10 +124,10 @@ export default async function AppLayout({
             <>
               {names(expiredTrials)} 무료 체험이 종료되어 잠겼습니다.
               <Link
-                href="/support?category=구독"
+                href="/settings/billing"
                 className="font-semibold underline underline-offset-2"
               >
-                유료 전환 문의
+                카드 등록하고 계속 쓰기
               </Link>
             </>
           ) : (

@@ -60,6 +60,7 @@ async function main() {
       "/settings/staff",
       "/settings/approval-line",
       "/settings/subscriptions",
+      "/settings/billing",
       "/settings/account",
       "/support",
     ],

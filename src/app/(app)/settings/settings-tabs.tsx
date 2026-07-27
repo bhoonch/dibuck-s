@@ -10,6 +10,7 @@ const tabs = [
   { name: "직원 관리", href: "/settings/staff" },
   { name: "결재선", href: "/settings/approval-line" },
   { name: "구독 관리", href: "/settings/subscriptions" },
+  { name: "결제", href: "/settings/billing" },
   { name: "내 계정", href: "/settings/account" },
 ];
 

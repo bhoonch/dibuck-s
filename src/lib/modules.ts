@@ -12,12 +12,14 @@ export type TenantModuleInfo = {
   subscribed: boolean;
   /** 구독 중이면서 아직 무료 체험 기간이 남아 있으면 종료일, 아니면 null */
   trialEndsAt: Date | null;
-  /** 체험이 끝났는데 유료 전환 전 — 모듈 잠금, 셀프 재구독 불가(유료 전환 문의) */
+  /** 체험이 끝났는데 카드도 없음 — 모듈 잠금, 카드 등록으로 풀린다 */
   trialExpired: boolean;
   /** 한 번이라도 구독한 적 있는가 — 무료 체험은 모듈당 최초 1회 */
   everSubscribed: boolean;
   /** 판매 중단(isActive=false)인데 기존 구독이라 계속 쓰는 중 — 신규 구독은 불가 */
   retired: boolean;
+  /** 결제 실패 유예 초과로 단지 전체가 정지 — 재결제하면 즉시 풀린다 */
+  suspended: boolean;
 };
 
 /**
@@ -27,15 +29,23 @@ export type TenantModuleInfo = {
  * 목록에서 그냥 빼 버리면 이미 쓰던 단지가 모듈에 못 들어가고 해지 버튼도 사라지는데
  * TenantModule 행은 ACTIVE로 남아 운영자 화면에서는 요금이 계속 잡힌다.
  * 그래서 구독 중이면 판매 중단이어도 계속 보여 주고(retired), 미구독이면 감춘다.
+ *
+ * 잠금은 두 가지다:
+ *  - 체험 만료 + 카드 미등록 → 그 모듈만 잠금(카드 등록하면 결제로 이어지고 풀린다)
+ *  - 결제 실패 유예 초과(SUSPENDED) → 단지의 전 모듈 잠금(재결제하면 풀린다)
  */
 export async function getModulesForTenant(
   tenantId: string,
 ): Promise<TenantModuleInfo[]> {
-  const [all, subs] = await Promise.all([
+  const [all, subs, billing] = await Promise.all([
     db.module.findMany({ orderBy: { sortOrder: "asc" } }),
     db.tenantModule.findMany({
       where: { tenantId },
       select: { moduleId: true, status: true, trialEndsAt: true },
+    }),
+    db.billing.findUnique({
+      where: { tenantId },
+      select: { status: true, billingKey: true },
     }),
   ]);
   const activeIds = new Set(
@@ -44,13 +54,17 @@ export async function getModulesForTenant(
   const modules = all.filter((m) => m.isActive || activeIds.has(m.id));
   const now = new Date();
   const rows = new Map(subs.map((s) => [s.moduleId, s]));
+  // 카드가 등록돼 있으면 체험 만료는 잠금이 아니라 청구로 이어진다
+  const hasCard = !!billing?.billingKey;
+  const suspended = billing?.status === "SUSPENDED";
+
   return modules.map((m) => {
     const row = rows.get(m.id);
     const active = row?.status === "ACTIVE";
-    // 체험 종료 후 미전환(trialEndsAt이 과거인 채 남아 있음) — 결제 연동(로드맵 5.6) 전까지는
-    // 잠그고 유료 전환 문의로 안내한다. 전환하면 운영자가 trialEndsAt을 null로 지운다.
-    // 스스로 해지한 모듈은 잠긴 게 아니라 안 쓰는 것 — 만료 배너를 띄우면 안 된다.
-    const expired = active && !!row.trialEndsAt && row.trialEndsAt <= now;
+    // 스스로 해지한 모듈은 잠긴 게 아니라 안 쓰는 것 — 만료 배너를 띄우면 안 된다
+    const expired =
+      active && !hasCard && !!row.trialEndsAt && row.trialEndsAt <= now;
+    const usable = active && !expired && !suspended;
     return {
       id: m.id,
       name: m.name,
@@ -59,22 +73,29 @@ export async function getModulesForTenant(
       route: m.route,
       price: m.price,
       trialDays: m.trialDays,
-      subscribed: active && !expired,
-      trialEndsAt: active && !expired ? (row?.trialEndsAt ?? null) : null,
+      subscribed: usable,
+      trialEndsAt: usable ? (row?.trialEndsAt ?? null) : null,
       trialExpired: expired,
       everSubscribed: !!row,
       retired: !m.isActive,
+      suspended: active && suspended,
     };
   });
 }
 
 /** 모듈 페이지 진입 시 구독 검사용 */
 export async function isSubscribed(tenantId: string, moduleId: string) {
-  const sub = await db.tenantModule.findUnique({
-    where: { tenantId_moduleId: { tenantId, moduleId } },
-  });
-  return (
-    sub?.status === "ACTIVE" &&
-    (!sub.trialEndsAt || sub.trialEndsAt > new Date())
-  );
+  const [sub, billing] = await Promise.all([
+    db.tenantModule.findUnique({
+      where: { tenantId_moduleId: { tenantId, moduleId } },
+    }),
+    db.billing.findUnique({
+      where: { tenantId },
+      select: { status: true, billingKey: true },
+    }),
+  ]);
+  if (sub?.status !== "ACTIVE") return false;
+  if (billing?.status === "SUSPENDED") return false;
+  // 체험이 끝났어도 카드가 있으면 계속 쓴다 — 다음 청구일에 결제된다
+  return !sub.trialEndsAt || sub.trialEndsAt > new Date() || !!billing?.billingKey;
 }

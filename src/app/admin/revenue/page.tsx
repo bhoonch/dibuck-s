@@ -13,7 +13,7 @@ import { requireAdmin } from "@/lib/auth";
 
 export default async function AdminRevenuePage() {
   await requireAdmin();
-  const [subs, tenantCount] = await Promise.all([
+  const [subs, tenantCount, overdue] = await Promise.all([
     db.tenantModule.findMany({
       select: {
         status: true,
@@ -24,7 +24,24 @@ export default async function AdminRevenuePage() {
       },
     }),
     db.tenant.count({ where: { status: "ACTIVE" } }),
+    // 미수금 — 결제가 실패해 유예 중이거나 정지된 단지의 마지막 실패 청구액
+    db.billing.findMany({
+      where: { status: { in: ["PAST_DUE", "SUSPENDED"] } },
+      select: {
+        tenantId: true,
+        payments: {
+          where: { status: "FAILED" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { amount: true },
+        },
+      },
+    }),
   ]);
+  const overdueAmount = overdue.reduce(
+    (sum, b) => sum + (b.payments[0]?.amount ?? 0),
+    0,
+  );
 
   const now = new Date();
   const mrr = mrrAt(subs, now);
@@ -132,10 +149,16 @@ export default async function AdminRevenuePage() {
                 체험 종료·잠김 — 전환하면 월 {won(expiredUpside)} 추가
               </p>
             )}
+            {overdue.length > 0 && (
+              <p className="flex items-center gap-2 text-sm text-gray-600">
+                <Pill tone="danger">미수 {overdue.length}곳</Pill>
+                결제 실패 {won(overdueAmount)} — 유예 중이거나 정지된 단지
+              </p>
+            )}
             <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs text-gray-600">
-              결제 연동 전이라 금액은 구독 중인 모듈의{" "}
-              <b className="font-mono text-amber-700">정가 기준 추정치</b>입니다.
-              실제 청구·미수금은 결제 모듈 도입 후 표시됩니다.
+              위 금액은 구독 중인 모듈의{" "}
+              <b className="font-mono text-amber-700">정가 기준</b>입니다. 실제 청구된
+              금액은 각 단지 상세의 결제 내역에서 확인하세요.
             </p>
           </div>
         </Section>

@@ -220,10 +220,17 @@ export async function setSubscription(moduleId: string, subscribe: boolean) {
   } else {
     const existing = await db.tenantModule.findUnique({ where });
     if (existing) {
-      // 체험이 끝난 모듈은 셀프 재활성화 불가 — 결제(PG) 연동 전까지는 유료 전환 문의로.
-      // 이 가드가 없으면 만료 잠금을 구독 토글 한 번으로 우회한다.
-      if (existing.trialEndsAt && existing.trialEndsAt <= new Date())
-        throw new Error("무료 체험이 종료된 모듈입니다. 유료 전환을 문의해 주세요.");
+      // 체험이 끝난 모듈은 카드가 있어야 다시 켤 수 있다. 이 가드가 없으면
+      // 만료 잠금을 구독 토글 한 번으로 우회해 무료로 계속 쓰게 된다.
+      const billing = await db.billing.findUnique({ where: { tenantId } });
+      if (
+        existing.trialEndsAt &&
+        existing.trialEndsAt <= new Date() &&
+        !billing?.billingKey
+      )
+        throw new Error(
+          "무료 체험이 종료된 모듈입니다. 설정 > 결제에서 카드를 등록해 주세요.",
+        );
       // 재구독 — 체험은 모듈당 최초 1회뿐, 남은 체험 기간이 있으면 그대로 이어진다
       await db.tenantModule.update({ where, data: { status: "ACTIVE" } });
     } else {

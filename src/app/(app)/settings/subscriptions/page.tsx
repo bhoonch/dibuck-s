@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SubscribeButton } from "./subscribe-button";
 
-/* ponytail: 결제(PG) 연동 없음 — 구독 토글만. 실제 과금 붙일 때 결제 모듈 추가 */
+/* 모듈 선택만 여기서. 카드·청구·결제 내역은 설정 > 결제(/settings/billing) */
 export default async function SubscriptionsPage() {
   const session = await requireSession();
   const modules = await getModulesForTenant(session.tenantId!);
@@ -102,9 +102,9 @@ export default async function SubscriptionsPage() {
                   </span>
                 </span>
                 {m.trialExpired ? (
-                  // 결제(PG) 연동 전 — 만료된 체험은 셀프 재개 불가, 문의로 유료 전환
+                  // 체험이 끝났는데 카드가 없다 — 카드를 넣으면 결제로 이어지며 바로 풀린다
                   <Button asChild variant="outline" className="ml-auto">
-                    <Link href="/support?category=구독">유료 전환 문의</Link>
+                    <Link href="/settings/billing">카드 등록</Link>
                   </Button>
                 ) : (
                   isDirector && (
