@@ -80,6 +80,28 @@ export async function trySend(fn: () => Promise<void>) {
   }
 }
 
+// ── 외부 결재 요청 (기안·품의 모듈 — 입주자대표회장·감사) ─────────
+export async function sendApprovalRequest(
+  to: string,
+  name: string,
+  tenantName: string,
+  docTitle: string,
+  token: string,
+) {
+  await send(
+    to,
+    `[디벅] ${tenantName} 결재 요청 — ${docTitle}`,
+    layout(
+      `<p>${name}님, 안녕하세요.</p>
+       <p><b>${tenantName}</b> 관리사무소에서 결재를 요청했습니다.</p>
+       <p style="margin:4px 0;"><b>${docTitle}</b></p>
+       <p>아래 버튼을 눌러 문서를 확인하고 승인 또는 반려해 주세요.<br/>
+       링크는 <b>7일</b> 동안 유효하며, 별도 로그인 없이 처리할 수 있습니다.</p>`,
+      { label: "문서 확인하고 결재하기", url: `${APP_URL}/approve/${token}` },
+    ),
+  );
+}
+
 // ── 비밀번호 재설정 ────────────────────────────────────────────
 export async function sendPasswordReset(to: string, name: string, token: string) {
   await send(

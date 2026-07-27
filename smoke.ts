@@ -42,9 +42,9 @@ async function main() {
   const admin = await token("admin@test.com");
   const tenant = await db.tenant.findFirstOrThrow();
 
-  // 공개 페이지 (쿠키 없음). /reset-password는 없는 토큰이어도 안내 화면(200)이어야 한다
+  // 공개 페이지 (쿠키 없음). /reset-password·/approve는 없는 토큰이어도 안내 화면(200)이어야 한다
   let failed = await check(
-    ["/", "/login", "/signup", "/forgot-password", "/reset-password/nope"],
+    ["/", "/login", "/signup", "/forgot-password", "/reset-password/nope", "/approve/nope"],
     "",
   );
   failed += await check(

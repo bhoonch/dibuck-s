@@ -22,6 +22,7 @@ export const docStatusLabels: Record<string, string> = {
   draft: "작성 중",
   final: "완료",
   pending: "결재 대기",
+  rejected: "반려",
   open: "처리 중",
   done: "처리 완료",
 };
@@ -31,6 +32,7 @@ export const docStatusStyles: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
   final: "bg-green-50 text-green-700",
   pending: "bg-blue-50 text-blue-800",
+  rejected: "bg-red-50 text-red-700",
   open: "bg-red-50 text-red-700",
   done: "bg-green-50 text-green-700",
 };

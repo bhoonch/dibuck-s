@@ -32,7 +32,8 @@ export default async function HomePage() {
   // 목록은 상위 10건만, 숫자는 count로 따로 센다 —
   // take한 배열의 length를 KPI·처리율에 쓰면 37건이 10건으로 보이고 처리율이 부풀려진다
   const where = {
-    approval: { tenantId, type: "approval", status: "pending" },
+    // 기안·품의 모듈은 gian(기안서)·approval(품의서) 두 type을 쓴다 — 결재 대기는 둘 다
+    approval: { tenantId, type: { in: ["approval", "gian"] }, status: "pending" },
     contract: { tenantId, type: "contract", dueDate: { gte: now, lte: days(30) } },
     complaint: { tenantId, type: "complaint", status: "open" },
     inspection: { tenantId, type: "inspection", dueDate: { gte: now, lte: days(7) } },
@@ -84,7 +85,9 @@ export default async function HomePage() {
         inspection,
       })),
       db.document.count({ where: { tenantId, type: "complaint", status: "done" } }),
-      db.document.count({ where: { tenantId, type: "approval", status: "final" } }),
+      db.document.count({
+        where: { tenantId, type: { in: ["approval", "gian"] }, status: "final" },
+      }),
       getModulesForTenant(tenantId),
       db.document.findMany({
         where: { tenantId },
@@ -110,7 +113,11 @@ export default async function HomePage() {
       dot: "bg-blue-600",
       tagStyle: "bg-blue-50 text-blue-800",
       cta: "결재",
-      href: "/documents?type=approval",
+      // 모듈 문서는 결재 화면으로 직행 — 데모 시드처럼 모듈 밖 문서는 문서함으로
+      href:
+        d.moduleId === "approvals"
+          ? `/modules/approvals/${d.id}`
+          : "/documents?type=approval",
       sortKey: d.createdAt.getTime(),
     })),
     ...contracts.map((d) => ({
