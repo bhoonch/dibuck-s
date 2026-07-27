@@ -135,7 +135,9 @@ export function legalNoticesFor(cls: Classification): string[] {
     notices.push(
       "추정가격 500만 원(VAT 제외) 초과 — 입주자대표회의 의결 후 K-apt 전자입찰로 사업자를 선정해야 합니다.",
     );
-  if (cls.isLtp)
+  // 예산이 있을 때만 — 지출이 없는 문서(점검 안내 등)에 "집행하면 과태료"는 오탐이고,
+  // 무의미한 경고가 쌓이면 정작 필요한 경고까지 무시하게 된다
+  if (cls.docType === "ltp_work")
     notices.push(
       "장기수선계획 대상 공사일 수 있습니다 — 수선유지비로 집행하면 과태료 위험이 있습니다 (공동주택관리법 제29·30조). 장기수선충당금 사용계획과 입주자대표회의 의결 여부를 확인하세요.",
     );

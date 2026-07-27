@@ -142,7 +142,7 @@ export function GianForm() {
               </span>
             )}
           </div>
-          {cls.isLtp && (
+          {cls.docType === "ltp_work" && (
             <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <p>

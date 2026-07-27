@@ -181,8 +181,14 @@ export async function generateDraft(args: {
   const { cls, form, tenantName } = args;
   const client = new Anthropic(); // ANTHROPIC_API_KEY는 env에서
 
+  // 오늘 날짜는 캐시되는 고정부가 아니라 여기(user turn)에 넣는다 —
+  // system 쪽에 넣으면 날짜가 바뀔 때마다 프롬프트 캐시가 통째로 깨진다.
+  const kst = new Date(Date.now() + 9 * 3600_000);
+  const today = `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
+
   // 결정적 값은 코드가 계산해 문자열로 주입 — LLM은 그대로 받아 적는다
   const facts = [
+    `오늘 날짜: ${today} — 문서의 연도는 이 값을 쓴다. 월·일이 입력에 있으면 그대로, 없으면 "○월 ○일"로 두되 연도는 채운다.`,
     `단지명: ${tenantName}`,
     `문서 유형: ${docTypeGuide[cls.docType]}`,
     `공사·사업명(안건): ${form.work || "(입력 필요)"}`,

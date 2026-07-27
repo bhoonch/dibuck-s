@@ -7,6 +7,7 @@ import {
   buildApprovalSteps,
   classify,
   formatMoney,
+  legalNoticesFor,
   toKoreanMoney,
   vatExcludedOf,
 } from "./src/lib/gian/rules";
@@ -60,6 +61,14 @@ assert.equal(
   formatMoney(4_500_000, true),
   "금 4,500,000원 (금사백오십만원 / VAT 포함)",
 );
+
+// ── 법적 유의사항 — 경고는 실제로 해당할 때만 뜬다 ──
+assert.equal(legalNoticesFor(gian).length, 0); // 예산 없는 기안서엔 경고 없음
+// 예산 0 + 장충금 키워드: "집행하면 과태료"는 집행이 없으니 오탐 — 뜨면 안 된다
+assert.equal(legalNoticesFor(ltpNoBudget).length, 0);
+assert.ok(legalNoticesFor(pumui).some((n) => n.includes("수의계약")));
+assert.ok(legalNoticesFor(ltp).some((n) => n.includes("전자입찰")));
+assert.ok(legalNoticesFor(ltp).some((n) => n.includes("장기수선계획")));
 
 // ── 결재선 스냅샷 조립 ──
 const internal = [
