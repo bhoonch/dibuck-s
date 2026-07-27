@@ -21,6 +21,11 @@ model Tenant {
   households   Int? // 세대수
   buildingInfo String? // 동 구성 설명 (예: "101동~110동")
   approvalLine Json? // 결재선: 결재 순서대로 userId 배열
+  /// 직원이 아닌 외부 결재자(입주자대표회장·감사): [{ role: "CHAIR"|"AUDITOR", name, phone?, email? }]
+  /// User로 만들지 않는 이유 — 회장은 로그인하지 않고, 계정을 만들면 RBAC·직원 관리가 오염된다.
+  externalApprovers Json?
+  /// 직인 이미지 (data URI). 파일 스토리지가 없어 DB에 직접 저장 — 도장 이미지는 수십 KB라 충분하다
+  sealImage    String?
   memo         String? // 관리자 전용 메모 (영업·CS 기록, 사용자에게 노출 안 됨)
   status       TenantStatus @default(ACTIVE)
   createdAt    DateTime     @default(now())
@@ -265,6 +270,9 @@ model Document {
   title       String
   content     String   @default("")
   attachments Json? // [{ name, url }]
+  /// 모듈별 구조화 데이터 — 기안·품의는 폼 입력 + LLM 출력 원본을 보관한다.
+  /// 재편집, 공고문 자동 파생, 후속 문서(완료보고·지출결의) 필드 상속의 원천.
+  meta        Json?
   status      String   @default("draft")
   dueDate     DateTime? // 기한 — 계약 만료일, 점검 예정일 등 (할 일 위젯이 사용)
   createdById String?
@@ -272,10 +280,37 @@ model Document {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  approvalSteps ApprovalStep[]
+
   // 공문서 번호는 단지 안에서 유일해야 한다 — 채번이 겹치면 DB가 막는다
   @@unique([tenantId, docNo])
   @@index([tenantId, type])
   @@index([tenantId, createdAt])
+}
+
+// ── 결재 단계 (기안·품의 모듈, 이후 전자결재 전 모듈이 공유) ──
+
+/// 문서 상신 시 결재선 스냅샷으로 생성된다. 순차 진행 — order가 낮은 단계부터.
+/// 내부 결재자는 userId, 외부(회장·감사)는 이름 스냅샷 + 서명 토큰으로 참여한다.
+/// 스냅샷인 이유: 결재 진행 중 결재선 설정이 바뀌어도 이미 상신된 문서는 영향받지 않아야 한다.
+model ApprovalStep {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  order      Int // 1부터. 같은 문서 안에서 유일
+  userId     String? // 내부 결재자 — 삭제된 직원의 단계는 이름 스냅샷으로 남는다 (FK 안 건다)
+  /// 외부 결재자 역할 — "CHAIR"(입주자대표회장) | "AUDITOR"(감사). 내부 결재자는 null
+  externalRole String?
+  name       String // 결재자 이름 스냅샷 (표시·감사 목적 — 계정이 삭제돼도 결재란은 남아야 한다)
+  /// 외부 결재자 서명 링크 토큰 — 차례가 됐을 때 발급, 만료·1회용 (PasswordReset과 같은 규칙)
+  token          String?   @unique
+  tokenExpiresAt DateTime?
+  status     String   @default("waiting") // waiting(차례 전) | pending(결재 차례) | approved | rejected
+  comment    String? // 승인·반려 의견
+  actedAt    DateTime?
+
+  @@unique([documentId, order])
+  @@index([userId, status])
 }
 
 // ── 알림 센터 (사용자별 fan-out) ─────────────────────────────

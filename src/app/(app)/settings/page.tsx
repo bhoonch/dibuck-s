@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FileUpload } from "@/components/ui/file-upload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateTenantInfo } from "./actions";
@@ -73,6 +74,38 @@ export default async function TenantSettingsPage() {
               defaultValue={tenant.buildingInfo ?? ""}
               disabled={!isDirector}
             />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="sealImage">직인 이미지</Label>
+            <p className="text-xs text-muted-foreground">
+              인쇄용 공고문·기안서의 명의 옆에 찍힙니다. 없으면
+              &quot;(직인생략)&quot;으로 표기됩니다. (PNG 권장, 1MB 이하)
+            </p>
+            <div className="flex items-start gap-4">
+              {tenant.sealImage && (
+                // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+                <img
+                  src={tenant.sealImage}
+                  alt="등록된 직인"
+                  className="size-24 shrink-0 rounded border bg-white object-contain p-1"
+                />
+              )}
+              <div className="flex-1 space-y-1.5">
+                {isDirector ? (
+                  <FileUpload name="sealImage" accept="image/*" />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    직인은 소장만 등록할 수 있습니다.
+                  </p>
+                )}
+                {tenant.sealImage && isDirector && (
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <input type="checkbox" name="removeSeal" className="size-3.5" />
+                    등록된 직인 삭제
+                  </label>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
         <CardFooter className="justify-end border-t border-gray-100 px-4 py-3">

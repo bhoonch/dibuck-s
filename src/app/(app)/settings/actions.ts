@@ -16,6 +16,23 @@ const MAX_UNIT_ROWS = 20000;
 export async function updateTenantInfo(formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);
   const households = Number(formData.get("households"));
+
+  // 직인 이미지: 파일 스토리지가 없어 data URI로 DB에 저장 — 도장 이미지는 수십 KB면 충분
+  let sealImage: string | null | undefined = undefined; // undefined = 변경 없음
+  if (formData.get("removeSeal") === "on") sealImage = null;
+  else {
+    const seal = formData.get("sealImage");
+    if (seal instanceof File && seal.size > 0) {
+      if (!seal.type.startsWith("image/"))
+        throw new Error("직인은 이미지 파일만 업로드할 수 있습니다.");
+      if (seal.size > 1024 * 1024)
+        throw new Error("직인 이미지는 1MB 이하로 업로드해 주세요.");
+      sealImage = `data:${seal.type};base64,${Buffer.from(
+        await seal.arrayBuffer(),
+      ).toString("base64")}`;
+    }
+  }
+
   await db.tenant.update({
     where: { id: session.tenantId! },
     data: {
@@ -23,6 +40,7 @@ export async function updateTenantInfo(formData: FormData) {
       address: String(formData.get("address") ?? "").trim() || null,
       buildingInfo: String(formData.get("buildingInfo") ?? "").trim() || null,
       households: Number.isFinite(households) && households > 0 ? households : null,
+      sealImage,
     },
   });
   revalidatePath("/settings");
@@ -130,9 +148,39 @@ export async function saveApprovalLine(formData: FormData) {
     where: { id: { in: line }, tenantId: session.tenantId },
   });
   if (valid !== line.length) throw new Error("잘못된 결재자입니다.");
+
+  // 외부 결재자 — 직원이 아니라 계정 없이 이름·연락처만 저장. 회장·감사는 고정 역할
+  // (지출 품의 +회장, 장충금 공사 +감사+회장 자동 추가), 그 외 위원은 ETC + 역할명.
+  // 동적 목록이라 hidden input의 JSON 하나로 받는다.
+  let raw: unknown = [];
+  try {
+    raw = JSON.parse(String(formData.get("externalApprovers") ?? "[]"));
+  } catch {
+    /* 깨진 입력은 빈 목록 취급 */
+  }
+  const seen = new Set<string>();
+  const externalApprovers = (Array.isArray(raw) ? raw : [])
+    .slice(0, 10)
+    .map((e: Record<string, unknown>) => ({
+      role:
+        e.role === "CHAIR" || e.role === "AUDITOR" ? (e.role as string) : "ETC",
+      label: String(e.label ?? "").trim().slice(0, 20) || undefined,
+      name: String(e.name ?? "").trim().slice(0, 30),
+      phone: String(e.phone ?? "").trim().slice(0, 20) || undefined,
+      email: String(e.email ?? "").trim().slice(0, 100) || undefined,
+    }))
+    .filter((e) => e.name)
+    // 회장·감사는 각 1명 — 중복 제출이 와도 첫 항목만 남긴다
+    .filter((e) => {
+      if (e.role === "ETC") return true;
+      if (seen.has(e.role)) return false;
+      seen.add(e.role);
+      return true;
+    });
+
   await db.tenant.update({
     where: { id: session.tenantId! },
-    data: { approvalLine: line },
+    data: { approvalLine: line, externalApprovers },
   });
   revalidatePath("/settings/approval-line");
 }

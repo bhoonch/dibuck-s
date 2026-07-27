@@ -14,6 +14,16 @@ export default async function ApprovalLinePage() {
     }),
   ]);
   const line = (tenant.approvalLine as string[] | null) ?? [];
+  const external =
+    (tenant.externalApprovers as
+      | {
+          role: "CHAIR" | "AUDITOR" | "ETC";
+          label?: string;
+          name: string;
+          phone?: string;
+          email?: string;
+        }[]
+      | null) ?? [];
 
   return (
     <ApprovalLineEditor
@@ -23,6 +33,7 @@ export default async function ApprovalLinePage() {
         label: u.title ?? roleLabels[u.role],
       }))}
       initialLine={line}
+      initialExternal={external}
       isDirector={session.role === "DIRECTOR"}
     />
   );
