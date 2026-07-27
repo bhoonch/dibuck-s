@@ -55,6 +55,29 @@ export default async function TenantSettingsPage() {
               disabled={!isDirector}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">대표번호</Label>
+            <Input
+              id="phone"
+              name="phone"
+              placeholder="예: 031-000-8526"
+              defaultValue={tenant.phone ?? ""}
+              disabled={!isDirector}
+            />
+            <p className="text-xs text-muted-foreground">
+              공고문 하단에 표시됩니다.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fax">팩스</Label>
+            <Input
+              id="fax"
+              name="fax"
+              placeholder="예: 031-000-8527"
+              defaultValue={tenant.fax ?? ""}
+              disabled={!isDirector}
+            />
+          </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="address">주소</Label>
             <Input

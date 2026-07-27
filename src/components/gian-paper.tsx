@@ -103,7 +103,14 @@ export function GianPaper({
 }
 
 /** 인쇄 시 A4 시트만 보이게 — 문서 페이지들이 공유하는 스타일 */
-export function PrintStyle({ target = "a4-sheet" }: { target?: string }) {
+export function PrintStyle({
+  target = "a4-sheet",
+  /** 용지 여백. 공고문처럼 자체 여백을 가진 문서는 "0"으로 넘긴다 */
+  margin = "18mm 16mm",
+}: {
+  target?: string;
+  margin?: string;
+}) {
   return (
     <style>{`
       @media print {
@@ -111,7 +118,7 @@ export function PrintStyle({ target = "a4-sheet" }: { target?: string }) {
         #${target}, #${target} * { visibility: visible; }
         #${target} { position: absolute; inset: 0; width: 100%; margin: 0; border: 0; box-shadow: none; padding: 0; }
       }
-      @page { size: A4; margin: 18mm 16mm; }
+      @page { size: A4; margin: ${margin}; }
     `}</style>
   );
 }

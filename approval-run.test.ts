@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./src/generated/prisma/client";
 import { actOnStep, submitDocument } from "./src/lib/gian/approval";
+import { createNoticeFrom } from "./src/lib/gian/notice";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -55,6 +56,12 @@ async function main() {
     isLtp: false,
     externalApprovers: ["CHAIR"],
   };
+  const form = {
+    work: "지하주차장 배수펌프 교체 공사",
+    location: "지하 1층 기계실",
+    why: "노후로 인한 잦은 고장",
+    schedule: "2026. 08. 10. ~ 08. 12.",
+  };
   const draft = {
     title: "테스트 공사 지출품의의 건",
     legalBasis: ["공동주택관리법 제63조"],
@@ -68,10 +75,11 @@ async function main() {
       tenantId: tenant.id,
       moduleId: "approvals",
       type: "approval",
+      docNo: `품의-2026-${String(Date.now()).slice(-4)}`,
       title: draft.title,
       status: "draft",
       createdById: staff.id,
-      meta: { cls, draft, plannedSteps: [] },
+      meta: { cls, draft, plannedSteps: [], form },
     },
   });
 
@@ -136,6 +144,19 @@ async function main() {
 
     // ── 완료 문서에는 어떤 결재도 불가 ──
     assert.ok((await actOnStep(chair.id, "approve", "")).error);
+
+    // ── 결재 완료 → 입주민 공고문 자동 파생 (승인 전에는 없었어야 한다) ──
+    const notices = await db.document.findMany({
+      where: { tenantId: tenant.id, type: "notice" },
+    });
+    assert.equal(notices.length, 1, "결재 완료 시 공고문 1건이 파생돼야 한다");
+    const nmeta = notices[0].meta as { sourceDocId: string; notice: { rows: { v: string }[] } };
+    assert.equal(nmeta.sourceDocId, doc.id); // 원본과 양방향 링크
+    assert.ok(notices[0].docNo!.startsWith("공지-"), "채번 접두사는 공지");
+    assert.ok(nmeta.notice.rows.some((r) => r.v.includes(doc.docNo!)), "시행근거에 원본 문서번호");
+    // 중복 생성 방지 — 같은 문서로 다시 호출해도 늘지 않는다
+    await createNoticeFrom(await db.document.findUniqueOrThrow({ where: { id: doc.id } }));
+    assert.equal(await db.document.count({ where: { tenantId: tenant.id, type: "notice" } }), 1);
 
     console.log("approval-run OK");
   } finally {

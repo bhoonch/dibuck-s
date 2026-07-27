@@ -38,6 +38,8 @@ export async function updateTenantInfo(formData: FormData) {
     data: {
       name: String(formData.get("name") ?? "").trim() || undefined,
       address: String(formData.get("address") ?? "").trim() || null,
+      phone: String(formData.get("phone") ?? "").trim() || null,
+      fax: String(formData.get("fax") ?? "").trim() || null,
       buildingInfo: String(formData.get("buildingInfo") ?? "").trim() || null,
       households: Number.isFinite(households) && households > 0 ? households : null,
       sealImage,

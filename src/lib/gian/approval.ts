@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import { notifyUser } from "@/lib/notifications";
 import { mailerEnabled, sendApprovalRequest, trySend } from "@/lib/mailer";
+import { createNoticeFrom } from "./notice";
 import {
   buildApprovalSteps,
   externalRoleLabels,
@@ -211,10 +212,17 @@ export async function actOnStep(
   }
 
   // 마지막 결재자 승인 → 결재 완료.
-  // ── Phase 3 훅 위치 ── 여기서 공고문을 자동 생성한다. 승인 전에 만들면
-  // 결재도 안 난 공고가 나가므로 반드시 이 지점이어야 한다.
-  // 재료는 doc.meta.form(공사명·위치·일정) — 사용자 입력을 다시 받지 않는다.
   await db.document.update({ where: { id: doc.id }, data: { status: "final" } });
+
+  // 공고문 자동 파생 — 승인 전에 만들면 결재도 안 난 공고가 나간다.
+  // 실패해도 결재 완료를 되돌리지 않는다: 공고문은 문서 화면에서 언제든 다시 만들 수 있지만,
+  // 결재 완료가 롤백되면 결재자 전원이 다시 승인해야 한다.
+  try {
+    await createNoticeFrom(doc);
+  } catch (e) {
+    console.error("notice derive failed:", e);
+  }
+
   if (doc.createdById)
     await notifyUser({
       tenantId: doc.tenantId,

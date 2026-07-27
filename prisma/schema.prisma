@@ -18,6 +18,8 @@ model Tenant {
   id           String       @id @default(cuid())
   name         String // 단지명
   address      String?
+  phone        String? // 관리사무소 대표번호 — 공고문 하단 TEL
+  fax          String?
   households   Int? // 세대수
   buildingInfo String? // 동 구성 설명 (예: "101동~110동")
   approvalLine Json? // 결재선: 결재 순서대로 userId 배열

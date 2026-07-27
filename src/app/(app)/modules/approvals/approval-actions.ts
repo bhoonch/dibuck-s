@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
+import { createNoticeFrom, findNoticeFor } from "@/lib/gian/notice";
 import { Role } from "@/generated/prisma/enums";
 
 export type ActionState = { error?: string } | undefined;
@@ -55,6 +57,22 @@ export async function actOnGianStep(
   const result = await actOnStep(stepId, action, comment);
   revalidatePath(`/modules/approvals/${step.document.id}`);
   return result.error ? { error: result.error } : undefined;
+}
+
+/**
+ * 공고문 수동 생성 — 결재 완료 시 자동 파생이 실패했을 때의 복구 경로.
+ * 자동 생성은 결재를 막지 않으려고 실패를 삼키므로(approval.ts), 사용자가 스스로
+ * 다시 만들 수 있어야 한다(운영자 문의로 떠넘기지 않는다).
+ */
+export async function makeGianNotice(formData: FormData) {
+  const docId = String(formData.get("docId") ?? "");
+  const { doc } = await myDoc(docId);
+  if (!doc || doc.status !== "final") return;
+
+  await createNoticeFrom(doc);
+  const notice = await findNoticeFor(docId);
+  revalidatePath(`/modules/approvals/${docId}`);
+  if (notice) redirect(`/modules/approvals/${notice.id}`);
 }
 
 export async function reissueGianToken(stepId: string): Promise<ActionState> {
