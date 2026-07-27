@@ -52,6 +52,8 @@ async function main() {
       "/home",
       "/modules",
       "/modules/dunning",
+      "/modules/approvals",
+      "/modules/approvals/new",
       "/documents",
       "/documents?type=approval",
       "/notifications",

@@ -124,6 +124,24 @@ export function toKoreanMoney(n: number): string {
 export const formatMoney = (n: number, vatIncluded: boolean) =>
   `금 ${n.toLocaleString("ko-KR")}원 (${toKoreanMoney(n)} / VAT ${vatIncluded ? "포함" : "별도"})`;
 
+/** 분류에서 나오는 결정적 법적 유의사항 — LLM 출력과 병합하되 이쪽이 항상 포함된다 */
+export function legalNoticesFor(cls: Classification): string[] {
+  const notices: string[] = [];
+  if (cls.context === "direct")
+    notices.push(
+      "수의계약 대상 (추정가격 500만 원 이하, VAT 제외) — 2인 이상의 견적서를 확보해야 합니다 (주택관리업자 및 사업자 선정지침 [별표 2]).",
+    );
+  if (cls.context === "bid")
+    notices.push(
+      "추정가격 500만 원(VAT 제외) 초과 — 입주자대표회의 의결 후 K-apt 전자입찰로 사업자를 선정해야 합니다.",
+    );
+  if (cls.isLtp)
+    notices.push(
+      "장기수선계획 대상 공사일 수 있습니다 — 수선유지비로 집행하면 과태료 위험이 있습니다 (공동주택관리법 제29·30조). 장기수선충당금 사용계획과 입주자대표회의 의결 여부를 확인하세요.",
+    );
+  return notices;
+}
+
 export type ExternalApprover = {
   role: ExternalRole;
   name: string;

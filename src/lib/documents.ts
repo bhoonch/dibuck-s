@@ -10,6 +10,7 @@ const docNoPrefixes: Record<string, string> = {
   inspection: "점검",
   minutes: "회의",
   approval: "품의",
+  gian: "기안",
 };
 
 /**
@@ -41,6 +42,7 @@ export async function createDocument({
   title,
   content = "",
   attachments,
+  meta,
   status = "draft",
   createdById,
   notify,
@@ -51,6 +53,8 @@ export async function createDocument({
   title: string;
   content?: string;
   attachments?: { name: string; url: string }[];
+  /** 모듈별 구조화 데이터 (Document.meta) — 재편집·파생 문서의 원천 */
+  meta?: object;
   status?: string;
   createdById?: string;
   notify?: { type: string; title: string; body?: string };
@@ -69,6 +73,7 @@ export async function createDocument({
           title,
           content,
           attachments,
+          meta,
           status,
           createdById,
         },

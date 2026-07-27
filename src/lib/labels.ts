@@ -13,6 +13,7 @@ export const docTypeLabels: Record<string, string> = {
   contract: "계약서",
   minutes: "회의록",
   approval: "품의서",
+  gian: "기안서",
   complaint: "민원",
   inspection: "점검",
 };

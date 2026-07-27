@@ -21,7 +21,9 @@ const MODULES = [
   { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 4, isActive: false },
   { id: "facilities", name: "설비 이력관리", description: "점검 주기 관리와 수리 이력", icon: "Wrench", route: "/modules/facilities", price: 20000, sortOrder: 5, isActive: false },
   { id: "minutes", name: "회의록 자동완성", description: "메모만 넘기면 회의록이 정리돼요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 6, isActive: false },
-  { id: "approvals", name: "전자결재", description: "품의서 작성과 결재선 승인", icon: "Stamp", route: "/modules/approvals", price: 30000, sortOrder: 7, isActive: false },
+  // 기안·품의 = 로드맵 5번(전자결재)+6번(AI 파이프라인) 선행 구현 — 별도 모듈을 만들지 않고 이 id를 재정의했다.
+  // 가격 33,000 단일가(사용자 확정 2026-07-27). Phase 2 결재까지 끝나면 isActive: true로.
+  { id: "approvals", name: "기안·품의", description: "다섯 항목만 입력하면 법적 검토를 마친 기안서·품의서 초안과 결재까지", icon: "Stamp", route: "/modules/approvals", price: 33000, sortOrder: 7, isActive: false },
   { id: "safety-training", name: "산업보건 교육일지", description: "법정 교육 기록과 기한 알림", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 8, isActive: false },
 ];
 
@@ -88,16 +90,16 @@ async function seedDemo() {
     });
   }
 
-  // dunning·notice는 정식 구독, contracts는 무료 체험 중(데모용).
-  // 이 셋은 개발 화면을 채우려고 여기서만 판매 상태로 켠다 — 운영에서는 꺼진 채로
+  // dunning·notice·approvals는 정식 구독, contracts는 무료 체험 중(데모용).
+  // 이들은 개발 화면을 채우려고 여기서만 판매 상태로 켠다 — 운영에서는 꺼진 채로
   // 남아야 하므로 MODULES 쪽 isActive는 건드리지 않는다.
   await db.module.updateMany({
-    where: { id: { in: ["dunning", "notice", "contracts"] } },
+    where: { id: { in: ["dunning", "notice", "contracts", "approvals"] } },
     data: { isActive: true },
   });
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-  for (const moduleId of ["dunning", "notice", "contracts"]) {
+  for (const moduleId of ["dunning", "notice", "contracts", "approvals"]) {
     const trial = moduleId === "contracts" ? trialEndsAt : null;
     await db.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: tenant.id, moduleId } },
