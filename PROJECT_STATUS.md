@@ -1,7 +1,7 @@
 # 디벅 (dibuck) — 프로젝트 진행 상황
 
 아파트 관리사무소 직원용 모듈 구독형 SaaS.
-(최종 업데이트: 2026-07-27 — 선행 프로젝트 `building-manager` 코드 분석 반영. **다음 작업: 5.5 메일 발송 → 5.6 결제(토스) → 5.7 플랫폼 이식. 5단계 모듈은 그 뒤**)
+(최종 업데이트: 2026-07-27 — **5.5 메일 발송 구현 완료**(SMTP + 비밀번호 셀프 재설정). **다음 작업: 5.6 결제(토스 심사 대기 중, 크론 방식 결정이 선결) → 5.7 플랫폼 이식. 5단계 모듈은 그 뒤**)
 
 ⚠️ **모듈 라우트를 구현하기 전까지 해당 모듈은 `isActive: false`다** — 켜는 순간 요금표에 올라가고 무료 체험이 소진되기 시작한다. 구현 완료 시 `prisma/seed.ts`의 MODULES에서 해당 줄만 `true`로 바꿀 것.
 
@@ -114,8 +114,8 @@
 
 **비밀번호 재설정 위계 (사용자 결정): 본인 → 소장 → 운영자, 최종적으로는 이메일 셀프 재설정.**
 - 본인: 설정 > 내 계정에서 변경 (현재 비밀번호 확인)
-- 잊었을 때: **소장이 설정 > 직원 관리에서 재설정**(`directorResetStaffPassword`, 열쇠 아이콘) — 임시 비밀번호 화면 1회 표시(`src/components/temp-password-notice.tsx` 공용). 소장 본인이 잊으면 운영자(관리자 콘솔 > 단지 상세)
-- 이메일 셀프 재설정은 로드맵 5.5(이메일 인증·발송 인프라)로 계획 확정 — 도입하면 소장·운영자 수동 재설정이 필요 없어짐
+- **메일 셀프 재설정(5.5에서 구현)** — 로그인 화면 "비밀번호를 잊으셨나요?" → `/forgot-password`. SMTP 미설정이면 이 경로가 숨고 아래 수동 경로만 안내된다
+- 메일을 못 받을 때: **소장이 설정 > 직원 관리에서 재설정**(`directorResetStaffPassword`, 열쇠 아이콘) — 임시 비밀번호 화면 1회 표시(`src/components/temp-password-notice.tsx` 공용). 소장 본인이면 운영자(관리자 콘솔 > 단지 상세). **셀프 재설정이 생겨도 이 경로는 지우지 않는다**
 
 **로그인 페이지**: 아이디·비밀번호 찾기 접이식 안내, 카카오 로그인, "무료로 시작하기" → `/signup`
 **카카오 로그인**: `/api/auth/kakao` → `/callback`. `User.kakaoId` → 이메일 매칭 최초 1회 연결 → 없으면 "등록된 계정 없음"(카카오로는 가입 불가 — 가입은 `/signup`). **`KAKAO_REST_API_KEY` 없으면 버튼 숨음** — Redirect URI `{origin}/api/auth/kakao/callback` + 동의항목 `account_email`
@@ -233,7 +233,20 @@
 ### 7. 회의록 자동완성 *(기존 6위 → 7위)*
 - 6번과 동일 파이프라인. 입대의 의결사항 추적 확장 검토
 
-### 5.5 메일 발송 (범위 축소 확정, 2026-07-27)
+### 5.5 메일 발송 — **구현 완료 (2026-07-27)**
+
+`src/lib/mailer.ts`(nodemailer+SMTP) + 비밀번호 셀프 재설정. **체험 D-7·만료 메일은 5.6으로 미뤘다** — 보낼 크론이 아직 없고, 접속 시점에 보내면 접속 안 하는 사람에게 안 닿아 목적을 못 이룬다.
+
+- **`.env`에 `SMTP_HOST`·`SMTP_USER`·`SMTP_PASS`가 없으면 셀프 재설정 UI가 통째로 숨는다**(카카오 버튼과 같은 규칙). 대신 로그인 화면과 `/forgot-password`가 "소장님께 요청 → 소장 계정이면 운영팀" 안내를 띄운다. 선택: `SMTP_PORT`(기본 465)·`SMTP_SECURE`·`SMTP_FROM`, 그리고 **메일 링크에 쓸 `APP_URL`(배포 시 필수, 기본 localhost:3000)**
+- 토큰은 `PasswordReset` 테이블(토큰 자체가 PK, `crypto.randomBytes(32)`, **1시간**, `usedAt`으로 1회용). 재요청 시 기존 미사용 토큰을 무효화해 유효 링크가 하나만 살아있게 한다
+- **1회용 보장은 조건부 `updateMany`**(`usedAt: null, expiresAt: gt`) — 링크를 두 번 눌러도 한 번만 잡힌다. 비밀번호 갱신과 함께 트랜잭션
+- **재설정은 `passwordChangedAt`을 갱신한다** → 그 이전에 발급된 세션 토큰이 전부 무효(auth.ts의 `iat` 비교). 비밀번호를 잊은 이유가 계정 탈취일 수 있어 남의 세션을 끊는 게 핵심
+- **계정 열거 차단**: 가입 안 된 이메일도, 발송이 실패해도 응답 화면이 같다(실패 원인은 서버 로그). 이메일당 10분 3회 제한
+- `onDelete: Cascade` — 직원 삭제·단지 셀프 탈퇴가 재설정 행 때문에 실패하지 않게 DB에 맡겼다
+- 소장·운영자 수동 재설정은 **그대로 남긴다** — 메일을 못 받는 경우의 백업
+- 검증: `npx tsx password-reset.test.ts`(토큰 상태 판정, DB 불필요) + `npx tsx smoke.ts`(공개 페이지에 `/forgot-password`·`/reset-password/[token]` 추가, 28페이지)
+
+#### 결정 배경 (범위 축소)
 
 **"이메일 인증·발송 인프라" → "메일 발송"으로 범위를 줄였다. 가입 이메일 인증은 구현하지 않는다.**
 
@@ -248,17 +261,11 @@
 
 **방식: SMTP + nodemailer** (Resend 등 벤더 SDK 아님). `building-manager/backend/src/utils/mailer.js`를 이식한다 — env `SMTP_HOST/PORT/USER/PASS/SECURE/FROM`, 공통 `deliver()`가 실패 시 3초 후 1회 재시도, 템플릿 12종 완비. 벤더 종속이 없어 네이버웍스·구글 워크스페이스 SMTP를 그대로 쓸 수 있다.
 
-작업 순서:
-1. `src/lib/mailer.ts` — nodemailer + SMTP, 재시도 포함 이식
-2. `PasswordReset` 토큰 테이블(`crypto.randomBytes(32).hex`, **1시간**, `usedAt`으로 1회용, 재발송 시 기존 미사용 토큰 무효화) + `/forgot-password`·`/reset-password/[token]`
-3. 템플릿 이식(문구는 아파트 맥락으로): 재설정 / 체험 D-7 / 체험 만료
-4. 소장·운영자 수동 재설정은 **남겨둔다** — 메일을 못 받는 경우의 백업
-
 ### 5.6 결제 자동화 (토스페이먼츠, 심사 중) — 셀프서비스 SaaS의 완성 조건
 
 현재 인터림: 체험 만료 시 모듈 잠금 + "유료 전환 문의"(/support) → 운영자 수동 전환. 잠금은 자동이지만 전환에 사람이 필요한 상태.
 
-⚠️ **선결 — 크론 방식 결정.** `building-manager`는 Express 상주 프로세스라 `node-cron`으로 끝났지만 **현 프로젝트는 Next.js라 상주 프로세스가 없다.** 정기결제·재시도·갱신 알림·백업이 전부 여기 걸린다. Vercel Cron 또는 외부 스케줄러가 보호된 API 라우트를 호출하는 방식 중 하나를 착수 전에 정할 것.
+⚠️ **선결 — 크론 방식 결정.** `building-manager`는 Express 상주 프로세스라 `node-cron`으로 끝났지만 **현 프로젝트는 Next.js라 상주 프로세스가 없다.** 정기결제·재시도·갱신 알림·백업이 전부 여기 걸린다. Vercel Cron 또는 외부 스케줄러가 보호된 API 라우트를 호출하는 방식 중 하나를 착수 전에 정할 것. **체험 D-7·만료 메일도 5.5에서 여기로 넘어왔다**(발송 인프라는 준비됨, 보낼 크론이 없어서).
 
 `building-manager`에서 그대로 가져올 것(설계는 이미 검증됨):
 
@@ -370,5 +377,6 @@
 - 운영 최초 관리자: `.env`에 `ADMIN_EMAIL`·`ADMIN_PASSWORD`(12자 이상, 선택 `ADMIN_NAME`)를 넣고 시드 실행. 데모 데이터는 `NODE_ENV=production`이면 건너뛴다
 - 스모크 테스트: `npx tsx smoke.ts` (dev 서버 실행 중이어야 함, 26페이지 검사)
 - 카카오 로그인은 `.env`에 `KAKAO_REST_API_KEY`(+선택 `KAKAO_CLIENT_SECRET`)를 넣어야 활성화 — 없으면 로그인 페이지에서 버튼 숨김
-- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx modules.test.ts` (모듈 노출 규칙, DB 필요)
+- 메일 발송은 `.env`에 `SMTP_HOST`·`SMTP_USER`·`SMTP_PASS`(+선택 `SMTP_PORT`·`SMTP_SECURE`·`SMTP_FROM`)를 넣어야 활성화 — 없으면 비밀번호 셀프 재설정 UI가 숨고 수동 재설정 안내로 대체된다. **배포 시 `APP_URL`을 실제 도메인으로** (메일 링크가 이 값을 쓴다)
+- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx password-reset.test.ts` (재설정 토큰 상태) / `npx tsx modules.test.ts` (모듈 노출 규칙, DB 필요)
 - ⚠️ 스키마 변경 후 `prisma generate` 하면 dev 서버 재시작 필요 (구버전 클라이언트 캐시로 500 발생)

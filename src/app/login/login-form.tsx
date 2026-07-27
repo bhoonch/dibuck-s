@@ -11,10 +11,14 @@ import { login } from "./actions";
 
 export function LoginForm({
   kakaoEnabled,
+  resetEnabled,
   kakaoError,
+  notice,
 }: {
   kakaoEnabled: boolean;
+  resetEnabled: boolean;
   kakaoError?: string;
+  notice?: string;
 }) {
   const [state, action, pending] = useActionState(login, undefined);
 
@@ -29,6 +33,11 @@ export function LoginForm({
           <CardTitle className="text-xl">로그인</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {notice && (
+            <p className="rounded-lg bg-success/10 p-3 text-sm font-semibold text-success">
+              {notice}
+            </p>
+          )}
           <form action={action} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">이메일</Label>
@@ -82,11 +91,25 @@ export function LoginForm({
                 <b className="text-foreground">아이디</b>는 가입 시 등록한 업무용
                 이메일입니다.
               </p>
-              <p>
-                <b className="text-foreground">비밀번호</b>는 디벅 운영자가
-                재설정해 드립니다. 관리사무소 대표 연락처로 문의해 주시면 임시
-                비밀번호를 안내해 드려요.
-              </p>
+              {resetEnabled ? (
+                <p>
+                  <b className="text-foreground">비밀번호</b>는{" "}
+                  <Link
+                    href="/forgot-password"
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    재설정 메일
+                  </Link>
+                  로 직접 바꿀 수 있습니다. 메일을 못 받으시면 같은 단지 소장님께
+                  요청해 주세요.
+                </p>
+              ) : (
+                <p>
+                  <b className="text-foreground">비밀번호</b>는 같은 단지
+                  소장님이 설정 &gt; 직원 관리에서 재설정해 드립니다. 소장님
+                  계정이라면 디벅 운영팀(support@dibuck.kr)으로 문의해 주세요.
+                </p>
+              )}
             </div>
           </details>
         </CardContent>

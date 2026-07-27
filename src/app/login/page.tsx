@@ -1,3 +1,4 @@
+import { mailerEnabled } from "@/lib/mailer";
 import { LoginForm } from "./login-form";
 
 const SUSPENDED_MSG =
@@ -14,13 +15,17 @@ const loginErrors: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
   return (
     <LoginForm
       kakaoEnabled={!!process.env.KAKAO_REST_API_KEY}
+      resetEnabled={mailerEnabled()}
       kakaoError={error ? loginErrors[error] : undefined}
+      notice={
+        reset ? "비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요." : undefined
+      }
     />
   );
 }

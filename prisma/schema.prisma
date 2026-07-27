@@ -71,10 +71,24 @@ model User {
   // 비밀번호를 바꾼 시각 — 이 시각 이전에 발급된 세션 토큰은 무효(탈취 세션 차단)
   passwordChangedAt DateTime @default(now())
 
-  documents     Document[]
-  notifications Notification[]
+  documents      Document[]
+  notifications  Notification[]
+  passwordResets PasswordReset[]
 
   @@index([tenantId])
+}
+
+/// 비밀번호 셀프 재설정 링크. 토큰 자체가 PK — 조회는 항상 토큰으로만 한다.
+/// onDelete: Cascade — 직원 삭제·단지 탈퇴가 이 행 때문에 실패하지 않게 DB에 맡긴다.
+model PasswordReset {
+  token     String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime? // 1회용 — 사용하면 채워지고, 재발급 시 미사용 토큰도 여기로 무효화한다
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // ── 모듈 레지스트리 + 단지별 구독 ────────────────────────────
