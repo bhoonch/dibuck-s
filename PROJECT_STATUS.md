@@ -1,7 +1,7 @@
 # 디벅 (dibuck) — 프로젝트 진행 상황
 
 아파트 관리사무소 직원용 모듈 구독형 SaaS.
-(최종 업데이트: 2026-07-27 — **5.5 메일 발송 + 5.6 결제 자동화 + 5.7 플랫폼 이식 구현 완료.** 토스 심사 통과 후 실키만 넣으면 된다. **다음 작업: 5단계 모듈 1번 미납 독촉장**(5.8 FAQ+AI는 선택))
+(최종 업데이트: 2026-07-27 — 5.5 메일·5.6 결제·5.7 플랫폼 이식 완료(토스 심사 통과 후 실키만 넣으면 됨). **기안·품의 모듈 Phase 0~2 완료 + 실 API 검증까지. 다음 작업: 같은 모듈 Phase 3 — 결재 완료 시 공고문 자동 생성.** 아래 "기안·품의 모듈" 절부터 읽을 것. 미납 독촉장은 사용자 결정으로 이 모듈 뒤로 밀렸다)
 
 ⚠️ **모듈 라우트를 구현하기 전까지 해당 모듈은 `isActive: false`다** — 켜는 순간 요금표에 올라가고 무료 체험이 소진되기 시작한다. 구현 완료 시 `prisma/seed.ts`의 MODULES에서 해당 줄만 `true`로 바꿀 것.
 
@@ -207,9 +207,21 @@
 |---|---|---|
 | 0 | 스키마(sealImage·externalApprovers·Document.meta·ApprovalStep) + 법률 규칙 엔진(`src/lib/gian/rules.ts`) + 설정 UI(직인 업로드·외부 결재자) | ✅ `7a969d9` |
 | 1 | AI 초안 생성 — claude-sonnet-5 + structured outputs + 프롬프트 캐싱, 5필드 폼 + 실시간 판정 배지, A4 인쇄 | ✅ `fdfa380` |
-| 2 | 결재 프로세스 — 상신·순차 승인·반려·재상신, 외부(회장·감사) 토큰 서명 링크 `/approve/[token]`, 메일 발송(SMTP 시) | ✅ |
-| 3 | 결재 완료 시 공고문 자동 생성 (목업은 생성 즉시였지만 **결재 후**로 변경 — 승인 전 공고가 나가면 안 된다). 훅 위치: `approval.ts` actOnStep 마지막 승인 지점 | 예정 |
+| 2 | 결재 프로세스 — 상신·순차 승인·반려·재상신, 외부(회장·감사) 토큰 서명 링크 `/approve/[token]`, 메일 발송(SMTP 시) | ✅ `8864db6` |
+| — | **실 API 검증** — 3종 생성 확인 후 프롬프트 수정 | ✅ `5b9fb99` |
+| 3 | 결재 완료 시 공고문 자동 생성 (목업은 생성 즉시였지만 **결재 후**로 변경 — 승인 전 공고가 나가면 안 된다). 훅 위치: `approval.ts` actOnStep 마지막 승인 지점 | **다음 작업** |
 | 4 | 후속 파이프라인(완료보고·지출결의 meta 상속) + S-APT 붙여넣기 뷰 | 예정 |
+
+**실 API 검증 결과 (2026-07-27, 3종 생성):** 서식별 절 구성·개조식·붙임/"끝."·견적 최저가 `(선정)` 표기 모두 원문과 일치. 금액·계약방식은 코드가 준 문자열 그대로 들어간다. 입력에 없는 수치는 지어내지 않고 `needsClarification`으로 넘기며, 불확실한 법령 조항은 "조항 확인 필요"로 자진 신고한다. 여기서 나온 수정 2건:
+- **오늘 날짜 주입** — 모델이 연도를 몰라 `○○년 8월`로 비웠다. 날짜는 volatile이라 캐시되는 `system`이 아니라 **user turn**에 넣는다(system에 넣으면 매일 프롬프트 캐시가 통째로 깨진다).
+- **장충금 경고 오탐 제거** — 예산 0원 문서(점검 안내)에도 "수선유지비로 집행하면 과태료" 경고가 떴다. 집행이 없으니 오탐이고, 무의미한 경고가 쌓이면 정작 필요한 경고까지 무시하게 된다. 판정을 `isLtp` → `docType === "ltp_work"`(예산 있을 때만)로. 오탐 케이스는 `gian-rules.test.ts`에 박아 뒀다.
+
+**Phase 3 착수 지점 (다음 세션):**
+1. 훅: `src/lib/gian/approval.ts`의 `actOnStep` — 마지막 결재자 승인 → `status: "final"` 직후. 주석으로 자리를 표시해 뒀다.
+2. 재료: `Document.meta.form`(공사명·위치·일정)과 `meta.draft`가 그대로 있다. 공고문은 이 값을 상속하고 사용자 입력을 다시 받지 않는다.
+3. 양식: 목업 v7(`D:\01. claude code\minutes\ollim-mvp-mockup.html`)의 공고문 렌더러 — 3분할 헤더(문서번호·게시장소 / 대제목 / 게시일·게시기간), 청색 괘선, 인사문단, "- 아 래 -", 라벨음영 정보표(일자 적색), ▶유의사항, 하단 굵은 청색선 + 명의 + **직인 이미지(`Tenant.sealImage`) 없으면 "(직인생략)"** + TEL/FAX. A4 실측 210×297mm.
+4. 저장: `createDocument({ type: "notice", moduleId: "approvals", meta: { source: 원본 docId } })` — 채번 접두사는 기존 "공지". 문서함에서 원본과 서로 오갈 수 있게 양방향 링크.
+5. 주의: 공고문은 **결재 완료 문서에서만** 파생된다(승인 전 공고 금지). 이미 파생된 문서가 있으면 중복 생성하지 말 것.
 
 **핵심 결정·규칙 (바꾸기 전에 근거부터):**
 - **판정은 전부 코드**(`rules.ts`), LLM은 작문만. 예산 유무 → 기안서/품의서, 장충금 키워드+예산 → 공사 추진 기안서(5단). VAT는 /1.1 환산 후 500만 비교. 한글 금액은 변조 방지 표기(일십·일백·일천 — 목업과 다름, 의도).
@@ -217,8 +229,8 @@
 - **결재선은 상신 시점 스냅샷** — 진행 중 설정 변경이 기존 결재에 영향 없음. 재상신은 스텝 전체 삭제 후 새 스냅샷.
 - 이중 제출 방지는 조건부 updateMany(status: "pending" 가드) — 내부·외부 동일.
 - 직인은 파일 스토리지 없이 **DB에 data URI**(1MB 제한). 스토리지가 생기면 그때 이관.
-- AI: `ANTHROPIC_API_KEY` 없으면 생성만 "준비 중"(env 게이트 규칙). 단지당 일일 30건 한도(rate-limit.ts 재사용). ⚠️ **실 API 호출은 키 미보유로 미검증** — 키 확보 후 1건 생성으로 프롬프트 품질 확인할 것.
-- 검증: `npx tsx gian-rules.test.ts` / `approval-flow.test.ts`(DB 불필요) / `approval-run.test.ts`(DB 필요 — 상신→반려→재상신→순차 승인→외부 토큰→완료 전이) / smoke 35페이지.
+- AI: `ANTHROPIC_API_KEY` 없으면 생성만 "준비 중"(env 게이트 규칙). 단지당 일일 30건 한도(rate-limit.ts 재사용). 모델은 `claude-sonnet-5`, structured outputs로 파싱 실패가 없고, few-shot(S-APT 서식 3종)은 `cache_control`로 캐시되는 고정부다 — **여기에 날짜 같은 volatile 값을 넣지 말 것**.
+- 검증: `npx tsx gian-rules.test.ts` / `approval-flow.test.ts`(DB 불필요) / `approval-run.test.ts`(DB 필요 — 상신→반려→재상신→순차 승인→외부 토큰→완료 전이) / `gian-draft.manual.ts`(실 API, 비용) / smoke 35페이지.
 
 ## 이후 작업 — 5단계 모듈 (경쟁사 분석 반영, 2026-07-27 확정)
 
@@ -436,6 +448,8 @@
 - 메일 발송은 `.env`에 `SMTP_HOST`·`SMTP_USER`·`SMTP_PASS`(+선택 `SMTP_PORT`·`SMTP_SECURE`·`SMTP_FROM`)를 넣어야 활성화 — 없으면 비밀번호 셀프 재설정 UI가 숨고 수동 재설정 안내로 대체된다. **배포 시 `APP_URL`을 실제 도메인으로** (메일 링크가 이 값을 쓴다)
 - 결제는 `.env`에 `TOSS_SECRET_KEY`·`NEXT_PUBLIC_TOSS_CLIENT_KEY`를 넣어야 활성화 — 없으면 설정 > 결제가 "결제 준비 중" 안내로 대체된다. 심사 전에도 **토스 테스트 키로 전 흐름을 확인할 수 있다**
 - 크론 인증용 `CRON_SECRET` 필수 — 없으면 `/api/cron/billing`이 401로 막힌다(fail closed). **배포 시 새 값으로 바꿀 것**
-- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx password-reset.test.ts` (재설정 토큰 상태) / `npx tsx billing.test.ts` (청구 계산·크론 판정)
-- DB 필요: `npx tsx modules.test.ts` (모듈 노출·잠금 규칙) / `npx tsx billing-run.test.ts` (청구 상태 전이)
+- AI 초안 생성은 `.env`에 `ANTHROPIC_API_KEY` — 없으면 기안·품의 모듈의 **생성만** "준비 중"으로 막히고 폼·판정·문서 열람은 그대로 돈다. 개발 키는 발급 완료(2026-07-27). 키는 조직 단위 자격증명이라 **모듈마다 나누지 않는다** — 나누는 기준은 프로젝트(placelink ↔ 디벅)와 환경(개발 ↔ 운영). 콘솔 워크스페이스별 지출 한도를 걸어 두는 게 만료일보다 실효가 크다
+- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx password-reset.test.ts` (재설정 토큰 상태) / `npx tsx billing.test.ts` (청구 계산·크론 판정) / `npx tsx gian-rules.test.ts` (금액·문서분류·결재선·한글금액) / `npx tsx approval-flow.test.ts` (외부 서명 토큰 fail-closed)
+- DB 필요: `npx tsx modules.test.ts` (모듈 노출·잠금 규칙) / `npx tsx billing-run.test.ts` (청구 상태 전이) / `npx tsx approval-run.test.ts` (상신→반려→재상신→순차 승인→외부 토큰→완료)
+- **실 API 호출(비용 발생, 자동 검증 아님)**: `npx tsx gian-draft.manual.ts [0|1|2]` — 프롬프트를 손볼 때 결과를 눈으로 보는 스크립트(0=품의서 수의계약, 1=기안서 예산없음, 2=공사추진 장충금+입찰). 건당 ~15원
 - ⚠️ 스키마 변경 후 `prisma generate` 하면 dev 서버 재시작 필요 (구버전 클라이언트 캐시로 500 발생)

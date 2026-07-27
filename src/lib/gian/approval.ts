@@ -210,7 +210,10 @@ export async function actOnStep(
     return {};
   }
 
-  // 마지막 결재자 승인 → 결재 완료. (Phase 3: 여기서 공고문 자동 생성이 붙는다)
+  // 마지막 결재자 승인 → 결재 완료.
+  // ── Phase 3 훅 위치 ── 여기서 공고문을 자동 생성한다. 승인 전에 만들면
+  // 결재도 안 난 공고가 나가므로 반드시 이 지점이어야 한다.
+  // 재료는 doc.meta.form(공사명·위치·일정) — 사용자 입력을 다시 받지 않는다.
   await db.document.update({ where: { id: doc.id }, data: { status: "final" } });
   if (doc.createdById)
     await notifyUser({
