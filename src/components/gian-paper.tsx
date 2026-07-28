@@ -172,6 +172,28 @@ export function GianPaper({
 }
 
 /**
+ * 값 안에 섞여 오는 "※ 단서"를 줄을 바꿔 아래로 내린다.
+ * 계약방식 문구는 "수의계약 (…) ※ 추정가격 500만 원 이하…"처럼 한 문자열로 오는데,
+ * 한 줄에 이어 붙으면 본문과 단서가 구분되지 않는다.
+ */
+function Note({ text }: { text: string }) {
+  const [head, ...notes] = text.split(/\s*※\s*/);
+  return (
+    <>
+      {head.trim()}
+      {notes.map((n, i) => (
+        <span
+          key={i}
+          className="mt-0.5 block text-[10pt] text-[var(--gian-ink-soft)]"
+        >
+          ※ {n.trim()}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
  * 본문 한 절. "가. 라벨: 값" 형태가 3줄 이상이면 목업의 정보표(.kv)로 그린다 —
  * 개요·지출 항목은 표가 훨씬 읽기 쉽고, 그 외 서술형 절은 개조식 그대로 둔다.
  */
@@ -229,7 +251,9 @@ function Section({
                   </span>
                   <span>:</span>
                 </span>
-                <span>{m[3]}</span>
+                <span>
+                  <Note text={m[3]} />
+                </span>
               </Fragment>
             );
           })}
@@ -237,7 +261,7 @@ function Section({
       ) : (
         lines.map((line, j) => (
           <p key={j} className={/^\s*\d+\)/.test(line) ? "pl-8" : "pl-4"}>
-            {line}
+            <Note text={line} />
           </p>
         ))
       )}
