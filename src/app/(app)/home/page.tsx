@@ -177,7 +177,7 @@ export default async function HomePage() {
   const subscribed = modules.filter((m) => m.subscribed);
   const dateLine = `${ymdKst(now)} (${WEEKDAYS[dayKst(now)]})`;
 
-  // 시작 가이드 — 소장만. 직원에게는 자기가 못 하는 일이 할 일로 보이면 안 된다
+  // 시작 가이드 — 마스터만. 나머지 권한에는 자기가 못 하는 일이 할 일로 보이면 안 된다
   const onboarding =
     session.role === "DIRECTOR"
       ? [

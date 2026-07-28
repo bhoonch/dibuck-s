@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useTransition } from "react";
 import { KeyRound, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Role } from "@/generated/prisma/enums";
-import { roleLabels } from "@/lib/labels";
+import { assignableRoles, roleLabels } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +33,6 @@ type StaffRow = {
   email: string;
   role: Role;
 };
-
-const assignableRoles: Role[] = ["DIRECTOR", "ACCOUNTANT", "STAFF"];
 
 export function StaffTable({
   staff,
@@ -221,7 +219,7 @@ export function StaffTable({
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">
-                시스템에서 할 수 있는 일을 정합니다. 직책과 무관합니다.
+                위 권한 안내를 참고하세요. 직책과는 무관합니다.
               </p>
             </div>
             <div className="space-y-2">

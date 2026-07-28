@@ -62,7 +62,7 @@ export async function changeMyPassword(_prev: State, formData: FormData) {
 
 /**
  * 셀프 탈퇴 — 단지와 그 안의 모든 데이터를 지운다.
- * 구독 주체가 단지라 "내 계정만" 지우는 건 소장에게 의미가 없다(직원은 소장이 삭제).
+ * 구독 주체가 단지라 "내 계정만" 지우는 건 마스터에게 의미가 없다(나머지 계정은 마스터가 삭제).
  * 개인정보보호법상 삭제 요구 대응은 선택이 아니므로 운영자 문의 없이 여기서 끝나야 한다.
  */
 export async function deleteMyTenant(_prev: State, formData: FormData) {

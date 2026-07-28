@@ -299,7 +299,7 @@ export function ApprovalLineEditor({
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
-              결재선은 소장만 수정할 수 있습니다.
+              결재선은 마스터만 수정할 수 있습니다.
             </p>
           )}
         </CardFooter>

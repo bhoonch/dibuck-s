@@ -25,7 +25,7 @@ export type ChargeResult =
   | { ok: true; amount: number }
   | { ok: false; reason: string };
 
-/** 청구 안내를 받을 사람 = 그 단지 소장. 없으면 아무나 한 명(계정이 하나뿐인 초기 단지) */
+/** 청구 안내를 받을 사람 = 그 단지 마스터. 없으면 아무나 한 명(계정이 하나뿐인 초기 단지) */
 async function billingContact(tenantId: string) {
   return (
     (await db.user.findFirst({

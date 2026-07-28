@@ -25,7 +25,7 @@ export async function submitGian(docId: string): Promise<ActionState> {
   if (!doc) return { error: "문서를 찾을 수 없습니다." };
   // 상신은 작성자 또는 소장 — 남의 초안을 마음대로 결재에 올리지 못하게
   if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
-    return { error: "작성자 또는 소장만 상신할 수 있습니다." };
+    return { error: "작성자 또는 마스터만 상신할 수 있습니다." };
 
   const result = await submitDocument(docId, session.userId);
   revalidatePath(`/modules/approvals/${docId}`);

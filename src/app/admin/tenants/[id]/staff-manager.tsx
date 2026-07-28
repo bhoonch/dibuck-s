@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { KeyRound, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { roleLabels } from "@/lib/labels";
+import { assignableRoles, roleLabels } from "@/lib/labels";
 import { TempPasswordNotice } from "@/components/temp-password-notice";
 import { adminAddStaff, adminResetPassword } from "../../actions";
 import {
@@ -114,9 +114,11 @@ export function StaffManager({
               <div className="space-y-1.5">
                 <Label htmlFor="staff-role">권한</Label>
                 <select id="staff-role" name="role" className={select}>
-                  <option value="DIRECTOR">소장</option>
-                  <option value="ACCOUNTANT">경리</option>
-                  <option value="STAFF">직원</option>
+                  {assignableRoles.map((r) => (
+                    <option key={r} value={r}>
+                      {roleLabels[r]}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-1.5">

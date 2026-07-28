@@ -118,7 +118,7 @@ export async function removeStaff(userId: string) {
   revalidatePath("/settings/approval-line");
 }
 
-/** 소장이 직원 비밀번호 재설정 — 운영자까지 안 가고 단지 안에서 해결 */
+/** 마스터가 직원 비밀번호 재설정 — 운영자까지 안 가고 단지 안에서 해결 */
 export async function directorResetStaffPassword(
   _prev: TempPasswordResult,
   formData: FormData,
