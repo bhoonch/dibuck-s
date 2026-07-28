@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Role } from "@/generated/prisma/enums";
 import { AccountSettings } from "@/components/account-settings";
+import { roleLabels } from "@/lib/labels";
 import { PageTitle } from "../ui";
 
 export default async function AdminAccountPage() {
@@ -17,6 +18,7 @@ export default async function AdminAccountPage() {
         name={me.name}
         title={me.title}
         email={me.email}
+        roleLabel={roleLabels[Role.SUPER_ADMIN]}
         showTitle={false}
       />
     </>

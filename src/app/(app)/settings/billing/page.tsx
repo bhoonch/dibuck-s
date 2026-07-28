@@ -174,7 +174,7 @@ export default async function BillingPage() {
         )}
         {!isDirector && (
           <p className="text-sm text-muted-foreground">
-            결제 수단 변경은 소장만 할 수 있습니다.
+            결제 수단 변경은 마스터만 할 수 있습니다.
           </p>
         )}
       </Card>

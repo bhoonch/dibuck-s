@@ -35,7 +35,7 @@ export default async function SubscriptionsPage() {
         </span>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((m) => {
           const Icon = getModuleIcon(m.icon);
           return (
@@ -127,7 +127,7 @@ export default async function SubscriptionsPage() {
       </div>
       {!isDirector && (
         <p className="text-sm text-muted-foreground">
-          구독 변경은 소장만 할 수 있습니다.
+          구독 변경은 마스터만 할 수 있습니다.
         </p>
       )}
     </div>
