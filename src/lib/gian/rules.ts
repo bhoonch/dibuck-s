@@ -35,6 +35,15 @@ export type ContractContext = "none" | "direct" | "bid";
 export type DocType = "gian" | "pumui" | "ltp_work"; // 기안서 / 품의서 / 공사 추진 기안서(장충금)
 export type ExternalRole = "CHAIR" | "AUDITOR";
 
+/** 집행 재원 — 입대의 의결 여부를 가르는 가장 큰 변수라 사용자가 직접 고른다 */
+export type FundSource = "maintenance" | "ltp" | "misc";
+
+export const fundLabels: Record<FundSource, string> = {
+  maintenance: "수선유지비 (관리비)",
+  ltp: "장기수선충당금",
+  misc: "잡수입",
+};
+
 export type Classification = {
   docType: DocType;
   /** none=예산 없음 / direct=수의계약(2인 견적) / bid=입대의 의결+K-apt 전자입찰 */
@@ -44,6 +53,12 @@ export type Classification = {
   /** VAT 제외 환산액 — 500만 비교는 반드시 이 값으로 */
   vatExcluded: number;
   isLtp: boolean;
+  /** 사용자가 고른 재원. 예전 문서에는 없다(그때는 키워드로 추측했다) */
+  fund?: FundSource;
+  /** 연간 관리비 예산에 반영된 집행인가. false면 예산 외 집행 */
+  budgeted?: boolean;
+  /** 관리규약의 소장 전결 한도 이하라 회장(입대의) 결재를 뺐는가 */
+  withinDirectorLimit: boolean;
   /** 내부 결재선 뒤에 붙는 외부 결재자, 결재 순서대로 (감사 → 회장) */
   externalApprovers: ExternalRole[];
 };
@@ -56,14 +71,24 @@ export const vatExcludedOf = (amountRaw: number, vatIncluded: boolean) =>
 export function classify(input: {
   amountRaw: number;
   vatIncluded: boolean;
-  /** 공사명·위치·사유 등 사용자 입력 전체 — 합쳐서 장충금 키워드를 검사한다 */
+  /** 공사명·위치·사유 등 사용자 입력 전체 — 재원을 안 고른 경우의 장충금 추측용 */
   texts: string[];
+  /** 사용자가 고른 집행 재원. 주면 키워드 추측을 대신한다 */
+  fund?: FundSource;
+  /** 연간 예산에 반영된 집행인가 (기본 true — 예전 문서는 이 값이 없다) */
+  budgeted?: boolean;
+  /** 관리규약의 소장 전결 한도(VAT 제외, 원). 0·미설정이면 적용하지 않는다 */
+  directorLimit?: number;
 }): Classification {
   const amountRaw = Math.max(0, Math.floor(input.amountRaw) || 0);
   const vatExcluded = vatExcludedOf(amountRaw, input.vatIncluded);
   const hasBudget = amountRaw > 0;
   const all = input.texts.join(" ");
-  const isLtp = LTP_KEYWORDS.some((k) => all.includes(k));
+  // 사용자가 재원을 고르면 그게 사실이다 — 키워드는 고르지 않았을 때의 추측일 뿐.
+  // 키워드만 보면 "소방 점검 안내"도 장충금으로 잡히는 오탐이 난다.
+  const isLtp = input.fund
+    ? input.fund === "ltp"
+    : LTP_KEYWORDS.some((k) => all.includes(k));
 
   const context: ContractContext = !hasBudget
     ? "none"
@@ -75,10 +100,22 @@ export function classify(input: {
   const docType: DocType =
     hasBudget && isLtp ? "ltp_work" : hasBudget ? "pumui" : "gian";
 
+  /*
+   * 소장 전결: 관리규약이 정한 한도 이하이고 예산에 반영된 집행이면 입대의(회장)
+   * 결재 없이 관리주체가 집행한다. 장충금은 한도와 무관 — 사용계획 의결이 필수다.
+   * 한도를 설정하지 않은 단지는 예전처럼 지출이면 무조건 회장이 붙는다.
+   */
+  const limit = Math.max(0, Math.floor(input.directorLimit ?? 0) || 0);
+  const withinDirectorLimit =
+    docType === "pumui" &&
+    limit > 0 &&
+    vatExcluded <= limit &&
+    input.budgeted !== false;
+
   const externalApprovers: ExternalRole[] =
     docType === "ltp_work"
       ? ["AUDITOR", "CHAIR"] // 서식 9: 담당→과장→소장→감사→회장
-      : docType === "pumui"
+      : docType === "pumui" && !withinDirectorLimit
         ? ["CHAIR"] // 서식 5·6·7·8: +회장
         : [];
 
@@ -89,6 +126,9 @@ export function classify(input: {
     vatIncluded: input.vatIncluded,
     vatExcluded,
     isLtp,
+    fund: input.fund,
+    budgeted: input.budgeted,
+    withinDirectorLimit,
     externalApprovers,
   };
 }
@@ -140,6 +180,15 @@ export function legalNoticesFor(cls: Classification): string[] {
   if (cls.docType === "ltp_work")
     notices.push(
       "장기수선계획 대상 공사일 수 있습니다 — 수선유지비로 집행하면 과태료 위험이 있습니다 (공동주택관리법 제29·30조). 장기수선충당금 사용계획과 입주자대표회의 의결 여부를 확인하세요.",
+    );
+  // 예산 외 집행은 금액이 작아도 의결 대상인 단지가 많다 — 전결 한도로 넘기지 않는다
+  if (cls.amountRaw > 0 && cls.budgeted === false)
+    notices.push(
+      "연간 관리비 예산에 반영되지 않은 집행입니다 — 예산 외 집행이 입주자대표회의 의결 대상인지 관리규약에서 확인하세요.",
+    );
+  if (cls.fund === "misc")
+    notices.push(
+      "잡수입 집행입니다 — 잡수입의 사용은 관리규약이 정한 절차(의결·공개)를 따라야 합니다.",
     );
   return notices;
 }

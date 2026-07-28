@@ -199,11 +199,17 @@ export async function generateDraft(args: {
       ? `소요예산(이 표기 그대로 사용): ${formatMoney(cls.amountRaw, cls.vatIncluded)}`
       : "소요예산: 해당 없음",
     `계약방식(이 문구 그대로 사용): ${contractGuide[cls.context]}`,
-    cls.docType === "ltp_work"
-      ? "재원구분: 장기수선충당금 (장기수선계획 반영 여부 확인 필요)"
-      : cls.amountRaw > 0
-        ? "계정과목: 수선유지비"
-        : "",
+    // 재원은 사용자가 고른 값을 그대로 — 예전엔 키워드 추측으로 계정과목을 적었다
+    cls.amountRaw > 0
+      ? cls.fund === "ltp" || cls.docType === "ltp_work"
+        ? "재원구분: 장기수선충당금 (장기수선계획 반영 여부 확인 필요)"
+        : cls.fund === "misc"
+          ? "재원구분: 잡수입"
+          : "계정과목: 수선유지비"
+      : "",
+    cls.amountRaw > 0 && cls.budgeted === false
+      ? "예산 반영: 연간 예산 외 집행 — 본문에 '예산 외 집행' 사실을 명시한다."
+      : "",
     form.quotes.length > 0
       ? `견적(첫 업체가 최저가 선정): ${form.quotes
           .map((q) => `${q.vendor} ${q.amount.toLocaleString("ko-KR")}원`)

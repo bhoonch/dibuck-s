@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveApprovalLine } from "../actions";
 
@@ -211,11 +212,14 @@ export function ApprovalLineEditor({
   staff,
   initialLine,
   initialExternal,
+  initialDirectorLimit,
   isDirector,
 }: {
   staff: StaffOption[];
   initialLine: string[];
   initialExternal: ExternalApproverInput[];
+  /** 관리규약의 소장 전결 한도(VAT 제외, 원) */
+  initialDirectorLimit: number | null;
   isDirector: boolean;
 }) {
   const [line, setLine] = useState<string[]>([
@@ -291,6 +295,35 @@ export function ApprovalLineEditor({
             initialExternal={initialExternal}
             isDirector={isDirector}
           />
+
+          {/* 단지마다 다른 유일한 결재선 변수 — 규약을 읽어 해석하지 않고 값으로 받는다 */}
+          <div className="space-y-2 border-t border-gray-100 pt-5">
+            <Label htmlFor="directorLimit">관리소장 전결 한도</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="directorLimit"
+                name="directorLimit"
+                inputMode="numeric"
+                className="max-w-48 font-mono"
+                placeholder="예: 3,000,000"
+                defaultValue={
+                  initialDirectorLimit
+                    ? initialDirectorLimit.toLocaleString("ko-KR")
+                    : ""
+                }
+                disabled={!isDirector}
+              />
+              <span className="text-sm text-muted-foreground">
+                원 (VAT 제외)
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              관리규약이 정한 금액입니다. 이 금액 이하이고 연간 예산에 반영된
+              지출은 회장 결재 없이 소장 결재로 끝납니다. 비워 두면 지출 문서에
+              항상 회장이 붙습니다. 장기수선충당금은 한도와 무관하게 감사·회장
+              결재를 받습니다.
+            </p>
+          </div>
         </CardContent>
         <CardFooter className="justify-end border-t border-gray-100 px-4 py-3">
           {isDirector ? (

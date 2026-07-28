@@ -98,4 +98,61 @@ assert.deepEqual(noChair.missing, ["CHAIR"]);
 // 기안서는 내부 결재선만
 assert.equal(buildApprovalSteps(gian, internal, external).steps.length, 3);
 
+// ── 재원 선택이 키워드 추측을 이긴다 ──
+// "소방 점검"은 장충금 키워드에 걸리지만, 사용자가 수선유지비를 고르면 품의서다
+const keywordOnly = classify({
+  amountRaw: 3_000_000,
+  vatIncluded: false,
+  texts: ["소방시설 점검"],
+});
+assert.equal(keywordOnly.docType, "ltp_work");
+const chosen = classify({
+  amountRaw: 3_000_000,
+  vatIncluded: false,
+  texts: ["소방시설 점검"],
+  fund: "maintenance",
+});
+assert.equal(chosen.docType, "pumui");
+
+// ── 소장 전결 한도 ──
+const base = {
+  amountRaw: 3_000_000,
+  vatIncluded: false,
+  texts: ["분리수거장 보수"],
+  fund: "maintenance" as const,
+};
+// 한도 미설정: 지출이면 회장이 붙는다 (예전 동작 그대로)
+assert.deepEqual(classify(base).externalApprovers, ["CHAIR"]);
+// 한도 이하 + 예산 반영: 소장 전결 — 회장 없음
+const within = classify({ ...base, directorLimit: 5_000_000 });
+assert.equal(within.withinDirectorLimit, true);
+assert.deepEqual(within.externalApprovers, []);
+// 한도 초과: 회장 복귀
+assert.deepEqual(
+  classify({ ...base, directorLimit: 1_000_000 }).externalApprovers,
+  ["CHAIR"],
+);
+// 예산 외 집행은 한도 이하라도 회장 — 의결 대상인 단지가 많다
+assert.deepEqual(
+  classify({ ...base, directorLimit: 5_000_000, budgeted: false })
+    .externalApprovers,
+  ["CHAIR"],
+);
+// 장충금은 한도와 무관하게 감사+회장
+assert.deepEqual(
+  classify({ ...base, fund: "ltp", directorLimit: 999_000_000 })
+    .externalApprovers,
+  ["AUDITOR", "CHAIR"],
+);
+// 한도는 VAT 제외액으로 비교한다 — 포함가로 비교하면 330만이 한도를 넘는다
+assert.equal(
+  classify({
+    ...base,
+    amountRaw: 3_300_000,
+    vatIncluded: true,
+    directorLimit: 3_000_000,
+  }).withinDirectorLimit,
+  true,
+);
+
 console.log("gian-rules OK");

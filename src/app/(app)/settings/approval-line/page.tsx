@@ -34,6 +34,7 @@ export default async function ApprovalLinePage() {
       }))}
       initialLine={line}
       initialExternal={external}
+      initialDirectorLimit={tenant.directorLimit}
       isDirector={session.role === "DIRECTOR"}
     />
   );

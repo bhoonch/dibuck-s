@@ -178,12 +178,18 @@ export function GianPaper({
 function Section({
   index,
   heading,
-  lines,
+  lines: raw,
 }: {
   index: number;
   heading: string;
   lines: string[];
 }) {
+  /*
+   * 한 줄 안에 줄바꿈이 들어오는 경우가 있다 — LLM이 "마. 계약방식: …\n  ※ 추정가격 …"을
+   * 한 항목으로 내보내면 정규식이 통째로 실패해서 그 줄만 정렬에서 빠졌다(볼드도 안 걸린다).
+   * 먼저 줄 단위로 펴고 나서 라벨을 찾는다.
+   */
+  const lines = raw.flatMap((l) => l.split(/\r?\n/)).filter((l) => l.trim());
   const parsed = lines.map((l) => LABELED.exec(l));
   // 라벨 줄이 2줄 이상이면 칸을 맞춰 세운다 — 테두리는 치지 않는다.
   // 표를 치면 개요·견적·일정이 전부 상자가 되어 한 장에 상자 서너 개가 쌓인다.

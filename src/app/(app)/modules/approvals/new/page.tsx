@@ -18,7 +18,11 @@ export default async function NewGianPage() {
   // 상신 때 뜰 결재선을 작성 중에 미리 보여준다 — submitDocument와 같은 재료
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: session.tenantId! },
-    select: { approvalLine: true, externalApprovers: true },
+    select: {
+      approvalLine: true,
+      externalApprovers: true,
+      directorLimit: true,
+    },
   });
   const lineIds = (tenant.approvalLine as string[] | null) ?? [];
   const users = await db.user.findMany({
@@ -55,6 +59,7 @@ export default async function NewGianPage() {
       <GianForm
         internal={internal}
         external={(tenant.externalApprovers as ExternalApprover[] | null) ?? []}
+        directorLimit={tenant.directorLimit}
       />
     </div>
   );

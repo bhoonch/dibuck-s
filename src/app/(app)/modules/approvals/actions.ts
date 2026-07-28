@@ -14,6 +14,7 @@ import {
   externalRoleLabels,
   legalNoticesFor,
   type ExternalApprover,
+  type FundSource,
 } from "@/lib/gian/rules";
 
 // "use server" 파일은 async 함수만 export 가능 — 상수는 로컬로
@@ -53,9 +54,34 @@ export async function generateGian(
   const schedule = String(formData.get("schedule") ?? "").trim();
   const amountRaw = parseWon(formData.get("amount"));
   const vatIncluded = formData.get("vat") === "on";
+  const rawFund = String(formData.get("fund") ?? "");
+  const fund: FundSource | undefined =
+    rawFund === "ltp" || rawFund === "misc" || rawFund === "maintenance"
+      ? rawFund
+      : undefined;
+  // 예산 반영은 기본 true — 칸이 없던 시절 문서와 같은 판정이 나오게
+  const budgeted = formData.get("budgeted") !== "no";
   if (!work) return { error: "공사·사업명(안건)을 입력해 주세요." };
 
-  const cls = classify({ amountRaw, vatIncluded, texts: [work, location, why] });
+  // 결재선 재료 — 전결 한도가 분류에 들어가므로 판정보다 먼저 읽는다
+  const tenant = await db.tenant.findUniqueOrThrow({
+    where: { id: tenantId },
+    select: {
+      name: true,
+      approvalLine: true,
+      externalApprovers: true,
+      directorLimit: true,
+    },
+  });
+
+  const cls = classify({
+    amountRaw,
+    vatIncluded,
+    texts: [work, location, why],
+    fund,
+    budgeted,
+    directorLimit: tenant.directorLimit ?? undefined,
+  });
 
   // 견적 3칸 중 채워진 것만 — 수의계약이면 법적 요건상 2개사 이상 필수
   const quotes = [1, 2, 3]
@@ -77,10 +103,6 @@ export async function generateGian(
     };
 
   // 결재선 미리보기 스냅샷 — 상신(Phase 2)이 아니라 문서에 보여줄 예정 결재선
-  const tenant = await db.tenant.findUniqueOrThrow({
-    where: { id: tenantId },
-    select: { name: true, approvalLine: true, externalApprovers: true },
-  });
   const lineIds = (tenant.approvalLine as string[] | null) ?? [];
   const users = await db.user.findMany({
     where: { id: { in: lineIds } },
@@ -120,7 +142,16 @@ export async function generateGian(
     title: draft.title,
     content: toPlainText(draft),
     meta: {
-      form: { work, location, why, schedule, amount: amountRaw, vatIncluded },
+      form: {
+        work,
+        location,
+        why,
+        schedule,
+        amount: amountRaw,
+        vatIncluded,
+        fund,
+        budgeted,
+      },
       quotes,
       cls,
       draft: { ...draft, legalNotices, needsClarification },

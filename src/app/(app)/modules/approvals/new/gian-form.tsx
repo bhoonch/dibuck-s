@@ -8,7 +8,9 @@ import {
   buildApprovalSteps,
   classify,
   externalRoleLabels,
+  fundLabels,
   type ExternalApprover,
+  type FundSource,
 } from "@/lib/gian/rules";
 import { generateGian } from "../actions";
 
@@ -33,10 +35,13 @@ function Hint({ children }: { children: React.ReactNode }) {
 export function GianForm({
   internal,
   external,
+  directorLimit,
 }: {
   /** 설정 > 결재선의 내부 결재자 (순서대로) */
   internal: { userId: string; name: string }[];
   external: ExternalApprover[];
+  /** 관리규약의 소장 전결 한도 — 이하 지출은 회장 결재를 뺀다 */
+  directorLimit: number | null;
 }) {
   const [state, formAction, pending] = useActionState(generateGian, undefined);
   const [work, setWork] = useState("");
@@ -45,6 +50,9 @@ export function GianForm({
   const [amount, setAmount] = useState("");
   const [vat, setVat] = useState(true);
   const [quotes, setQuotes] = useState(["", "", ""]);
+  const [fund, setFund] = useState<FundSource>("maintenance");
+  const [budgeted, setBudgeted] = useState(true);
+  const hasBudget = Number(amount.replace(/[^0-9]/g, "")) > 0;
 
   /** 금액 칸은 전부 천 단위 쉼표로 — 서버는 parseWon()이 숫자만 뽑아 쓴다 */
   const won = (v: string) => {
@@ -59,8 +67,11 @@ export function GianForm({
         amountRaw: Number(amount.replace(/[^0-9]/g, "")) || 0,
         vatIncluded: vat,
         texts: [work, location, why],
+        fund,
+        budgeted,
+        directorLimit: directorLimit ?? undefined,
       }),
-    [work, location, why, amount, vat],
+    [work, location, why, amount, vat, fund, budgeted, directorLimit],
   );
   // 상신 때 뜰 스냅샷을 미리 보여준다 — 등록이 빠진 외부 결재자도 지금 알려준다
   const line = useMemo(
@@ -158,6 +169,56 @@ export function GianForm({
             정확하면 됩니다.
           </Hint>
         </div>
+
+        {/*
+          재원과 예산 반영 여부 — 입대의 의결이 필요한지를 가르는 실제 변수다.
+          예전엔 본문에서 "승강기·배관" 같은 키워드로 장충금을 추측해서,
+          "소방 점검 안내"에도 장충금 딱지가 붙는 오탐이 났다.
+        */}
+        {hasBudget && (
+          <div className="mb-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="fund" className={fieldLabel}>
+                ③-1 어느 돈으로 쓰나요?
+              </label>
+              <select
+                id="fund"
+                name="fund"
+                value={fund}
+                onChange={(e) => setFund(e.target.value as FundSource)}
+                className={fieldInput}
+              >
+                {(Object.keys(fundLabels) as FundSource[]).map((f) => (
+                  <option key={f} value={f}>
+                    {fundLabels[f]}
+                  </option>
+                ))}
+              </select>
+              <Hint>
+                장기수선충당금이면 감사·회장 결재와 장충금 경고가 붙습니다.
+              </Hint>
+            </div>
+            <div>
+              <label htmlFor="budgeted" className={fieldLabel}>
+                ③-2 예산 반영
+              </label>
+              <select
+                id="budgeted"
+                name="budgeted"
+                value={budgeted ? "yes" : "no"}
+                onChange={(e) => setBudgeted(e.target.value === "yes")}
+                className={fieldInput}
+              >
+                <option value="yes">연간 예산에 반영된 집행</option>
+                <option value="no">예산 외 집행</option>
+              </select>
+              <Hint>
+                예산 외 집행은 금액이 작아도 의결 대상인 단지가 많아 전결 한도를
+                적용하지 않습니다.
+              </Hint>
+            </div>
+          </div>
+        )}
 
         <div className="mb-4">
           <label htmlFor="schedule" className={fieldLabel}>
@@ -324,6 +385,12 @@ export function GianForm({
               {line.missing.map((r) => externalRoleLabels[r]).join("·")}이(가)
               등록되지 않아 지금은 상신할 수 없습니다 — 설정 &gt; 결재선에서
               등록해 주세요.
+            </p>
+          )}
+          {cls.withinDirectorLimit && (
+            <p className="mt-2 text-sm text-[var(--gian-ink-soft)]">
+              소장 전결 한도({directorLimit?.toLocaleString("ko-KR")}원, VAT
+              제외) 이하이고 예산에 반영된 집행이라 회장 결재를 뺐습니다.
             </p>
           )}
           {line.steps.length > 0 && line.missing.length === 0 && (

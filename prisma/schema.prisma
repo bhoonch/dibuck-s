@@ -26,6 +26,10 @@ model Tenant {
   /// 직원이 아닌 외부 결재자(입주자대표회장·감사): [{ role: "CHAIR"|"AUDITOR", name, phone?, email? }]
   /// User로 만들지 않는 이유 — 회장은 로그인하지 않고, 계정을 만들면 RBAC·직원 관리가 오염된다.
   externalApprovers Json?
+  /// 관리규약이 정한 관리소장 전결 한도(VAT 제외, 원). 이 금액 이하이고 예산에 반영된
+  /// 집행이면 입주자대표회의(회장) 결재 없이 진행한다. null = 규약 확인 전이라 적용 안 함.
+  /// 단지마다 다른 유일한 결재선 변수라 값으로 받는다 — 규약 원문 해석은 코드가 하지 않는다.
+  directorLimit     Int?
   /// 직인 이미지 (data URI). 파일 스토리지가 없어 DB에 직접 저장 — 도장 이미지는 수십 KB라 충분하다
   sealImage    String?
   memo         String? // 관리자 전용 메모 (영업·CS 기록, 사용자에게 노출 안 됨)

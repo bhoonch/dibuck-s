@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { normalizeEmail } from "@/lib/utils";
+import { parseWon } from "@/lib/won";
 import { Role } from "@/generated/prisma/enums";
 
 const STAFF_ROLES: Role[] = [Role.DIRECTOR, Role.ACCOUNTANT, Role.STAFF];
@@ -180,9 +181,16 @@ export async function saveApprovalLine(formData: FormData) {
       return true;
     });
 
+  // 0이나 빈 칸은 "한도 없음"(null)으로 — 0원 한도는 모든 지출이 전결이라는 뜻이 되어 위험하다
+  const limit = parseWon(formData.get("directorLimit"));
+
   await db.tenant.update({
     where: { id: session.tenantId! },
-    data: { approvalLine: line, externalApprovers },
+    data: {
+      approvalLine: line,
+      externalApprovers,
+      directorLimit: limit > 0 ? limit : null,
+    },
   });
   revalidatePath("/settings/approval-line");
 }
