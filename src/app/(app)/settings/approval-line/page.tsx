@@ -35,6 +35,7 @@ export default async function ApprovalLinePage() {
       initialLine={line}
       initialExternal={external}
       initialDirectorLimit={tenant.directorLimit}
+      initialDirectorLimitClause={tenant.directorLimitClause}
       isDirector={session.role === "DIRECTOR"}
     />
   );

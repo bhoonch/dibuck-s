@@ -190,6 +190,10 @@ export async function saveApprovalLine(formData: FormData) {
       approvalLine: line,
       externalApprovers,
       directorLimit: limit > 0 ? limit : null,
+      directorLimitClause:
+        String(formData.get("directorLimitClause") ?? "")
+          .trim()
+          .slice(0, 100) || null,
     },
   });
   revalidatePath("/settings/approval-line");

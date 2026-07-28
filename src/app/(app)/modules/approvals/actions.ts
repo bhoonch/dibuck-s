@@ -71,6 +71,7 @@ export async function generateGian(
       approvalLine: true,
       externalApprovers: true,
       directorLimit: true,
+      directorLimitClause: true,
     },
   });
 
@@ -117,7 +118,12 @@ export async function generateGian(
 
   let draft: GianDraft;
   try {
-    draft = await generateDraft({ cls, form: { work, location, why, schedule, quotes }, tenantName: tenant.name });
+    draft = await generateDraft({
+      cls,
+      form: { work, location, why, schedule, quotes },
+      tenantName: tenant.name,
+      directorLimitClause: tenant.directorLimitClause,
+    });
   } catch (e) {
     console.error("gian generate failed:", e);
     return { error: "초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요." };
