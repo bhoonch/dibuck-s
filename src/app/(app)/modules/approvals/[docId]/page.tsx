@@ -150,6 +150,9 @@ export default async function GianDocumentPage({
   }));
   const canSubmit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
+  // 반려도 수정 가능하다 — saveGianDraft·edit 페이지가 draft·rejected 둘 다 받는다.
+  // 예전엔 화면 버튼만 draft 조건이라 반려당한 사람이 고칠 길이 안 보였다.
+  const canEdit = doc.status === "draft" || doc.status === "rejected";
 
   const docType = meta.cls?.docType;
   const docTypeLabel =
@@ -168,148 +171,156 @@ export default async function GianDocumentPage({
       <PrintStyle />
 
       {/*
-        기준선은 하나다 — 단계표시·머리줄·용지가 모두 이 격자의 왼쪽 칸 안에 있다.
-        예전엔 앞의 둘이 격자 밖에서 전체 폭을 쓰고 용지만 칸 안에서 가운데라
-        왼쪽 시작선이 서로 어긋났다. 용지 칸은 A4 폭(794px)으로 묶고,
-        문서+패널 덩어리 전체를 가운데 놓는다.
-
-        2단은 xl(1280px)부터 — lg(1024px)에서 2단을 쓰면 문서 칸이 352px밖에
-        안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
-        패널을 문서 위로 올리고 한 줄 폭도 794px로 맞춘다.
+        기준선은 하나다 — 단계표시·머리줄·용지·패널이 모두 이 기둥 안에서 시작한다.
+        기둥 폭 = A4(794) + 패널(288) + 간격. 단계표시와 머리줄을 격자 위로 빼서
+        용지와 패널이 같은 높이에서 출발하게 했다(패널에 mt를 주면 머리줄 버튼이
+        두 줄로 접히는 순간 어긋난다).
       */}
-      <div className="mx-auto grid max-w-[794px] items-start gap-6 xl:max-w-none xl:grid-cols-[minmax(0,794px)_288px] xl:justify-center">
-        <div className="min-w-0">
-          <GianSteps current={doc.status === "draft" ? 2 : 3} />
+      <div className="mx-auto max-w-[794px] xl:max-w-[1108px]">
+        <GianSteps
+          current={canEdit ? 2 : 3}
+          editHref={canEdit ? `/modules/approvals/${doc.id}/edit` : undefined}
+        />
 
-          {/* ── 결과 머리: 문서 유형 인장 + 액션 (목업 .result-head) ── */}
-          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
-                {docTypeLabel}
+        {/* ── 결과 머리: 문서 유형 인장 + 액션 (목업 .result-head) ── */}
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
+              {docTypeLabel}
+            </span>
+            <span className="font-mono text-sm text-[var(--gian-ink-soft)]">
+              {doc.docNo}
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
+            >
+              {docStatusLabels[doc.status] ?? doc.status}
+            </span>
+            {/* 수정 경로가 사라진 이유를 적는다 — 버튼이 조용히 없어지면 왜인지 알 수 없다 */}
+            {!canEdit && (
+              <span className="text-sm text-muted-foreground">
+                {doc.status === "final"
+                  ? "결재가 끝나 내용을 수정할 수 없습니다"
+                  : "결재가 시작되어 내용을 수정할 수 없습니다"}
               </span>
-              <span className="font-mono text-sm text-[var(--gian-ink-soft)]">
-                {doc.docNo}
-              </span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
-              >
-                {docStatusLabels[doc.status] ?? doc.status}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <PrintButton />
-              {doc.status === "draft" && (
-                <Button asChild variant="outline">
-                  <Link href={`/modules/approvals/${doc.id}/edit`}>
-                    내용 수정
-                  </Link>
-                </Button>
-              )}
-              <Button asChild variant="outline">
-                <Link href="/modules/approvals/new">다시 만들기</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                <Link href="/modules/approvals">목록</Link>
-              </Button>
-            </div>
+            )}
           </div>
-
-          <PaperScale>
-            <GianPaper
-              draft={draft}
-              steps={paperSteps}
-              docNo={doc.docNo}
-              office={`${tenant.name} 관리사무소`}
-              docType={docType}
-              createdAt={doc.createdAt}
-            />
-          </PaperScale>
-
-          {/* 이어서 만들기 (목업 .followup) — 결재가 끝난 문서에서만 */}
-          {doc.status === "final" && (
-            <div className="mt-4 w-full max-w-[210mm] rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-4 py-4 print:hidden">
-              <h4 className="text-sm font-bold">이어서 만들기</h4>
-              <p className="mt-1 mb-3 text-xs text-[var(--gian-ink-soft)]">
-                이 문서의 입력을 그대로 재사용합니다 — 다시 입력할 필요 없어요.
-              </p>
-              {notice ? (
-                <Button asChild>
-                  <Link href={`/modules/approvals/${notice.id}`}>
-                    입주민 공고문 {notice.docNo}
-                  </Link>
-                </Button>
-              ) : (
-                // 자동 파생이 실패했을 때의 복구 경로
-                <form action={makeGianNotice}>
-                  <input type="hidden" name="docId" value={doc.id} />
-                  <Button type="submit">입주민 공고문 만들기</Button>
-                </form>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <PrintButton />
+            <Button asChild variant="outline">
+              <Link href="/modules/approvals/new">다시 만들기</Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link href="/modules/approvals">목록</Link>
+            </Button>
+          </div>
         </div>
 
-        {/* ── 검토·결재 패널 (화면 전용, 목업 .side) ── */}
-        <aside className="order-first flex flex-col gap-3.5 print:hidden xl:order-none xl:sticky xl:top-5">
-          <ApprovalPanel
-            docId={doc.id}
-            docStatus={doc.status}
-            canSubmit={canSubmit}
-            steps={panelSteps}
-          />
+        {/*
+          2단은 xl(1280px)부터 — lg(1024px)에서 2단을 쓰면 문서 칸이 352px밖에
+          안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
+          패널을 문서 위로 올린다.
+        */}
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_288px]">
+          <div className="min-w-0">
+            <PaperScale>
+              <GianPaper
+                draft={draft}
+                steps={paperSteps}
+                docNo={doc.docNo}
+                office={`${tenant.name} 관리사무소`}
+                docType={docType}
+                createdAt={doc.createdAt}
+              />
+            </PaperScale>
 
-          {draft.attachments.length > 0 && (
-            <div className={panel}>
-              <h4 className={panelTitle}>첨부 체크리스트</h4>
-              <ul>
-                {draft.attachments.map((a, i) => (
-                  <li key={i} className={panelItem}>
-                    <span className="shrink-0 font-bold text-[var(--gian-ok)]">
-                      ✓
-                    </span>
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {/* 이어서 만들기 (목업 .followup) — 결재가 끝난 문서에서만 */}
+            {doc.status === "final" && (
+              <div className="mt-4 w-full max-w-[210mm] rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-4 py-4 print:hidden">
+                <h4 className="text-sm font-bold">이어서 만들기</h4>
+                <p className="mt-1 mb-3 text-xs text-[var(--gian-ink-soft)]">
+                  이 문서의 입력을 그대로 재사용합니다 — 다시 입력할 필요
+                  없어요.
+                </p>
+                {notice ? (
+                  <Button asChild>
+                    <Link href={`/modules/approvals/${notice.id}`}>
+                      입주민 공고문 {notice.docNo}
+                    </Link>
+                  </Button>
+                ) : (
+                  // 자동 파생이 실패했을 때의 복구 경로
+                  <form action={makeGianNotice}>
+                    <input type="hidden" name="docId" value={doc.id} />
+                    <Button type="submit">입주민 공고문 만들기</Button>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
 
-          {draft.legalNotices.length > 0 && (
-            <div
-              className={`${panel} border-l-[3px] border-l-[var(--gian-stamp)]`}
-            >
-              <h4 className={`${panelTitle} text-[var(--gian-stamp)]`}>
-                법적 유의사항
-              </h4>
-              <ul>
-                {draft.legalNotices.map((n, i) => (
-                  <li key={i} className={panelItem}>
-                    <span className="shrink-0 font-bold text-[var(--gian-stamp)]">
-                      !
-                    </span>
-                    {n}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* ── 검토·결재 패널 (화면 전용, 목업 .side) ── */}
+          <aside className="order-first flex flex-col gap-3.5 print:hidden xl:order-none xl:sticky xl:top-5">
+            <ApprovalPanel
+              docId={doc.id}
+              docStatus={doc.status}
+              canSubmit={canSubmit}
+              steps={panelSteps}
+            />
 
-          {draft.needsClarification.length > 0 && doc.status === "draft" && (
-            <div className={panel}>
-              <h4 className={panelTitle}>확인이 필요해요</h4>
-              <ul>
-                {draft.needsClarification.map((c, i) => (
-                  <li key={i} className={panelItem}>
-                    <span className="shrink-0 font-bold text-[var(--gian-warn)]">
-                      ?
-                    </span>
-                    {c}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </aside>
+            {draft.attachments.length > 0 && (
+              <div className={panel}>
+                <h4 className={panelTitle}>첨부 체크리스트</h4>
+                <ul>
+                  {draft.attachments.map((a, i) => (
+                    <li key={i} className={panelItem}>
+                      <span className="shrink-0 font-bold text-[var(--gian-ok)]">
+                        ✓
+                      </span>
+                      {a}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {draft.legalNotices.length > 0 && (
+              <div
+                className={`${panel} border-l-[3px] border-l-[var(--gian-stamp)]`}
+              >
+                <h4 className={`${panelTitle} text-[var(--gian-stamp)]`}>
+                  법적 유의사항
+                </h4>
+                <ul>
+                  {draft.legalNotices.map((n, i) => (
+                    <li key={i} className={panelItem}>
+                      <span className="shrink-0 font-bold text-[var(--gian-stamp)]">
+                        !
+                      </span>
+                      {n}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {draft.needsClarification.length > 0 && canEdit && (
+              <div className={panel}>
+                <h4 className={panelTitle}>확인이 필요해요</h4>
+                <ul>
+                  {draft.needsClarification.map((c, i) => (
+                    <li key={i} className={panelItem}>
+                      <span className="shrink-0 font-bold text-[var(--gian-warn)]">
+                        ?
+                      </span>
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </aside>
+        </div>
       </div>
     </>
   );

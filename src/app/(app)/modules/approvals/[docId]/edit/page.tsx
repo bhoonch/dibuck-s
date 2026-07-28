@@ -6,6 +6,7 @@ import { isSubscribed } from "@/lib/modules";
 import type { GianDraft } from "@/lib/gian/claude";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { GianSteps } from "@/components/gian-steps";
 import { fieldInput, fieldLabel } from "@/components/gian-ui";
 import { saveGianDraft } from "../../approval-actions";
 
@@ -42,6 +43,8 @@ export default async function EditGianPage({
         title="초안 수정"
         description="AI가 만든 문장을 직접 고칠 수 있습니다. 줄바꿈이 항목 하나입니다."
       />
+      {/* 단계표시에서 1번을 눌러 돌아온 자리 — 어디에 서 있는지 같은 막대로 보여준다 */}
+      <GianSteps current={1} />
 
       <div className="space-y-4 rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] p-6 shadow-[var(--gian-shadow)]">
         <div>
