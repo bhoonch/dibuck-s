@@ -183,7 +183,9 @@ function Section({
   lines: string[];
 }) {
   const parsed = lines.map((l) => LABELED.exec(l));
-  const asTable = parsed.filter(Boolean).length >= 3;
+  // 2줄부터 표로 — 견적 비교는 보통 2개사라 예전 기준(3줄)에서는 개조식으로 남았고,
+  // 업체명 길이가 제각각이라 금액 시작 위치가 줄마다 어긋났다
+  const asTable = parsed.filter(Boolean).length >= 2;
 
   return (
     <section className="mb-[6mm]">

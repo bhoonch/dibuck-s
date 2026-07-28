@@ -7,8 +7,10 @@ import { isSubscribed } from "@/lib/modules";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import type { GianDraft } from "@/lib/gian/claude";
 import {
+  buildApprovalSteps,
   externalRoleLabels,
   type Classification,
+  type ExternalApprover,
   type ExternalRole,
 } from "@/lib/gian/rules";
 import { Role } from "@/generated/prisma/enums";
@@ -38,6 +40,28 @@ type Meta = {
     name: string;
   }[];
 };
+
+/** 지금 설정 기준의 예정 결재선 — submitDocument와 같은 재료를 쓴다 */
+async function plannedStepsNow(tenantId: string, cls: Classification) {
+  const tenant = await db.tenant.findUniqueOrThrow({
+    where: { id: tenantId },
+    select: { approvalLine: true, externalApprovers: true },
+  });
+  const lineIds = (tenant.approvalLine as string[] | null) ?? [];
+  const users = await db.user.findMany({
+    where: { id: { in: lineIds } },
+    select: { id: true, name: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u.name]));
+  const internal = lineIds
+    .filter((id) => byId.has(id))
+    .map((id) => ({ userId: id, name: byId.get(id)! }));
+  return buildApprovalSteps(
+    cls,
+    internal,
+    (tenant.externalApprovers as ExternalApprover[] | null) ?? [],
+  ).steps;
+}
 
 export default async function GianDocumentPage({
   params,
@@ -126,7 +150,16 @@ export default async function GianDocumentPage({
       ? externalRoleLabels[s.externalRole as ExternalRole]
       : s.name;
 
-  // 상신 전에는 예정 결재선(스냅샷 예상), 상신 후에는 실제 ApprovalStep이 결재란
+  /**
+   * 상신 전 결재란은 **지금 설정**으로 다시 계산한다.
+   * meta.plannedSteps는 초안 생성 시점의 스냅샷이라, 그 뒤에 설정 > 결재선에서
+   * 회장·감사를 등록해도 화면은 옛 값을 보여줬다 — 상신은 현재 설정으로 하므로
+   * 화면과 실제 결재선이 달랐다. 상신 후에는 진짜 스냅샷(ApprovalStep)이 기준.
+   */
+  const planned = meta.cls
+    ? await plannedStepsNow(doc.tenantId, meta.cls)
+    : meta.plannedSteps;
+
   const paperSteps: PaperStep[] =
     doc.approvalSteps.length > 0
       ? doc.approvalSteps.map((s) => ({
@@ -136,7 +169,7 @@ export default async function GianDocumentPage({
           name: s.name,
           actedAt: s.actedAt,
         }))
-      : meta.plannedSteps.map((s) => ({
+      : planned.map((s) => ({
           order: s.order,
           label: roleOrName(s),
         }));
