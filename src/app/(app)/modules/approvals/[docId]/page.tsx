@@ -72,36 +72,42 @@ export default async function GianDocumentPage({
     return (
       <>
         <PrintStyle margin="0" />
-        <div className="print:hidden">
-          <PageHeader title="입주민 공고문" description={doc.docNo ?? undefined}>
-            <PrintButton />
-            {meta.sourceDocId && (
-              <Button asChild variant="outline">
-                <Link href={`/modules/approvals/${meta.sourceDocId}`}>
-                  원본 결재 문서
-                </Link>
+        {/* 머리줄과 용지가 같은 왼쪽 시작선을 쓰도록 A4 폭으로 묶어 가운데 (기안 갈래와 같은 규칙) */}
+        <div className="mx-auto max-w-[794px]">
+          <div className="print:hidden">
+            <PageHeader
+              title="입주민 공고문"
+              description={doc.docNo ?? undefined}
+            >
+              <PrintButton />
+              {meta.sourceDocId && (
+                <Button asChild variant="outline">
+                  <Link href={`/modules/approvals/${meta.sourceDocId}`}>
+                    원본 결재 문서
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="ghost">
+                <Link href="/modules/approvals">목록</Link>
               </Button>
-            )}
-            <Button asChild variant="ghost">
-              <Link href="/modules/approvals">목록</Link>
-            </Button>
-          </PageHeader>
+            </PageHeader>
+          </div>
+          <PaperScale>
+            <NoticePaper
+              notice={meta.notice}
+              docNo={doc.docNo ?? ""}
+              office={`${tenant.name} 관리사무소`}
+              tel={tel}
+              sealImage={tenant.sealImage}
+            />
+          </PaperScale>
+          {!tenant.phone && (
+            <Card className="mt-4 p-4 text-sm text-muted-foreground print:hidden">
+              설정 &gt; 단지 정보에 대표번호를 등록하면 공고문 하단에 연락처가
+              표시됩니다.
+            </Card>
+          )}
         </div>
-        <PaperScale>
-          <NoticePaper
-            notice={meta.notice}
-            docNo={doc.docNo ?? ""}
-            office={`${tenant.name} 관리사무소`}
-            tel={tel}
-            sealImage={tenant.sealImage}
-          />
-        </PaperScale>
-        {!tenant.phone && (
-          <Card className="mx-auto mt-4 max-w-[210mm] p-4 text-sm text-muted-foreground print:hidden">
-            설정 &gt; 단지 정보에 대표번호를 등록하면 공고문 하단에 연락처가
-            표시됩니다.
-          </Card>
-        )}
       </>
     );
   }
@@ -125,7 +131,10 @@ export default async function GianDocumentPage({
           name: s.name,
           actedAt: s.actedAt,
         }))
-      : meta.plannedSteps.map((s) => ({ order: s.order, label: roleOrName(s) }));
+      : meta.plannedSteps.map((s) => ({
+          order: s.order,
+          label: roleOrName(s),
+        }));
 
   const now = new Date();
   const panelSteps: PanelStep[] = doc.approvalSteps.map((s) => ({
@@ -157,46 +166,54 @@ export default async function GianDocumentPage({
   return (
     <>
       <PrintStyle />
-      <GianSteps current={doc.status === "draft" ? 2 : 3} />
-
-      {/* ── 결과 머리: 문서 유형 인장 + 액션 (목업 .result-head) ── */}
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
-            {docTypeLabel}
-          </span>
-          <span className="font-mono text-sm text-[var(--gian-ink-soft)]">
-            {doc.docNo}
-          </span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
-          >
-            {docStatusLabels[doc.status] ?? doc.status}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <PrintButton />
-          {doc.status === "draft" && (
-            <Button asChild variant="outline">
-              <Link href={`/modules/approvals/${doc.id}/edit`}>내용 수정</Link>
-            </Button>
-          )}
-          <Button asChild variant="outline">
-            <Link href="/modules/approvals/new">다시 만들기</Link>
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/modules/approvals">목록</Link>
-          </Button>
-        </div>
-      </div>
 
       {/*
-        문서 + 검토 패널. 2단은 xl(1280px)부터 — lg(1024px)에서 2단을 쓰면 문서 칸이
-        352px밖에 안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
-        패널을 문서 위로 올려 용지에 전체 폭을 준다.
+        기준선은 하나다 — 단계표시·머리줄·용지가 모두 이 격자의 왼쪽 칸 안에 있다.
+        예전엔 앞의 둘이 격자 밖에서 전체 폭을 쓰고 용지만 칸 안에서 가운데라
+        왼쪽 시작선이 서로 어긋났다. 용지 칸은 A4 폭(794px)으로 묶고,
+        문서+패널 덩어리 전체를 가운데 놓는다.
+
+        2단은 xl(1280px)부터 — lg(1024px)에서 2단을 쓰면 문서 칸이 352px밖에
+        안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
+        패널을 문서 위로 올리고 한 줄 폭도 794px로 맞춘다.
       */}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_288px]">
-        <div className="flex min-w-0 flex-col items-center">
+      <div className="mx-auto grid max-w-[794px] items-start gap-6 xl:max-w-none xl:grid-cols-[minmax(0,794px)_288px] xl:justify-center">
+        <div className="min-w-0">
+          <GianSteps current={doc.status === "draft" ? 2 : 3} />
+
+          {/* ── 결과 머리: 문서 유형 인장 + 액션 (목업 .result-head) ── */}
+          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
+                {docTypeLabel}
+              </span>
+              <span className="font-mono text-sm text-[var(--gian-ink-soft)]">
+                {doc.docNo}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
+              >
+                {docStatusLabels[doc.status] ?? doc.status}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <PrintButton />
+              {doc.status === "draft" && (
+                <Button asChild variant="outline">
+                  <Link href={`/modules/approvals/${doc.id}/edit`}>
+                    내용 수정
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="outline">
+                <Link href="/modules/approvals/new">다시 만들기</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/modules/approvals">목록</Link>
+              </Button>
+            </div>
+          </div>
+
           <PaperScale>
             <GianPaper
               draft={draft}
