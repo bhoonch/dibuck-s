@@ -37,7 +37,7 @@ export function GianForm() {
   );
 
   return (
-    <form action={formAction} className="mx-auto mt-2 max-w-[620px]">
+    <form action={formAction}>
       <div className="rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-7 pb-6 text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
         <h2 className="mb-6 text-lg font-bold tracking-tight text-balance">
           어떤 문서를 올릴까요?

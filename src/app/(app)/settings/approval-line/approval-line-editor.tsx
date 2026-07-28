@@ -227,9 +227,9 @@ export function ApprovalLineEditor({
 
   return (
     <form action={saveApprovalLine}>
-      <Card className="max-w-3xl gap-0 py-0">
+      <Card className="gap-0 py-0">
         <CardHeader className="gap-0.5 border-b border-gray-100 px-4 py-3">
-          <CardTitle className="text-lg tracking-tight">결재선</CardTitle>
+          <CardTitle>결재선</CardTitle>
           <CardDescription>
             전자결재 문서가 올라오면 아래 순서대로 승인을 받습니다.
           </CardDescription>

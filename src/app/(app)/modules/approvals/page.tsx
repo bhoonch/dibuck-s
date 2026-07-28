@@ -32,17 +32,16 @@ export default async function GianModulePage() {
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
-        <PageHeader
-          title="기안·품의"
-          description="다섯 항목 입력으로 기안서·품의서 초안을 만들고 결재까지 진행합니다."
-        />
+      <PageHeader
+        title="기안·품의"
+        description="다섯 항목 입력으로 기안서·품의서 초안을 만들고 결재까지 진행합니다."
+      >
         <Button asChild size="lg">
           <Link href="/modules/approvals/new">
             <FilePlus2 className="size-4" /> 새 기안·품의
           </Link>
         </Button>
-      </div>
+      </PageHeader>
 
       {docs.length === 0 ? (
         <div className="mx-auto max-w-lg pt-10">

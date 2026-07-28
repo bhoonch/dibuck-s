@@ -5,10 +5,12 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, Search } from "lucide-react";
 
+// 앞에서부터 첫 일치가 이긴다 — 모듈 경로는 "/modules"보다 위에 둬야 한다
 const titles: [prefix: string, title: string][] = [
   ["/documents", "통합 문서함"],
   ["/notifications", "알림"],
-  ["/settings", "설정"],
+  ["/settings", "단지·계정 관리"],
+  ["/modules/approvals", "기안·품의"],
   ["/modules", "모듈 런처"],
   ["/support", "고객 문의"],
   ["/home", "홈"],

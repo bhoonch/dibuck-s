@@ -12,6 +12,9 @@ import {
 } from "@/lib/gian/rules";
 import { Role } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { PaperScale } from "@/components/paper-scale";
 import { panel, panelItem, panelTitle } from "@/components/gian-ui";
 import { GianPaper, PrintStyle, type PaperStep } from "@/components/gian-paper";
 import { GianSteps } from "@/components/gian-steps";
@@ -69,14 +72,8 @@ export default async function GianDocumentPage({
     return (
       <>
         <PrintStyle margin="0" />
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">{doc.docNo}</h1>
-            <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-              입주민 공고문
-            </span>
-          </div>
-          <div className="flex gap-2">
+        <div className="print:hidden">
+          <PageHeader title="입주민 공고문" description={doc.docNo ?? undefined}>
             <PrintButton />
             {meta.sourceDocId && (
               <Button asChild variant="outline">
@@ -88,20 +85,22 @@ export default async function GianDocumentPage({
             <Button asChild variant="ghost">
               <Link href="/modules/approvals">목록</Link>
             </Button>
-          </div>
+          </PageHeader>
         </div>
-        <NoticePaper
-          notice={meta.notice}
-          docNo={doc.docNo ?? ""}
-          office={`${tenant.name} 관리사무소`}
-          tel={tel}
-          sealImage={tenant.sealImage}
-        />
+        <PaperScale>
+          <NoticePaper
+            notice={meta.notice}
+            docNo={doc.docNo ?? ""}
+            office={`${tenant.name} 관리사무소`}
+            tel={tel}
+            sealImage={tenant.sealImage}
+          />
+        </PaperScale>
         {!tenant.phone && (
-          <p className="mt-3 text-sm text-muted-foreground print:hidden">
+          <Card className="mx-auto mt-4 max-w-[210mm] p-4 text-sm text-muted-foreground print:hidden">
             설정 &gt; 단지 정보에 대표번호를 등록하면 공고문 하단에 연락처가
             표시됩니다.
-          </p>
+          </Card>
         )}
       </>
     );
@@ -191,17 +190,23 @@ export default async function GianDocumentPage({
         </div>
       </div>
 
-      {/* ── 문서 + 검토 패널 (목업 .result-grid: 1fr / 320px) ── */}
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/*
+        문서 + 검토 패널. 2단은 xl(1280px)부터 — lg(1024px)에서 2단을 쓰면 문서 칸이
+        352px밖에 안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
+        패널을 문서 위로 올려 용지에 전체 폭을 준다.
+      */}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_288px]">
         <div className="flex min-w-0 flex-col items-center">
-          <GianPaper
-            draft={draft}
-            steps={paperSteps}
-            docNo={doc.docNo}
-            office={`${tenant.name} 관리사무소`}
-            docType={docType}
-            createdAt={doc.createdAt}
-          />
+          <PaperScale>
+            <GianPaper
+              draft={draft}
+              steps={paperSteps}
+              docNo={doc.docNo}
+              office={`${tenant.name} 관리사무소`}
+              docType={docType}
+              createdAt={doc.createdAt}
+            />
+          </PaperScale>
 
           {/* 이어서 만들기 (목업 .followup) — 결재가 끝난 문서에서만 */}
           {doc.status === "final" && (
@@ -228,7 +233,7 @@ export default async function GianDocumentPage({
         </div>
 
         {/* ── 검토·결재 패널 (화면 전용, 목업 .side) ── */}
-        <aside className="flex flex-col gap-3.5 lg:sticky lg:top-5 print:hidden">
+        <aside className="order-first flex flex-col gap-3.5 print:hidden xl:order-none xl:sticky xl:top-5">
           <ApprovalPanel
             docId={doc.id}
             docStatus={doc.status}

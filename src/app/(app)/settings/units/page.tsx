@@ -23,7 +23,7 @@ export default async function UnitsPage() {
       {isDirector && (
         <Card className="gap-0 py-0">
           <CardHeader className="gap-0.5 border-b border-gray-100 px-4 py-3">
-            <CardTitle className="text-lg tracking-tight">
+            <CardTitle>
               세대 목록 업로드
             </CardTitle>
             <CardDescription>

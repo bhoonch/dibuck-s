@@ -55,11 +55,11 @@ export function AccountSettings({
   const [leaveState, leaveAction] = useActionState(deleteMyTenant, undefined);
 
   return (
-    <div className="grid max-w-4xl items-start gap-6 lg:grid-cols-2">
+    <div className="grid items-start gap-6 lg:grid-cols-2">
       <form action={profileAction}>
         <Card className="gap-0 py-0">
           <CardHeader className={cardHeader}>
-            <CardTitle className="text-lg tracking-tight">내 정보</CardTitle>
+            <CardTitle>내 정보</CardTitle>
             <CardDescription>로그인 이메일: {email}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-4">
@@ -91,7 +91,7 @@ export function AccountSettings({
       <form action={pwAction}>
         <Card className="gap-0 py-0">
           <CardHeader className={cardHeader}>
-            <CardTitle className="text-lg tracking-tight">비밀번호 변경</CardTitle>
+            <CardTitle>비밀번호 변경</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 p-4">
             <div className="space-y-2">
@@ -140,7 +140,7 @@ export function AccountSettings({
         <form action={leaveAction} className="lg:col-span-2">
           <Card className="gap-0 border-destructive/40 py-0">
             <CardHeader className={cardHeader}>
-              <CardTitle className="text-lg tracking-tight text-destructive">
+              <CardTitle className="text-destructive">
                 서비스 탈퇴
               </CardTitle>
               <CardDescription>

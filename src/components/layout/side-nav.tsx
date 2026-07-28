@@ -52,12 +52,32 @@ export function SideNav({
         ? "bg-accent text-accent-foreground"
         : "text-gray-700 hover:bg-gray-100",
     );
+  // href에 쿼리가 붙는 항목이 있어서 활성 판정은 match로 따로 본다
   const coreItems = [
-    { name: "홈", href: "/home", icon: Home },
-    { name: "모듈 런처", href: "/modules", icon: LayoutGrid },
-    { name: "문서함", href: "/documents", icon: FolderOpen, count: docCount },
-    { name: "설정", href: "/settings", icon: Settings },
-    { name: "고객 문의", href: "/support", icon: MessageCircleQuestion },
+    { name: "홈", href: "/home", match: "/home", icon: Home },
+    { name: "모듈 런처", href: "/modules", match: "/modules", icon: LayoutGrid },
+    {
+      name: "문서함",
+      href: "/documents",
+      match: "/documents",
+      icon: FolderOpen,
+      count: docCount,
+    },
+    // "설정"은 안에 뭐가 들었는지 알려주지 않는다 — 세대 등록이 여기 있을 거라고
+    // 짐작할 방법이 없었다. 이름으로 내용을 밝힌다.
+    {
+      name: "단지·계정 관리",
+      href: "/settings",
+      match: "/settings",
+      icon: Settings,
+    },
+    // 어느 화면에서 눌렀는지 실어 보낸다 — 운영자가 상황을 되묻지 않아도 된다
+    {
+      name: "고객 문의",
+      href: `/support?from=${encodeURIComponent(pathname)}`,
+      match: "/support",
+      icon: MessageCircleQuestion,
+    },
   ];
 
   return (
@@ -87,9 +107,9 @@ export function SideNav({
       <nav className="flex-1 overflow-y-auto px-2 pb-2">
         {coreItems.map((item) => (
           <Link
-            key={item.href}
+            key={item.match}
             href={item.href}
-            className={linkClass(pathname.startsWith(item.href))}
+            className={linkClass(pathname.startsWith(item.match))}
           >
             <item.icon className="size-4" />
             {item.name}
