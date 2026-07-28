@@ -230,6 +230,10 @@ export function ApprovalLineEditor({
     initialLine[1] ?? "",
     initialLine[2] ?? "",
   ]);
+  // 금액 칸은 천 단위 쉼표 — 서버는 parseWon()이 숫자만 뽑는다
+  const [limit, setLimit] = useState(
+    initialDirectorLimit ? initialDirectorLimit.toLocaleString("ko-KR") : "",
+  );
   const byId = new Map(staff.map((s) => [s.id, s]));
 
   return (
@@ -299,50 +303,58 @@ export function ApprovalLineEditor({
             isDirector={isDirector}
           />
 
-          {/* 단지마다 다른 유일한 결재선 변수 — 규약을 읽어 해석하지 않고 값으로 받는다 */}
-          <div className="space-y-4 border-t border-gray-100 pt-5">
-            <div className="space-y-2">
-              <Label htmlFor="directorLimit">관리소장 전결 한도</Label>
-              <div className="flex items-center gap-2">
+          {/*
+            단지마다 다른 유일한 결재선 변수 — 규약을 읽어 해석하지 않고 값으로 받는다.
+            결재선 그림 밑에 회색 글씨로 두면 안 읽힌다. 여기가 "회장이 붙느냐 마느냐"를
+            정하는 자리라 상자로 세운다.
+          */}
+          <div className="rounded-lg border border-primary/25 bg-accent/40 p-4">
+            <p className="font-semibold">관리소장 전결 규정</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              한도 이하이고 연간 예산에 반영된 지출은 회장 결재 없이 소장
+              결재로 끝납니다. 비워 두면 지출 문서에 항상 회장이 붙습니다 —
+              장기수선충당금은 한도와 무관하게 감사·회장 결재를 받습니다.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="directorLimit">전결 한도</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="directorLimit"
+                    name="directorLimit"
+                    inputMode="numeric"
+                    className="bg-card font-mono"
+                    placeholder="예: 3,000,000"
+                    value={limit}
+                    onChange={(e) => {
+                      const n = e.target.value.replace(/[^0-9]/g, "");
+                      setLimit(n ? Number(n).toLocaleString("ko-KR") : "");
+                    }}
+                    disabled={!isDirector}
+                  />
+                  <span className="shrink-0 text-sm text-muted-foreground">
+                    원
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  VAT 제외 금액으로 비교합니다.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="directorLimitClause">전결 근거 조항</Label>
                 <Input
-                  id="directorLimit"
-                  name="directorLimit"
-                  inputMode="numeric"
-                  className="max-w-48 font-mono"
-                  placeholder="예: 3,000,000"
-                  defaultValue={
-                    initialDirectorLimit
-                      ? initialDirectorLimit.toLocaleString("ko-KR")
-                      : ""
-                  }
+                  id="directorLimitClause"
+                  name="directorLimitClause"
+                  className="bg-card"
+                  placeholder="예: 제38조(관리소장의 전결사항)"
+                  defaultValue={initialDirectorLimitClause ?? ""}
                   disabled={!isDirector}
                 />
-                <span className="text-sm text-muted-foreground">
-                  원 (VAT 제외)
-                </span>
+                <p className="text-xs text-muted-foreground">
+                  전결 문서의 관련근거에 그대로 인용합니다. 비워 두면 법령만
+                  적습니다.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                관리규약이 정한 금액입니다. 이 금액 이하이고 연간 예산에 반영된
-                지출은 회장 결재 없이 소장 결재로 끝납니다. 비워 두면 지출
-                문서에 항상 회장이 붙습니다. 장기수선충당금은 한도와 무관하게
-                감사·회장 결재를 받습니다.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="directorLimitClause">전결 근거 조항</Label>
-              <Input
-                id="directorLimitClause"
-                name="directorLimitClause"
-                className="max-w-md"
-                placeholder="예: 제38조(관리소장의 전결사항)"
-                defaultValue={initialDirectorLimitClause ?? ""}
-                disabled={!isDirector}
-              />
-              <p className="text-xs text-muted-foreground">
-                전결로 처리한 문서의 관련근거에 그대로 인용합니다 — 의결 없이
-                집행한 근거가 이 조항입니다. 비워 두면 규약 인용 없이 법령만
-                적습니다(조항을 지어내지 않습니다).
-              </p>
             </div>
           </div>
         </CardContent>
