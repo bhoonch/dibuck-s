@@ -73,6 +73,25 @@ export function buildNotice(input: {
   };
 }
 
+/**
+ * 게시해도 되는 일정인가 — "2026년 8월 10일", "2026-08-10 ~ 08-14"는 통과,
+ * "8월 중", "(추후 공지)", "미정"은 걸린다.
+ *
+ * 결재 문서에서는 대략적인 일정도 괜찮다(기안 시점에 날짜가 안 잡히는 게 흔하다).
+ * 그러나 입주민에게 나가는 공고문에 "8월 중"이 실리면 "언제냐"는 문의가
+ * 그대로 관리사무소로 돌아온다. 그래서 게시 전에 한 번 잡아 준다.
+ */
+export function isConcreteSchedule(v: string) {
+  const s = v.trim();
+  if (!s) return false;
+  // 월+일이 모두 숫자로 있거나(8월 10일), 날짜 표기(2026-08-10, 2026.8.10)면 확정으로 본다
+  return (
+    /\d{1,2}\s*월\s*\d{1,2}\s*일/.test(s) ||
+    /\d{4}\s*[-.\/]\s*\d{1,2}\s*[-.\/]\s*\d{1,2}/.test(s) ||
+    /\d{1,2}\s*[-.\/]\s*\d{1,2}\s*[~-]/.test(s)
+  );
+}
+
 /** 원본 문서에서 파생된 공고문 — 중복 생성 방지와 양방향 링크가 같은 조회를 쓴다 */
 export function findNoticeFor(sourceDocId: string) {
   return db.document.findFirst({

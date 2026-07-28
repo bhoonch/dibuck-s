@@ -6,7 +6,11 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
 import type { GianDraft } from "@/lib/gian/claude";
-import { createNoticeFrom, findNoticeFor } from "@/lib/gian/notice";
+import {
+  createNoticeFrom,
+  findNoticeFor,
+  type NoticeDoc,
+} from "@/lib/gian/notice";
 import { Role } from "@/generated/prisma/enums";
 
 export type ActionState = { error?: string } | undefined;
@@ -181,6 +185,43 @@ export async function voidGian(docId: string): Promise<ActionState> {
     db.document.update({ where: { id: docId }, data: { status: "void" } }),
   ]);
   revalidatePath(`/modules/approvals/${docId}`);
+  return undefined;
+}
+
+/**
+ * 공고문의 공사·시행 일자만 고친다 — 게시 전 확정 일자를 넣는 경로.
+ * 다른 칸은 결재받은 내용이라 손대지 않는다(그건 새 결재를 받아야 한다).
+ */
+export async function updateNoticeSchedule(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const docId = String(formData.get("docId") ?? "");
+  const schedule = String(formData.get("schedule") ?? "").trim();
+  if (!schedule) return { error: "일정을 입력해 주세요." };
+
+  const { doc } = await myDoc(docId);
+  const meta = doc?.meta as { notice?: NoticeDoc } | null;
+  if (!doc || !meta?.notice) return { error: "공고문을 찾을 수 없습니다." };
+
+  // 첫 행이 "공사일자"/"시행일자" — buildNotice가 항상 그 순서로 만든다
+  const rows = meta.notice.rows.map((r, i) =>
+    i === 0 ? { ...r, v: schedule } : r,
+  );
+  const notice = { ...meta.notice, rows };
+  await db.document.update({
+    where: { id: doc.id },
+    data: {
+      meta: { ...(doc.meta as object), notice },
+      // 문서함 검색용 평문도 같이 — 안 고치면 옛 일정으로 검색된다
+      content: [
+        notice.intro,
+        ...rows.map((r) => `${r.k}: ${r.v}`),
+        ...notice.notes.map((n) => n.text),
+      ].join("\n"),
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
   return undefined;
 }
 

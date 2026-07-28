@@ -2,7 +2,7 @@
  * 공고문 파생 규칙 검증 (DB 불필요) — npx tsx gian-notice.test.ts
  */
 import assert from "node:assert";
-import { buildNotice, josa } from "./src/lib/gian/notice";
+import { buildNotice, isConcreteSchedule, josa } from "./src/lib/gian/notice";
 
 const at = new Date("2026-07-28T01:00:00Z"); // KST 2026-07-28 10:00
 const form = {
@@ -43,3 +43,11 @@ assert.ok(!gian.notes.some((n) => n.text.includes("추진 사유"))); // 사유 
 assert.ok(gian.notes.some((n) => n.red)); // 일정 변경 고지는 항상
 
 console.log("✓ gian-notice 규칙 통과");
+
+// ── 게시 전 일정 확정 판정 ──
+assert.equal(isConcreteSchedule("2026년 8월 10일(월) ~ 8월 14일(금)"), true);
+assert.equal(isConcreteSchedule("2026-08-10"), true);
+assert.equal(isConcreteSchedule("8월 중"), false);
+assert.equal(isConcreteSchedule("(추후 공지)"), false);
+assert.equal(isConcreteSchedule(""), false);
+console.log("✓ 일정 확정 판정 통과");

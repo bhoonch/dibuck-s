@@ -24,9 +24,14 @@ import { panel, panelItem, panelTitle } from "@/components/gian-ui";
 import { GianPaper, PrintStyle, type PaperStep } from "@/components/gian-paper";
 import { GianSteps } from "@/components/gian-steps";
 import { NoticePaper } from "@/components/notice-paper";
-import { findNoticeFor, type NoticeDoc } from "@/lib/gian/notice";
+import {
+  findNoticeFor,
+  isConcreteSchedule,
+  type NoticeDoc,
+} from "@/lib/gian/notice";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
+import { NoticeSchedule } from "./notice-schedule";
 import { PrintButton } from "./print-button";
 
 type Meta = {
@@ -123,6 +128,14 @@ export default async function GianDocumentPage({
               )}
             </PageHeader>
           </div>
+          {/* 첫 행이 공사·시행일자 — buildNotice가 늘 그 순서로 만든다 */}
+          {!isConcreteSchedule(meta.notice.rows[0]?.v ?? "") && (
+            <NoticeSchedule
+              docId={doc.id}
+              current={meta.notice.rows[0]?.v ?? ""}
+              label={meta.notice.rows[0]?.k ?? "일자"}
+            />
+          )}
           <PaperScale>
             <NoticePaper
               notice={meta.notice}
