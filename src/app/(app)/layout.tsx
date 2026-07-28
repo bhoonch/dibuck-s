@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
 import { pickAnnouncement } from "@/lib/announcements";
 import { roleLabels } from "@/lib/labels";
+import { graceDaysLeft } from "@/lib/tenant-deletion";
+import { DeletionBanner } from "@/components/layout/deletion-banner";
 import { SideNav } from "@/components/layout/side-nav";
 import { AppHeader } from "@/components/layout/app-header";
 
@@ -115,6 +117,13 @@ export default async function AppLayout({
 
   return (
     <>
+      {/* 탈퇴 유예 중이면 무엇보다 위에 — 30일 뒤 데이터가 사라진다 */}
+      {tenant.deleteRequestedAt && (
+        <DeletionBanner
+          daysLeft={graceDaysLeft(tenant.deleteRequestedAt, now)}
+          canCancel={session.role === "DIRECTOR" && !session.impersonating}
+        />
+      )}
       {announcement && (
         <div className="flex items-center justify-center gap-2 border-b border-blue-100 bg-blue-50 px-4 py-2 text-sm text-blue-800">
           <Megaphone className="size-4 shrink-0" />

@@ -9,6 +9,7 @@ import {
   trySend,
 } from "@/lib/mailer";
 import { billableItems, totalAmount } from "@/lib/billing";
+import { purgeExpiredTenants } from "@/lib/tenant-deletion";
 
 /**
  * 하루 한 번 도는 청구·안내 배치.
@@ -28,7 +29,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const now = new Date();
-  const result = { charged: 0, failed: 0, suspended: 0, mails: 0 };
+  const result = { charged: 0, failed: 0, suspended: 0, mails: 0, purged: 0 };
+
+  // ── 0. 탈퇴 유예가 끝난 단지 삭제 ──────────────────────────
+  // 청구보다 먼저 — 지워질 단지에 결제를 걸지 않는다
+  result.purged = await purgeExpiredTenants(now);
 
   // ── 1. 청구·재시도·정지 ────────────────────────────────────
   const billings = await db.billing.findMany({

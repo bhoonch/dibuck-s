@@ -35,6 +35,10 @@ model Tenant {
   directorLimitClause String?
   /// 직인 이미지 (data URI). 파일 스토리지가 없어 DB에 직접 저장 — 도장 이미지는 수십 KB라 충분하다
   sealImage    String?
+  /// 셀프 탈퇴 요청 시각. 여기서 30일(GRACE) 뒤 크론이 실제로 지운다.
+  /// 즉시 지우면 홧김에 누른 한 번으로 법정 보존 대상 문서까지 사라진다.
+  /// 유예 동안은 그대로 쓸 수 있고 언제든 취소할 수 있다.
+  deleteRequestedAt DateTime?
   memo         String? // 관리자 전용 메모 (영업·CS 기록, 사용자에게 노출 안 됨)
   status       TenantStatus @default(ACTIVE)
   createdAt    DateTime     @default(now())

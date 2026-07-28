@@ -61,9 +61,11 @@ export async function changeMyPassword(_prev: State, formData: FormData) {
 }
 
 /**
- * 셀프 탈퇴 — 단지와 그 안의 모든 데이터를 지운다.
+ * 셀프 탈퇴 신청 — 30일 뒤에 지운다(DELETE_GRACE_DAYS).
  * 구독 주체가 단지라 "내 계정만" 지우는 건 마스터에게 의미가 없다(나머지 계정은 마스터가 삭제).
- * 개인정보보호법상 삭제 요구 대응은 선택이 아니므로 운영자 문의 없이 여기서 끝나야 한다.
+ * 개인정보보호법상 삭제 요구 대응은 선택이 아니므로 운영자 문의 없이 여기서 끝나야 한다 —
+ * 다만 즉시 삭제는 홧김에 누른 한 번으로 법정 보존 문서까지 없앤다. 유예 동안은
+ * 평소처럼 쓸 수 있고 상단 배너에서 취소할 수 있다.
  */
 export async function deleteMyTenant(_prev: State, formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);
@@ -81,17 +83,21 @@ export async function deleteMyTenant(_prev: State, formData: FormData) {
   if (confirmName !== tenant.name)
     return { error: `확인을 위해 단지명 "${tenant.name}"을(를) 정확히 입력해 주세요.` };
 
-  // Tenant의 자식 관계에는 cascade가 없다 — 순서대로 직접 지운다
-  await db.$transaction([
-    db.notification.deleteMany({ where: { tenantId } }),
-    db.document.deleteMany({ where: { tenantId } }),
-    db.unit.deleteMany({ where: { tenantId } }),
-    db.inquiry.deleteMany({ where: { tenantId } }),
-    db.tenantModule.deleteMany({ where: { tenantId } }),
-    db.user.deleteMany({ where: { tenantId } }),
-    db.tenant.delete({ where: { id: tenantId } }),
-  ]);
+  await db.tenant.update({
+    where: { id: tenantId },
+    data: { deleteRequestedAt: new Date() },
+  });
 
   await destroySession();
   redirect("/?left=1");
+}
+
+/** 탈퇴 취소 — 유예 안이면 언제든. 지운 게 없으니 되돌릴 것도 없다 */
+export async function cancelTenantDeletion() {
+  const session = await requireRole(Role.DIRECTOR);
+  await db.tenant.update({
+    where: { id: session.tenantId! },
+    data: { deleteRequestedAt: null },
+  });
+  revalidatePath("/", "layout");
 }

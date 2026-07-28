@@ -178,8 +178,9 @@ export function AccountSettings({
             <span>
               <span className="block text-sm font-semibold">서비스 탈퇴</span>
               <span className="block text-sm text-muted-foreground">
-                단지와 모든 데이터(문서·세대·직원 계정·문의)를 즉시 삭제합니다.
-                되돌릴 수 없습니다.
+                신청하면 30일 뒤 단지와 모든 데이터(문서·세대·직원 계정·문의)를
+                삭제합니다. 그때까지는 지금처럼 쓸 수 있고, 상단 배너에서 언제든
+                취소할 수 있습니다.
               </span>
             </span>
             <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
@@ -214,7 +215,7 @@ export function AccountSettings({
             </div>
             <Feedback state={leaveState} successText="" />
             <Button type="submit" size="lg" variant="destructive">
-              탈퇴하고 모든 데이터 삭제
+              탈퇴 신청 (30일 뒤 삭제)
             </Button>
           </form>
         </details>
