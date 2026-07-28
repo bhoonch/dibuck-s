@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { GianDraft } from "@/lib/gian/claude";
 import type { DocType } from "@/lib/gian/rules";
 import { ymdKst } from "@/lib/utils";
@@ -20,7 +21,8 @@ const footText = (docType?: DocType) =>
 const docDate = (d: Date) => `${ymdKst(d).replace(/-/g, ". ")}.`;
 
 /** "가. 공 사 명: 지하주차장 …" → 라벨/값 분리 (개요 절을 표로 그리기 위한 판정) */
-const LABELED = /^\s*[가-힣]\.\s*([^:：]{2,20})\s*[:：]\s*(.+)$/;
+/** "가. 공 사 명: 값" → [_, "가", "공 사 명", "값"] — 항목 기호까지 살려 개조식을 유지한다 */
+const LABELED = /^\s*([가-힣])\.\s*([^:：]{2,20})\s*[:：]\s*(.+)$/;
 
 /** 결재선 미설정 문서도 결재란은 있어야 한다 — 공란 3칸(담당·검토·결재)이 기본 */
 const EMPTY_STEPS: PaperStep[] = [
@@ -183,51 +185,48 @@ function Section({
   lines: string[];
 }) {
   const parsed = lines.map((l) => LABELED.exec(l));
-  // 2줄부터 표로 — 견적 비교는 보통 2개사라 예전 기준(3줄)에서는 개조식으로 남았고,
-  // 업체명 길이가 제각각이라 금액 시작 위치가 줄마다 어긋났다
-  const asTable = parsed.filter(Boolean).length >= 2;
+  // 라벨 줄이 2줄 이상이면 칸을 맞춰 세운다 — 테두리는 치지 않는다.
+  // 표를 치면 개요·견적·일정이 전부 상자가 되어 한 장에 상자 서너 개가 쌓인다.
+  // 격자로 폭만 맞춰도 콜론과 값이 한 줄에 서고, 종이는 개조식 그대로 남는다.
+  const aligned = parsed.filter(Boolean).length >= 2;
 
   return (
     <section className="mb-[6mm]">
       <h3 className="mb-1 text-[12pt] font-extrabold">
         {index}. {heading}
       </h3>
-      {asTable ? (
-        <>
-          <table className="w-full border-collapse">
-            <tbody>
-              {lines.map((line, j) => {
-                const m = parsed[j];
-                if (!m) return null;
-                return (
-                  <tr key={j}>
-                    <th className="w-[38mm] border border-[var(--gian-doc-line)] bg-[var(--gian-paper)] px-3 py-1.5 text-left font-bold whitespace-nowrap">
-                      {m[1].trim()}
-                    </th>
-                    <td className="border border-[var(--gian-doc-line)] px-3 py-1.5">
-                      {m[2]}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {/* 표에 안 들어가는 줄(하위 항목·※ 단서)은 표 아래에 그대로 둔다 */}
-          {lines.map((line, j) =>
-            parsed[j] ? null : (
-              <p
-                key={j}
-                className={
-                  line.trim().startsWith("※")
-                    ? "mt-1 pl-4 text-[10pt] text-[var(--gian-ink-soft)]"
-                    : "mt-1 pl-8"
-                }
-              >
-                {line.trim()}
-              </p>
-            ),
-          )}
-        </>
+      {aligned ? (
+        <div className="grid grid-cols-[max-content_1fr] gap-x-3 pl-4">
+          {lines.map((line, j) => {
+            const m = parsed[j];
+            // 라벨이 아닌 줄(하위 항목·※ 단서)은 두 칸을 가로질러 그대로 둔다
+            if (!m)
+              return (
+                <p
+                  key={j}
+                  className={
+                    line.trim().startsWith("※")
+                      ? "col-span-2 pl-4 text-[10pt] text-[var(--gian-ink-soft)]"
+                      : "col-span-2 pl-4"
+                  }
+                >
+                  {line.trim()}
+                </p>
+              );
+            return (
+              <Fragment key={j}>
+                {/* 라벨 칸은 격자가 가장 긴 라벨에 맞춰 잡는다 → 콜론이 한 줄에 선다 */}
+                <span className="flex min-w-[28mm] justify-between gap-3 font-bold whitespace-nowrap">
+                  <span>
+                    {m[1]}. {m[2].trim()}
+                  </span>
+                  <span>:</span>
+                </span>
+                <span>{m[3]}</span>
+              </Fragment>
+            );
+          })}
+        </div>
       ) : (
         lines.map((line, j) => (
           <p key={j} className={/^\s*\d+\)/.test(line) ? "pl-8" : "pl-4"}>
