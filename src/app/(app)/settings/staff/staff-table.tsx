@@ -103,8 +103,9 @@ export function StaffTable({
     <div className="space-y-8">
       <TempPasswordNotice state={resetState} />
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-9 max-w-sm flex-1 items-center gap-2 rounded-md border bg-card px-2.5">
+        {/* 검색은 왼쪽, 주요 동작은 오른쪽 끝 — 검색창 안 "지우기"와 붙어 있으면 오조작한다 */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex h-9 w-full max-w-sm items-center gap-2 rounded-md border bg-card px-2.5">
             <Search className="size-4 shrink-0 text-gray-400" />
             <input
               value={query}
