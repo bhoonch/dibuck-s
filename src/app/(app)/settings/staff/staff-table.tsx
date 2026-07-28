@@ -1,7 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useTransition } from "react";
-import { KeyRound, Trash2 } from "lucide-react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { KeyRound, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Role } from "@/generated/prisma/enums";
 import { assignableRoles, roleLabels } from "@/lib/labels";
@@ -50,6 +56,7 @@ export function StaffTable({
     undefined,
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (addState?.success) {
@@ -68,111 +75,146 @@ export function StaffTable({
       }
     });
 
+  // 직원 목록은 손으로 짠 표다(행마다 권한 셀렉트·버튼이 있어 DataTable로 안 옮겼다).
+  // 검색은 여기서 직접 — 이름·직책·이메일만 훑는다
+  const q = query.trim().toLowerCase();
+  const rows = q
+    ? staff.filter((u) =>
+        [u.name, u.title ?? "", u.email].some((v) =>
+          v.toLowerCase().includes(q),
+        ),
+      )
+    : staff;
+
   return (
     <div className="space-y-8">
       <TempPasswordNotice state={resetState} />
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-b border-gray-200 bg-gray-50 hover:bg-gray-50">
-              {["이름", "직책", "이메일", "권한"].map((h) => (
-                <TableHead
-                  key={h}
-                  className="text-xs font-semibold uppercase tracking-wider text-gray-500"
-                >
-                  {h}
-                </TableHead>
-              ))}
-              {isDirector && <TableHead className="w-12" />}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {staff.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell className="font-medium">
-                  {u.name}
-                  {u.id === myUserId && (
-                    <Badge variant="secondary" className="ml-2">
-                      나
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {u.title ?? "-"}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {u.email}
-                </TableCell>
-                <TableCell>
-                  {isDirector && u.id !== myUserId ? (
-                    <select
-                      defaultValue={u.role}
-                      className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-                      onChange={(e) =>
-                        run(
-                          () => updateStaffRole(u.id, e.target.value as Role),
-                          "역할이 변경되었습니다.",
-                        )
-                      }
-                    >
-                      {assignableRoles.map((r) => (
-                        <option key={r} value={r}>
-                          {roleLabels[r]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    roleLabels[u.role]
-                  )}
-                </TableCell>
-                {isDirector && (
-                  <TableCell>
-                    {u.id !== myUserId && (
-                      <span className="flex items-center gap-1">
-                        <form
-                          action={resetAction}
-                          onSubmit={(e) => {
-                            if (
-                              !confirm(
-                                `${u.name} 님의 비밀번호를 재설정할까요?\n기존 비밀번호는 즉시 사용할 수 없게 됩니다.`,
-                              )
-                            )
-                              e.preventDefault();
-                          }}
-                        >
-                          <input type="hidden" name="userId" value={u.id} />
-                          <Button
-                            type="submit"
-                            variant="ghost"
-                            size="icon"
-                            aria-label="비밀번호 재설정"
-                            title="임시 비밀번호 발급"
-                          >
-                            <KeyRound className="size-4 text-gray-500" />
-                          </Button>
-                        </form>
-                        <ConfirmDialog
-                          trigger={
-                            <Button variant="ghost" size="icon" aria-label="삭제">
-                              <Trash2 className="size-4 text-destructive" />
-                            </Button>
-                          }
-                          title={`${u.name} 님을 삭제할까요?`}
-                          description="삭제하면 더 이상 로그인할 수 없습니다. 작성한 문서는 남아 있습니다."
-                          confirmLabel="삭제"
-                          destructive
-                          onConfirm={() =>
-                            run(() => removeStaff(u.id), "삭제되었습니다.")
-                          }
-                        />
-                      </span>
+      <div className="space-y-3">
+        <div className="flex h-9 max-w-sm items-center gap-2 rounded-md border bg-card px-2.5">
+          <Search className="size-4 shrink-0 text-gray-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="이름·직책·이메일 검색"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="text-xs text-gray-500 hover:text-foreground"
+            >
+              지우기
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto rounded-lg border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-gray-200 bg-gray-50 hover:bg-gray-50">
+                {["이름", "직책", "이메일", "권한"].map((h) => (
+                  <TableHead
+                    key={h}
+                    className="text-xs font-semibold uppercase tracking-wider text-gray-500"
+                  >
+                    {h}
+                  </TableHead>
+                ))}
+                {isDirector && <TableHead className="w-12" />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="font-medium">
+                    {u.name}
+                    {u.id === myUserId && (
+                      <Badge variant="secondary" className="ml-2">
+                        나
+                      </Badge>
                     )}
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  <TableCell className="text-muted-foreground">
+                    {u.title ?? "-"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {u.email}
+                  </TableCell>
+                  <TableCell>
+                    {isDirector && u.id !== myUserId ? (
+                      <select
+                        defaultValue={u.role}
+                        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+                        onChange={(e) =>
+                          run(
+                            () => updateStaffRole(u.id, e.target.value as Role),
+                            "역할이 변경되었습니다.",
+                          )
+                        }
+                      >
+                        {assignableRoles.map((r) => (
+                          <option key={r} value={r}>
+                            {roleLabels[r]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      roleLabels[u.role]
+                    )}
+                  </TableCell>
+                  {isDirector && (
+                    <TableCell>
+                      {u.id !== myUserId && (
+                        <span className="flex items-center gap-1">
+                          <form
+                            action={resetAction}
+                            onSubmit={(e) => {
+                              if (
+                                !confirm(
+                                  `${u.name} 님의 비밀번호를 재설정할까요?\n기존 비밀번호는 즉시 사용할 수 없게 됩니다.`,
+                                )
+                              )
+                                e.preventDefault();
+                            }}
+                          >
+                            <input type="hidden" name="userId" value={u.id} />
+                            <Button
+                              type="submit"
+                              variant="ghost"
+                              size="icon"
+                              aria-label="비밀번호 재설정"
+                              title="임시 비밀번호 발급"
+                            >
+                              <KeyRound className="size-4 text-gray-500" />
+                            </Button>
+                          </form>
+                          <ConfirmDialog
+                            trigger={
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="삭제"
+                              >
+                                <Trash2 className="size-4 text-destructive" />
+                              </Button>
+                            }
+                            title={`${u.name} 님을 삭제할까요?`}
+                            description="삭제하면 더 이상 로그인할 수 없습니다. 작성한 문서는 남아 있습니다."
+                            confirmLabel="삭제"
+                            destructive
+                            onConfirm={() =>
+                              run(() => removeStaff(u.id), "삭제되었습니다.")
+                            }
+                          />
+                        </span>
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {isDirector && (

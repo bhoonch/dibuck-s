@@ -83,6 +83,7 @@ export function GianTable({ rows }: { rows: GianRow[] }) {
       data={rows}
       columns={columns}
       rowKey={(row) => row.id}
+      searchPlaceholder="문서번호·제목·작성자 검색"
       emptyMessage="아직 작성한 문서가 없습니다"
     />
   );
