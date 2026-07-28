@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
@@ -37,8 +38,19 @@ export default async function EditGianPage({
   const { draft } = meta;
 
   return (
-    <form action={saveGianDraft} className="mx-auto max-w-[720px]">
+    // 기둥은 다른 기안·품의 화면과 같다 — A4 폭(794)에서 시작해야 오갈 때 안 튄다
+    <form
+      action={saveGianDraft}
+      className="mx-auto max-w-[794px] xl:max-w-[1108px]"
+    >
       <input type="hidden" name="docId" value={doc.id} />
+      <Link
+        href={`/modules/approvals/${doc.id}`}
+        className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="size-4" />
+        초안으로 돌아가기
+      </Link>
       <PageHeader
         title="초안 수정"
         description="AI가 만든 문장을 직접 고칠 수 있습니다. 줄바꿈이 항목 하나입니다."
@@ -46,7 +58,7 @@ export default async function EditGianPage({
       {/* 단계표시에서 1번을 눌러 돌아온 자리 — 어디에 서 있는지 같은 막대로 보여준다 */}
       <GianSteps current={1} />
 
-      <div className="space-y-4 rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] p-6 shadow-[var(--gian-shadow)]">
+      <div className="max-w-[794px] space-y-4 rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] p-6 shadow-[var(--gian-shadow)]">
         <div>
           <label htmlFor="title" className={fieldLabel}>
             제목
@@ -120,7 +132,7 @@ export default async function EditGianPage({
         </div>
 
         <div className="flex justify-end gap-2 border-t border-[var(--gian-line)] pt-4">
-          <Button asChild variant="ghost">
+          <Button asChild variant="outline">
             <Link href={`/modules/approvals/${doc.id}`}>취소</Link>
           </Button>
           <Button type="submit" size="lg">
