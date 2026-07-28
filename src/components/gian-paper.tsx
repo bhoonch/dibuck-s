@@ -199,15 +199,16 @@ function Section({
         <div className="grid grid-cols-[max-content_1fr] gap-x-3 pl-4">
           {lines.map((line, j) => {
             const m = parsed[j];
-            // 라벨이 아닌 줄(하위 항목·※ 단서)은 두 칸을 가로질러 그대로 둔다
+            // 하위 항목·※ 단서는 앞 줄에 딸린 말이라 값 칸(둘째 칸)에 붙인다 —
+            // 두 칸을 가로지르면 라벨 왼쪽까지 튀어나와 딸린 줄로 안 보인다
             if (!m)
               return (
                 <p
                   key={j}
                   className={
                     line.trim().startsWith("※")
-                      ? "col-span-2 pl-4 text-[10pt] text-[var(--gian-ink-soft)]"
-                      : "col-span-2 pl-4"
+                      ? "col-start-2 text-[10pt] text-[var(--gian-ink-soft)]"
+                      : "col-start-2"
                   }
                 >
                   {line.trim()}
