@@ -4,11 +4,11 @@ import { FilePlus2 } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
-import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
 import { ymdKst } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { GianTable } from "./gian-table";
 
 export default async function GianModulePage() {
   const session = await requireSession();
@@ -56,51 +56,17 @@ export default async function GianModulePage() {
           </EmptyState>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3 font-medium">문서번호</th>
-                <th className="px-4 py-3 font-medium">제목</th>
-                <th className="px-4 py-3 font-medium">종류</th>
-                <th className="px-4 py-3 font-medium">상태</th>
-                <th className="px-4 py-3 font-medium">작성자</th>
-                <th className="px-4 py-3 font-medium">작성일</th>
-              </tr>
-            </thead>
-            <tbody>
-              {docs.map((d) => (
-                <tr key={d.id} className="border-b last:border-0 hover:bg-accent/40">
-                  <td className="px-4 py-3 font-mono text-xs">{d.docNo}</td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/modules/approvals/${d.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {d.title}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    {docTypeLabels[d.type] ?? d.type}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[d.status] ?? "bg-gray-100 text-gray-600"}`}
-                    >
-                      {docStatusLabels[d.status] ?? d.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {d.createdBy?.name ?? "-"}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {ymdKst(d.createdAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <GianTable
+          rows={docs.map((d) => ({
+            id: d.id,
+            docNo: d.docNo ?? "",
+            title: d.title,
+            type: d.type,
+            status: d.status,
+            author: d.createdBy?.name ?? "-",
+            createdAt: ymdKst(d.createdAt),
+          }))}
+        />
       )}
       {docs.length > 0 && (
         <p className="mt-2.5 text-xs text-muted-foreground">
