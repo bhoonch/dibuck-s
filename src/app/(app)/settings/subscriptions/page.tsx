@@ -84,7 +84,7 @@ export default async function SubscriptionsPage() {
               >
                 {m.name}
               </p>
-              <p className="mt-1 flex-1 text-xs text-gray-500">
+              <p className="mt-1 flex-1 text-sm text-gray-500">
                 {m.description}
                 {/* 판매 중단 = 신규 구독만 막힌 상태. 쓰던 단지는 계속 쓰고 해지도 된다 */}
                 {m.retired && (

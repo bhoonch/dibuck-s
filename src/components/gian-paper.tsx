@@ -64,7 +64,8 @@ export function GianPaper({
       {/* 문서 머리 — 좌: 문서번호·시행일자·수신 / 우: 결재란 */}
       <div className="flex items-start justify-between gap-4">
         <div className="text-[9.5pt] leading-[1.9] text-[var(--gian-ink-soft)]">
-          문서번호 : <span className="font-mono">{docNo ?? "(채번 전)"}</span>
+          {/* 채번이 "기안-2026-0001"이라 한글이 섞인다 — mono는 글리프가 없어 무효고 폰트만 튄다 */}
+          문서번호 : {docNo ?? "(채번 전)"}
           <br />
           시행일자 :{" "}
           <span className="font-mono">{docDate(createdAt ?? new Date())}</span>

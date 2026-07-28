@@ -58,10 +58,10 @@ export default async function ModuleLauncherPage() {
               >
                 {m.name}
               </span>
-              <span className="mt-1 block min-h-9 text-xs text-gray-500">
+              <span className="mt-1 block min-h-9 text-sm text-gray-500">
                 {m.description}
               </span>
-              <span className="mt-2 block border-t border-gray-100 pt-2 font-mono text-xs text-gray-400">
+              <span className="mt-2 block border-t border-gray-100 pt-2 text-xs text-gray-400">
                 월 {m.price.toLocaleString()}원 · 단지 단위
               </span>
             </Link>

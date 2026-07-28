@@ -34,7 +34,8 @@ export function AppHeader({ unread }: { unread: number }) {
 
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b bg-card/85 px-6 backdrop-blur-sm">
-      <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+      {/* 페이지마다 자기 h1(PageHeader)이 있다 — 헤더 바 제목까지 h1이면 문서에 h1이 둘 */}
+      <div className="text-lg font-semibold tracking-tight">{title}</div>
       <div className="ml-auto flex items-center gap-2.5">
         <form
           action="/documents"

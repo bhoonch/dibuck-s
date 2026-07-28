@@ -246,7 +246,7 @@ export default async function HomePage() {
         <section className="rounded-lg border bg-card">
           <div className="flex items-center gap-2.5 border-b border-gray-100 px-4 py-3">
             <h3 className="text-lg font-semibold tracking-tight">오늘의 할 일</h3>
-            <span className="font-mono text-xs text-gray-500">전체 {total}건</span>
+            <span className="text-xs text-gray-500">전체 {total}건</span>
             <Link
               href="/documents"
               className="ml-auto text-sm font-semibold text-blue-700 hover:underline"
@@ -379,7 +379,7 @@ export default async function HomePage() {
               </span>
               <span className="block min-w-0">
                 <span className="block text-sm font-semibold">{m.name}</span>
-                <span className="block truncate text-xs text-gray-500">
+                <span className="block truncate text-sm text-gray-500">
                   {m.description}
                 </span>
               </span>

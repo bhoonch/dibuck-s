@@ -50,7 +50,7 @@ export function NoticePaper({
           <tbody>
             <tr>
               <th className={th}>게 시 일</th>
-              <td className={`${td} font-mono`}>{notice.postFrom} 부터</td>
+              <td className={td}>{notice.postFrom} 부터</td>
             </tr>
             <tr>
               <th className={th}>게시기간</th>

@@ -198,7 +198,7 @@ export default async function AdminRevenuePage() {
             )}
             <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs text-gray-600">
               위 금액은 구독 중인 모듈의{" "}
-              <b className="font-mono text-amber-700">정가 기준</b>입니다. 실제 청구된
+              <b className="text-amber-700">정가 기준</b>입니다. 실제 청구된
               금액은 각 단지 상세의 결제 내역에서 확인하세요.
             </p>
           </div>
