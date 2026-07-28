@@ -125,6 +125,65 @@ export async function makeGianNotice(formData: FormData) {
   if (notice) redirect(`/modules/approvals/${notice.id}`);
 }
 
+/**
+ * 상신 회수 — 아직 아무도 승인하지 않았을 때만 초안으로 되돌린다.
+ * 한 명이라도 승인했으면 막는다: 이미 결재한 사람의 판단을 조용히 지우는 일이 된다.
+ * 그때는 결재자에게 반려를 요청하거나 폐기해야 한다.
+ */
+export async function withdrawGian(docId: string): Promise<ActionState> {
+  const { session, doc } = await myDoc(docId);
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
+    return { error: "작성자 또는 마스터만 회수할 수 있습니다." };
+  if (doc.status !== "pending")
+    return { error: "결재가 진행 중인 문서만 회수할 수 있습니다." };
+
+  const acted = await db.approvalStep.count({
+    where: { documentId: docId, status: { in: ["approved", "rejected"] } },
+  });
+  if (acted > 0)
+    return {
+      error:
+        "이미 결재한 사람이 있어 회수할 수 없습니다. 결재자에게 반려를 요청하거나 문서를 폐기해 주세요.",
+    };
+
+  await db.$transaction([
+    db.approvalStep.deleteMany({ where: { documentId: docId } }),
+    db.document.update({ where: { id: docId }, data: { status: "draft" } }),
+  ]);
+  revalidatePath(`/modules/approvals/${docId}`);
+  return undefined;
+}
+
+/**
+ * 폐기 — 하드 삭제가 아니라 상태만 void로. 관리 서류는 보존 대상이고,
+ * 결재 기록만 사라지면 "누가 승인했는데 문서가 없다"가 된다.
+ * 결재가 끝난 문서는 폐기하지 않는다 — 정정은 새 문서로 한다.
+ */
+export async function voidGian(docId: string): Promise<ActionState> {
+  const { session, doc } = await myDoc(docId);
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
+    return { error: "작성자 또는 마스터만 폐기할 수 있습니다." };
+  if (doc.status === "final")
+    return {
+      error:
+        "결재가 끝난 문서는 폐기할 수 없습니다. 정정이 필요하면 새 문서를 올려 주세요.",
+    };
+  if (doc.status === "void") return undefined;
+
+  await db.$transaction([
+    // 진행 중이던 결재 차례를 남겨 두면 결재자 화면에 계속 뜬다
+    db.approvalStep.updateMany({
+      where: { documentId: docId, status: "pending" },
+      data: { status: "waiting" },
+    }),
+    db.document.update({ where: { id: docId }, data: { status: "void" } }),
+  ]);
+  revalidatePath(`/modules/approvals/${docId}`);
+  return undefined;
+}
+
 export async function reissueGianToken(stepId: string): Promise<ActionState> {
   const session = await requireSession();
   const step = await db.approvalStep.findUnique({

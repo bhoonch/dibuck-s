@@ -50,6 +50,8 @@ export const docStatusLabels: Record<string, string> = {
   rejected: "반려",
   open: "처리 중",
   done: "처리 완료",
+  /** 폐기 — 하드 삭제 대신 상태로 남긴다. 결재 기록이 사라지면 감사 추적이 끊긴다 */
+  void: "폐기",
 };
 
 /* 상태 pill 색 (클로드디자인 팔레트 기준) */
@@ -60,4 +62,5 @@ export const docStatusStyles: Record<string, string> = {
   rejected: "bg-red-50 text-red-700",
   open: "bg-red-50 text-red-700",
   done: "bg-green-50 text-green-700",
+  void: "bg-gray-100 text-gray-400",
 };

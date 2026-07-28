@@ -1,13 +1,16 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Check, Copy, Loader2, RefreshCw, Send, X } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, Send, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { panel, panelTitle } from "@/components/gian-ui";
 import {
   actOnGianStep,
   reissueGianToken,
   submitGian,
+  voidGian,
+  withdrawGian,
 } from "../approval-actions";
 
 export type PanelStep = {
@@ -16,13 +19,14 @@ export type PanelStep = {
   label: string;
   status: string;
   comment?: string | null;
+  /** 승인·반려한 날짜 (yyyy-mm-dd) */
+  actedAt?: string | null;
   isMine: boolean;
   isExternal: boolean;
   token?: string | null;
   tokenExpired?: boolean;
 };
 
-/* 목업 .esign-status 의 상태 점 — 승인 초록 / 차례 앰버 / 대기 회색 */
 const dotColor: Record<string, string> = {
   approved: "bg-[var(--gian-ok)]",
   rejected: "bg-[var(--gian-stamp)]",
@@ -33,6 +37,12 @@ const stateText: Record<string, string> = {
   approved: "승인",
   rejected: "반려",
   pending: "결재 차례",
+};
+
+const stateColor: Record<string, string> = {
+  approved: "text-[var(--gian-ok)] font-bold",
+  rejected: "text-[var(--gian-stamp)] font-bold",
+  pending: "text-[var(--gian-warn)] font-bold",
 };
 
 export function ApprovalPanel({
@@ -56,6 +66,10 @@ export function ApprovalPanel({
 
   const current = steps.find((s) => s.status === "pending");
   const rejected = steps.find((s) => s.status === "rejected");
+  // 한 명이라도 처리했으면 회수는 막힌다(서버도 같은 조건으로 거른다)
+  const anyActed = steps.some(
+    (s) => s.status === "approved" || s.status === "rejected",
+  );
 
   const run = (fn: () => Promise<{ error?: string } | undefined>) => {
     setError(undefined);
@@ -69,68 +83,50 @@ export function ApprovalPanel({
     <div className={panel}>
       <h4 className={panelTitle}>결재선</h4>
 
-      {/* 결재선 플로우 (목업 .flow) — 상신 전에는 예정 결재선이 그대로 보인다 */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        {steps.map((s, i) => (
-          <span key={s.id} className="flex items-center gap-1.5">
-            {i > 0 && (
-              <span className="text-xs text-[var(--gian-ink-soft)]">▸</span>
-            )}
-            <span
-              className={`rounded border px-2.5 py-1 text-xs font-semibold ${
-                s.status === "pending"
-                  ? "border-[var(--gian-navy)] bg-[var(--gian-card)] text-[var(--gian-navy)]"
-                  : "border-[var(--gian-line-strong)] bg-[var(--gian-paper)]"
-              }`}
-            >
-              {s.label}
-            </span>
-          </span>
-        ))}
-        {steps.length === 0 && (
-          <span className="text-sm text-[var(--gian-ink-soft)]">
-            아직 상신 전입니다.
-          </span>
-        )}
-      </div>
-
-      {/* 진행 현황 (목업 .esign-status) */}
-      {steps.length > 0 && (
-        <ul className="mt-3">
-          {steps.map((s) => (
-            <li
-              key={s.id}
-              className="flex items-center gap-2 py-1.5 text-sm [&+li]:border-t [&+li]:border-[var(--gian-line)]"
-            >
+      {steps.length === 0 ? (
+        <p className="text-sm text-[var(--gian-ink-soft)]">
+          아직 상신 전입니다. 상신하면 지금 결재선이 스냅샷으로 굳습니다.
+        </p>
+      ) : (
+        /*
+         * 세로 타임라인 — 예전에는 칩 줄과 상태 목록이 같은 정보를 두 번 그렸고,
+         * 5단이 되면 칩이 줄바꿈되며 순서가 끊겼다. 한 줄기로 세우면 이름·상태·의견·
+         * 처리일이 한자리에 모이고 단계가 늘어도 모양이 유지된다.
+         */
+        <ol className="relative">
+          {steps.map((s, i) => (
+            <li key={s.id} className="relative flex gap-3 pb-3 last:pb-0">
+              {i < steps.length - 1 && (
+                <span className="absolute top-4 bottom-0 left-[3.5px] w-px bg-[var(--gian-line-strong)]" />
+              )}
               <span
-                className={`size-2 shrink-0 rounded-full ${dotColor[s.status] ?? "bg-[var(--gian-line-strong)]"}`}
-              />
-              <span className="flex-1 font-semibold">{s.label}</span>
-              <span
-                className={`text-xs ${
-                  s.status === "approved"
-                    ? "font-bold text-[var(--gian-ok)]"
-                    : s.status === "rejected"
-                      ? "font-bold text-[var(--gian-stamp)]"
-                      : "text-[var(--gian-ink-soft)]"
+                className={`relative z-10 mt-1.5 size-2 shrink-0 rounded-full ring-4 ring-[var(--gian-card)] ${
+                  dotColor[s.status] ?? "bg-[var(--gian-line-strong)]"
                 }`}
-              >
-                {stateText[s.status] ?? "대기"}
-              </span>
+              />
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                  <span className="font-semibold">{s.label}</span>
+                  <span
+                    className={`text-xs ${stateColor[s.status] ?? "text-[var(--gian-ink-soft)]"}`}
+                  >
+                    {stateText[s.status] ?? "대기"}
+                  </span>
+                  {s.actedAt && (
+                    <span className="font-mono text-xs text-[var(--gian-ink-soft)]">
+                      {s.actedAt}
+                    </span>
+                  )}
+                </p>
+                {s.comment && (
+                  <p className="mt-0.5 text-xs text-[var(--gian-ink-soft)]">
+                    &ldquo;{s.comment}&rdquo;
+                  </p>
+                )}
+              </div>
             </li>
           ))}
-        </ul>
-      )}
-      {steps.some((s) => s.comment) && (
-        <ul className="mt-2 space-y-1">
-          {steps
-            .filter((s) => s.comment)
-            .map((s) => (
-              <li key={s.id} className="text-xs text-[var(--gian-ink-soft)]">
-                {s.label} — &ldquo;{s.comment}&rdquo;
-              </li>
-            ))}
-        </ul>
+        </ol>
       )}
 
       {/* 상신 / 재상신 */}
@@ -231,9 +227,44 @@ export function ApprovalPanel({
           결재가 완료된 문서입니다.
         </p>
       )}
-      {error && (
-        <p className="mt-2 text-xs text-destructive">{error}</p>
+      {docStatus === "void" && (
+        <p className="mt-3 border-t border-[var(--gian-line)] pt-3 text-sm text-[var(--gian-ink-soft)]">
+          폐기된 문서입니다. 기록으로만 남아 있습니다.
+        </p>
       )}
+
+      {/*
+        회수·폐기 — 상신하고 나면 고칠 길이 반려뿐이었다.
+        승인 전이면 회수해서 초안으로, 이미 진행됐으면 폐기(기록은 남는다).
+      */}
+      {canSubmit && docStatus !== "final" && docStatus !== "void" && (
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--gian-line)] pt-3">
+          {docStatus === "pending" && !anyActed && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(() => withdrawGian(docId))}
+            >
+              <Undo2 className="size-3.5" /> 상신 회수
+            </Button>
+          )}
+          <ConfirmDialog
+            trigger={
+              <Button variant="ghost" size="sm" className="text-destructive">
+                문서 폐기
+              </Button>
+            }
+            title="이 문서를 폐기할까요?"
+            description="목록에는 '폐기'로 남고 열람만 됩니다. 결재 기록을 지우지 않기 위해 삭제하지 않습니다."
+            confirmLabel="폐기"
+            destructive
+            onConfirm={() => run(() => voidGian(docId))}
+          />
+        </div>
+      )}
+
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
   );
 }

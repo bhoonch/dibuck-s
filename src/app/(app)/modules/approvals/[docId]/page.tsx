@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ymdKst } from "@/lib/utils";
 import { isSubscribed } from "@/lib/modules";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import type { GianDraft } from "@/lib/gian/claude";
@@ -182,6 +183,7 @@ export default async function GianDocumentPage({
     label: roleOrName(s),
     status: s.status,
     comment: s.comment,
+    actedAt: s.actedAt ? ymdKst(s.actedAt) : null,
     isMine: s.userId === session.userId,
     isExternal: !s.userId,
     token: s.token,
