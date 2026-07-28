@@ -207,7 +207,8 @@ export async function uploadUnits(
   _prev: { error?: string; success?: string } | undefined,
   formData: FormData,
 ) {
-  const session = await requireRole(Role.DIRECTOR);
+  // 세대 명부는 부과·수납 실무자의 일이다 — 매니저도 올릴 수 있다
+  const session = await requireRole(Role.DIRECTOR, Role.ACCOUNTANT);
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0)
     return { error: "파일을 선택해 주세요." };

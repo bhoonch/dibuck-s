@@ -15,6 +15,10 @@ import { Role } from "@/generated/prisma/enums";
 
 export type ActionState = { error?: string } | undefined;
 
+/** 남의 초안을 상신할 수 있는 권한 — 마스터·매니저 ("use server"라 로컬 상수) */
+const canSubmitOthers = (role: Role) =>
+  role === Role.DIRECTOR || role === Role.ACCOUNTANT;
+
 /** 문서가 내 단지 것인지 — 결재 액션 공통 경계 */
 async function myDoc(docId: string) {
   const session = await requireSession();
@@ -27,9 +31,10 @@ async function myDoc(docId: string) {
 export async function submitGian(docId: string): Promise<ActionState> {
   const { session, doc } = await myDoc(docId);
   if (!doc) return { error: "문서를 찾을 수 없습니다." };
-  // 상신은 작성자 또는 소장 — 남의 초안을 마음대로 결재에 올리지 못하게
-  if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
-    return { error: "작성자 또는 마스터만 상신할 수 있습니다." };
+  // 상신은 작성자·마스터·매니저 — 남의 초안을 아무나 결재에 올리지 못하게 막되,
+  // 지출 문서를 실제로 챙기는 매니저는 올릴 수 있어야 한다
+  if (doc.createdById !== session.userId && !canSubmitOthers(session.role))
+    return { error: "작성자·마스터·매니저만 상신할 수 있습니다." };
 
   const result = await submitDocument(docId, session.userId);
   revalidatePath(`/modules/approvals/${docId}`);
@@ -223,6 +228,22 @@ export async function updateNoticeSchedule(
   });
   revalidatePath(`/modules/approvals/${doc.id}`);
   return undefined;
+}
+
+/** 첨부 확인 체크 — 결재 전 문서만. 목록 자체(draft.attachments)는 건드리지 않는다 */
+export async function toggleGianAttachment(docId: string, checked: number[]) {
+  const { doc } = await myDoc(docId);
+  if (!doc || (doc.status !== "draft" && doc.status !== "rejected")) return;
+  await db.document.update({
+    where: { id: doc.id },
+    data: {
+      meta: {
+        ...(doc.meta as object),
+        attachmentsChecked: [...new Set(checked)].sort((a, b) => a - b),
+      },
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
 }
 
 export async function reissueGianToken(stepId: string): Promise<ActionState> {

@@ -31,6 +31,7 @@ import {
 } from "@/lib/gian/notice";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
+import { AttachmentChecklist } from "./attachment-checklist";
 import { NoticeSchedule } from "./notice-schedule";
 import { PrintButton } from "./print-button";
 
@@ -39,6 +40,8 @@ type Meta = {
   notice?: NoticeDoc;
   sourceDocId?: string;
   draft: GianDraft;
+  /** 첨부 체크리스트에서 확인 표시한 항목 번호 */
+  attachmentsChecked?: number[];
   cls?: Classification;
   plannedSteps: {
     order: number;
@@ -333,19 +336,12 @@ export default async function GianDocumentPage({
             />
 
             {draft.attachments.length > 0 && (
-              <div className={panel}>
-                <h4 className={panelTitle}>첨부 체크리스트</h4>
-                <ul>
-                  {draft.attachments.map((a, i) => (
-                    <li key={i} className={panelItem}>
-                      <span className="shrink-0 font-bold text-[var(--gian-ok)]">
-                        ✓
-                      </span>
-                      {a}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <AttachmentChecklist
+                docId={doc.id}
+                items={draft.attachments}
+                checked={meta.attachmentsChecked ?? []}
+                editable={canEdit}
+              />
             )}
 
             {draft.legalNotices.length > 0 && (

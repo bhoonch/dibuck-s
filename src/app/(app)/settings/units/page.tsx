@@ -16,11 +16,13 @@ export default async function UnitsPage() {
     where: { tenantId: session.tenantId! },
     orderBy: [{ dong: "asc" }, { ho: "asc" }],
   });
-  const isDirector = session.role === "DIRECTOR";
+  // 명부 업로드는 마스터·매니저 (권한 안내 카드의 매니저 설명과 같은 경계)
+  const canUpload =
+    session.role === "DIRECTOR" || session.role === "ACCOUNTANT";
 
   return (
     <div className="space-y-6">
-      {isDirector && (
+      {canUpload && (
         <Card className="gap-0 py-0">
           <CardHeader className="gap-0.5 border-b border-gray-100 px-4 py-3">
             <CardTitle>
