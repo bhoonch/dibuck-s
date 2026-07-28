@@ -1,20 +1,31 @@
-import { Search } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { docTypeLabels } from "@/lib/labels";
 import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DocumentsFilter } from "./documents-filter";
 import { DocumentsTable, type DocRow } from "./documents-table";
 import { ymdKst } from "@/lib/utils";
+
+/** 기간 필터의 기준 시각. 0·NaN이면 기간 제한 없음 */
+function daysAgo(n: number) {
+  if (!(n > 0)) return null;
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
 
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    type?: string;
+    status?: string;
+    days?: string;
+  }>;
 }) {
   const session = await requireSession();
-  const { q, type } = await searchParams;
+  const { q, type, status, days } = await searchParams;
+  const since = daysAgo(Number(days));
 
   /* ponytail: contains 검색으로 시작 — 문서가 수만 건 되면 Postgres 전문검색(tsvector)으로 전환 */
   const [documents, modules] = await Promise.all([
@@ -22,6 +33,8 @@ export default async function DocumentsPage({
       where: {
         tenantId: session.tenantId!,
         ...(type ? { type } : {}),
+        ...(status ? { status } : {}),
+        ...(since ? { createdAt: { gte: since } } : {}),
         ...(q
           ? {
               OR: [
@@ -46,6 +59,9 @@ export default async function DocumentsPage({
     moduleName: (d.moduleId && moduleNames.get(d.moduleId)) || "-",
     status: d.status,
     createdAt: ymdKst(d.createdAt),
+    // 열어 볼 화면이 있는 모듈만 링크가 된다 — 아직 화면이 없는 모듈은 눌러도 갈 곳이 없다
+    href:
+      d.moduleId === "approvals" ? `/modules/approvals/${d.id}` : null,
   }));
 
   return (
@@ -54,24 +70,7 @@ export default async function DocumentsPage({
         title="통합 문서함"
         description="모든 모듈이 생성한 문서를 한 곳에서 검색합니다."
       />
-      <form className="mb-4 flex max-w-xl gap-2">
-        <select
-          name="type"
-          defaultValue={type ?? ""}
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
-        >
-          <option value="">전체 종류</option>
-          {Object.entries(docTypeLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <Input name="q" defaultValue={q} placeholder="제목이나 내용으로 검색" />
-        <Button type="submit">
-          <Search className="size-4" /> 검색
-        </Button>
-      </form>
+      <DocumentsFilter />
       <DocumentsTable
         rows={rows}
         emptyMessage={

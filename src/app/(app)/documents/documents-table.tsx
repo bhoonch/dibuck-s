@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
 import { DataTable, type Column } from "@/components/ui/data-table";
 
@@ -10,6 +11,8 @@ export type DocRow = {
   moduleName: string;
   status: string;
   createdAt: string;
+  /** 열어 볼 화면이 있는 문서만 링크 — 아직 화면이 없는 모듈은 null */
+  href: string | null;
   [key: string]: unknown;
 };
 
@@ -34,7 +37,15 @@ const columns: Column<DocRow>[] = [
     key: "title",
     header: "제목",
     sortable: true,
-    render: (row) => <span className="font-medium">{row.title}</span>,
+    render: (row) =>
+      row.href ? (
+        <Link href={row.href} className="font-medium hover:underline">
+          {row.title}
+        </Link>
+      ) : (
+        // 링크가 없는 건 화면이 아직 없어서다 — 눌러도 안 되는 링크를 만들지 않는다
+        <span className="font-medium">{row.title}</span>
+      ),
   },
   {
     key: "moduleName",
