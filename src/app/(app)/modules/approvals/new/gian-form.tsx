@@ -44,6 +44,13 @@ export function GianForm({
   const [why, setWhy] = useState("");
   const [amount, setAmount] = useState("");
   const [vat, setVat] = useState(true);
+  const [quotes, setQuotes] = useState(["", "", ""]);
+
+  /** 금액 칸은 전부 천 단위 쉼표로 — 서버는 parseWon()이 숫자만 뽑아 쓴다 */
+  const won = (v: string) => {
+    const n = v.replace(/[^0-9]/g, "");
+    return n ? Number(n).toLocaleString("ko-KR") : "";
+  };
 
   // 입력 즉시 코드 판정 — LLM 호출 전에 수의계약/입찰·결재선·장충금이 확정된다
   const cls = useMemo(
@@ -131,10 +138,7 @@ export function GianForm({
               className={`${fieldInput} flex-1 font-mono`}
               placeholder="4,500,000"
               value={amount}
-              onChange={(e) => {
-                const n = e.target.value.replace(/[^0-9]/g, "");
-                setAmount(n ? Number(n).toLocaleString("ko-KR") : "");
-              }}
+              onChange={(e) => setAmount(won(e.target.value))}
               autoComplete="off"
             />
             <span className="text-sm text-[var(--gian-ink-soft)]">원</span>
@@ -216,6 +220,14 @@ export function GianForm({
                     inputMode="numeric"
                     className={`${fieldInput} bg-[var(--gian-card)] font-mono`}
                     placeholder="견적 금액 (원)"
+                    value={quotes[i - 1]}
+                    onChange={(e) =>
+                      setQuotes((q) =>
+                        q.map((v, idx) =>
+                          idx === i - 1 ? won(e.target.value) : v,
+                        ),
+                      )
+                    }
                   />
                 </div>
               ))}
