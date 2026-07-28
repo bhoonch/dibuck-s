@@ -17,6 +17,7 @@ import { Role } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { SavedToast } from "@/components/ui/saved-toast";
 import { PaperScale } from "@/components/paper-scale";
 import { panel, panelItem, panelTitle } from "@/components/gian-ui";
 import { GianPaper, PrintStyle, type PaperStep } from "@/components/gian-paper";
@@ -207,6 +208,7 @@ export default async function GianDocumentPage({
   return (
     <>
       <PrintStyle />
+      <SavedToast message="초안을 저장했습니다." />
 
       {/*
         기준선은 하나다 — 단계표시·머리줄·용지·패널이 모두 이 기둥 안에서 시작한다.

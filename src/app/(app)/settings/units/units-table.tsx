@@ -39,6 +39,7 @@ export function UnitsTable({ rows }: { rows: UnitRow[] }) {
       data={rows}
       columns={columns}
       pageSize={15}
+      searchPlaceholder="동·호·이름·연락처 검색"
       emptyMessage="아직 등록된 세대가 없습니다. 엑셀로 업로드해 보세요."
     />
   );

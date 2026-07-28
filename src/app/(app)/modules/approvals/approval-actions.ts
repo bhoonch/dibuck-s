@@ -106,7 +106,7 @@ export async function saveGianDraft(formData: FormData) {
     },
   });
   revalidatePath(`/modules/approvals/${doc.id}`);
-  redirect(`/modules/approvals/${doc.id}`);
+  redirect(`/modules/approvals/${doc.id}?saved=1`);
 }
 
 /**

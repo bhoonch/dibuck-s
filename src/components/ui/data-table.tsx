@@ -1,7 +1,13 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronRight,
+  Search,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -25,12 +31,13 @@ export type Column<T> = {
 
 /* ponytail: 클라이언트 정렬·페이징 — 수천 건 넘는 목록이 생기면 해당 페이지만 서버 페이징으로 전환 */
 export function DataTable<T extends Record<string, unknown>>({
-  data,
+  data: all,
   columns,
   pageSize = 10,
   emptyMessage = "데이터가 없습니다",
   renderExpanded,
   rowKey,
+  searchPlaceholder,
 }: {
   data: T[];
   columns: Column<T>[];
@@ -40,13 +47,29 @@ export function DataTable<T extends Record<string, unknown>>({
   renderExpanded?: (row: T) => React.ReactNode;
   /** renderExpanded를 쓸 때 행을 구분할 값. 없으면 정렬·페이지 이동 시 펼침이 엉킨다 */
   rowKey?: (row: T) => string;
+  /** 주면 표 위에 검색창이 붙는다 — 컬럼 값 전체에서 찾는다 */
+  searchPlaceholder?: string;
 }) {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
     null,
   );
   const [page, setPage] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const keyOf = (row: T, i: number) => rowKey?.(row) ?? String(i);
+
+  // 컬럼 값만 훑는다 — 화면에 없는 필드까지 걸리면 "왜 이게 나오지"가 된다
+  const data = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((row) =>
+      columns.some((c) =>
+        String(row[c.key] ?? "")
+          .toLowerCase()
+          .includes(q),
+      ),
+    );
+  }, [all, query, columns]);
 
   const sorted = useMemo(() => {
     if (!sort) return data;
@@ -74,10 +97,39 @@ export function DataTable<T extends Record<string, unknown>>({
         : { key, dir: "asc" },
     );
 
-  if (data.length === 0) return <EmptyState title={emptyMessage} />;
+  // 검색 결과가 없는 것과 데이터가 없는 것은 다른 상태다 — 검색창을 지우고 싶을 테니 남긴다
+  if (all.length === 0) return <EmptyState title={emptyMessage} />;
 
   return (
     <div className="space-y-3">
+      {searchPlaceholder && (
+        <div className="flex h-9 max-w-sm items-center gap-2 rounded-md border bg-card px-2.5">
+          <Search className="size-4 shrink-0 text-gray-400" />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(0);
+            }}
+            placeholder={searchPlaceholder}
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="text-xs text-gray-500 hover:text-foreground"
+            >
+              지우기
+            </button>
+          )}
+        </div>
+      )}
+      {data.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          &ldquo;{query}&rdquo;와 맞는 항목이 없습니다.
+        </p>
+      )}
       <div className="overflow-x-auto rounded-xl border bg-card">
         <Table>
           <TableHeader>

@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui/page-header";
+import { SavedToast } from "@/components/ui/saved-toast";
 import { SettingsNav } from "./settings-nav";
 
 /**
@@ -13,6 +14,8 @@ export default function SettingsLayout({
 }) {
   return (
     <div className="max-w-[1280px]">
+      {/* 설정 하위 화면의 저장 알림을 한 곳에서 — 각 페이지가 따로 들 필요가 없다 */}
+      <SavedToast />
       <PageHeader
         title="단지·계정 관리"
         description="단지 정보와 직원, 구독과 결제를 관리합니다."

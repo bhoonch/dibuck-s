@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -47,6 +48,8 @@ export async function updateTenantInfo(formData: FormData) {
     },
   });
   revalidatePath("/settings");
+  // 저장했다는 신호 — SavedToast가 토스트를 띄우고 주소를 되돌린다
+  redirect("/settings?saved=1");
 }
 
 export async function addStaff(
@@ -197,6 +200,7 @@ export async function saveApprovalLine(formData: FormData) {
     },
   });
   revalidatePath("/settings/approval-line");
+  redirect("/settings/approval-line?saved=1");
 }
 
 export async function uploadUnits(
