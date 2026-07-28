@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -29,16 +29,24 @@ export function DataTable<T extends Record<string, unknown>>({
   columns,
   pageSize = 10,
   emptyMessage = "데이터가 없습니다",
+  renderExpanded,
+  rowKey,
 }: {
   data: T[];
   columns: Column<T>[];
   pageSize?: number;
   emptyMessage?: string;
+  /** 주면 행을 펼칠 수 있게 된다 — 문의 본문·답변처럼 목록에 안 들어가는 내용용 */
+  renderExpanded?: (row: T) => React.ReactNode;
+  /** renderExpanded를 쓸 때 행을 구분할 값. 없으면 정렬·페이지 이동 시 펼침이 엉킨다 */
+  rowKey?: (row: T) => string;
 }) {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(
     null,
   );
   const [page, setPage] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
+  const keyOf = (row: T, i: number) => rowKey?.(row) ?? String(i);
 
   const sorted = useMemo(() => {
     if (!sort) return data;
@@ -74,6 +82,7 @@ export function DataTable<T extends Record<string, unknown>>({
         <Table>
           <TableHeader>
             <TableRow className="border-b border-gray-200 bg-gray-50 hover:bg-gray-50">
+              {renderExpanded && <TableHead className="w-10" />}
               {columns.map((col) => (
                 <TableHead
                   key={col.key}
@@ -102,17 +111,59 @@ export function DataTable<T extends Record<string, unknown>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row, i) => (
-              <TableRow key={i}>
-                {columns.map((col) => (
-                  <TableCell key={col.key} className={col.className}>
-                    {col.render
-                      ? col.render(row)
-                      : (row[col.key] as React.ReactNode)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
+            {rows.map((row, i) => {
+              const key = keyOf(row, i);
+              const expanded = open === key;
+              return (
+                <Fragment key={key}>
+                  <TableRow
+                    className={renderExpanded ? "cursor-pointer" : undefined}
+                    onClick={
+                      renderExpanded
+                        ? () => setOpen(expanded ? null : key)
+                        : undefined
+                    }
+                  >
+                    {renderExpanded && (
+                      <TableCell className="w-10">
+                        {/* 행 클릭은 편의고, 키보드로 여닫는 건 이 버튼이 담당한다 */}
+                        <button
+                          type="button"
+                          aria-expanded={expanded}
+                          aria-label={expanded ? "접기" : "펼치기"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpen(expanded ? null : key);
+                          }}
+                          className="flex size-6 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-foreground"
+                        >
+                          <ChevronRight
+                            className={`size-4 transition-transform ${expanded ? "rotate-90" : ""}`}
+                          />
+                        </button>
+                      </TableCell>
+                    )}
+                    {columns.map((col) => (
+                      <TableCell key={col.key} className={col.className}>
+                        {col.render
+                          ? col.render(row)
+                          : (row[col.key] as React.ReactNode)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  {renderExpanded && expanded && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell
+                        colSpan={columns.length + 1}
+                        className="bg-gray-50 px-4 py-4"
+                      >
+                        {renderExpanded(row)}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
-import { setInquiryStatus } from "../actions";
+import { answerInquiry, setInquiryStatus } from "../actions";
 import { PageTitle, Pill, btnRow, tableHead, tableRow } from "../ui";
 import { ymd } from "../metrics";
 import { requireAdmin } from "@/lib/auth";
 
-const COLS = "160px 1fr 110px 100px 100px 110px";
+const COLS = "160px 1fr 110px 100px 100px";
 
 export default async function AdminSupportPage() {
   await requireAdmin();
@@ -34,7 +34,6 @@ export default async function AdminSupportPage() {
           <span>유형</span>
           <span>상태</span>
           <span>접수</span>
-          <span />
         </div>
         {inquiries.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-gray-500">
@@ -45,60 +44,109 @@ export default async function AdminSupportPage() {
             const answered = q.status === "answered";
             const isTrial = !q.tenant;
             return (
-              <div
+              // 답변 대기는 펼친 채로 연다 — 열자마자 바로 답을 쓸 수 있게
+              <details
                 key={q.id}
-                className={tableRow}
-                style={{ gridTemplateColumns: COLS }}
+                open={!answered && !isTrial}
+                className="border-b last:border-0"
               >
-                <span className="truncate text-sm font-medium">
-                  {q.tenant?.name ?? q.title}
-                </span>
-                {/* 답변은 전화·이메일로 하므로 연락처가 항상 보여야 한다 */}
-                <span className="truncate text-sm text-gray-600">
-                  {isTrial ? "무료 체험 신청" : q.title}
-                  <span className="ml-2 font-mono text-xs text-gray-500">
-                    {q.contact ?? "연락처 없음"}
+                <summary className={`${tableRow} cursor-pointer border-0 hover:bg-gray-50`} style={{ gridTemplateColumns: COLS }}>
+                  <span className="truncate text-sm font-medium">
+                    {q.tenant?.name ?? q.title}
                   </span>
-                </span>
-                <span>
+                  <span className="truncate text-sm text-gray-600">
+                    {isTrial ? "무료 체험 신청" : q.title}
+                  </span>
+                  <span>
+                    {isTrial ? (
+                      <Pill tone="info">체험 신청</Pill>
+                    ) : (
+                      <span className="text-xs text-gray-500">{q.category}</span>
+                    )}
+                  </span>
+                  <span>
+                    {answered ? (
+                      <Pill tone="success">답변 완료</Pill>
+                    ) : (
+                      <Pill tone="danger">답변 대기</Pill>
+                    )}
+                  </span>
+                  <span className="font-mono text-xs text-gray-500">
+                    {ymd(q.createdAt)}
+                  </span>
+                </summary>
+
+                <div className="grid max-w-3xl gap-3 bg-gray-50 px-4 py-4">
+                  <div>
+                    <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      문의 내용
+                    </p>
+                    <p className="mt-1.5 text-sm whitespace-pre-wrap">
+                      {q.title}
+                    </p>
+                    {q.fromPath && (
+                      <p className="mt-1.5 font-mono text-xs text-gray-500">
+                        문의한 화면: {q.fromPath}
+                      </p>
+                    )}
+                  </div>
+
                   {isTrial ? (
-                    <Pill tone="info">체험 신청</Pill>
+                    <p className="text-sm text-gray-500">
+                      가입 전 접수분이라 알림을 보낼 대상이 없습니다.
+                    </p>
                   ) : (
-                    <span className="text-xs text-gray-500">{q.category}</span>
+                    <form action={answerInquiry} className="grid gap-2">
+                      <input type="hidden" name="id" value={q.id} />
+                      <label
+                        htmlFor={`answer-${q.id}`}
+                        className="text-xs font-semibold tracking-wider text-gray-500 uppercase"
+                      >
+                        답변
+                      </label>
+                      <textarea
+                        id={`answer-${q.id}`}
+                        name="answer"
+                        rows={5}
+                        maxLength={2000}
+                        defaultValue={q.answer ?? ""}
+                        placeholder="사용자가 문의 내역에서 펼쳐 읽습니다. 저장하면 알림이 갑니다."
+                        className="w-full rounded-md border bg-card px-3 py-2 text-sm outline-offset-1 focus:outline-2 focus:outline-primary"
+                        required
+                      />
+                      <div className="flex items-center gap-2">
+                        <button type="submit" className={btnRow}>
+                          {answered ? "답변 수정" : "답변 등록"}
+                        </button>
+                        {q.answeredAt && (
+                          <span className="font-mono text-xs text-gray-500">
+                            {ymd(q.answeredAt)} 답변
+                          </span>
+                        )}
+                      </div>
+                    </form>
                   )}
-                </span>
-                <span>
-                  {answered ? (
-                    <Pill tone="success">답변 완료</Pill>
-                  ) : (
-                    <Pill tone="danger">답변 대기</Pill>
+
+                  {answered && (
+                    <form action={setInquiryStatus}>
+                      <input type="hidden" name="id" value={q.id} />
+                      <input type="hidden" name="status" value="open" />
+                      <button type="submit" className={btnRow}>
+                        답변 대기로 되돌리기
+                      </button>
+                    </form>
                   )}
-                </span>
-                <span className="font-mono text-xs text-gray-500">
-                  {ymd(q.createdAt)}
-                </span>
-                <span>
-                  <form action={setInquiryStatus}>
-                    <input type="hidden" name="id" value={q.id} />
-                    <input
-                      type="hidden"
-                      name="status"
-                      value={answered ? "open" : "answered"}
-                    />
-                    <button type="submit" className={btnRow}>
-                      {answered ? "재오픈" : "답변 완료"}
-                    </button>
-                  </form>
-                </span>
-              </div>
+                </div>
+              </details>
             );
           })
         )}
       </section>
 
       <p className="mt-3 text-xs text-gray-500">
-        문의는 단지 화면의 &ldquo;고객 문의&rdquo;(/support)에서 접수됩니다. 답변 본문은
-        저장하지 않습니다 — 전화·이메일로 답변한 뒤 여기서 상태만 완료 처리하세요.
+        문의는 단지 화면의 &ldquo;고객 문의&rdquo;(/support)에서 접수됩니다. 전화 응대는
+        하지 않습니다 — 여기서 답변을 저장하면 접수한 단지 직원에게 알림이 가고,
+        사용자는 문의 내역에서 답변을 펼쳐 읽습니다.
       </p>
     </>
   );

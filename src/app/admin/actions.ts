@@ -13,6 +13,7 @@ import {
 import { parseWon } from "@/lib/won";
 import { kstDayEnd, kstDayStart, normalizeEmail, ymdKst } from "@/lib/utils";
 import { logAdmin } from "@/lib/admin-log";
+import { notifyTenant } from "@/lib/notifications";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role, TenantStatus } from "@/generated/prisma/enums";
 
@@ -263,6 +264,35 @@ export async function toggleAnnouncement(formData: FormData) {
   await db.announcement.update({ where: { id }, data: { active } });
   revalidatePath("/admin/announcements");
   revalidatePath("/", "layout");
+}
+
+/**
+ * 문의 답변 저장 — 답변 본문을 앱 안에 남기고 접수자에게 알림을 보낸다.
+ * 전화·이메일로 답하던 걸 대체한다: 사용자는 종 아이콘 → 클릭 두 번이면 답변에 닿는다.
+ */
+export async function answerInquiry(formData: FormData) {
+  await requireRole(Role.SUPER_ADMIN);
+  const id = String(formData.get("id"));
+  const answer = String(formData.get("answer") ?? "").trim();
+  if (!answer) throw new Error("답변 내용을 입력해 주세요.");
+
+  const inquiry = await db.inquiry.update({
+    where: { id },
+    data: { answer: answer.slice(0, 2000), answeredAt: new Date(), status: "answered" },
+  });
+
+  // 가입 전 "체험 신청" 접수분은 단지가 없어 알릴 대상도 없다
+  if (inquiry.tenantId)
+    await notifyTenant({
+      tenantId: inquiry.tenantId,
+      type: "inquiry_answered",
+      title: "문의에 답변이 등록되었습니다",
+      body: inquiry.title.slice(0, 80),
+      link: "/support",
+    });
+
+  revalidatePath("/admin/support");
+  revalidatePath("/admin", "layout");
 }
 
 export async function setInquiryStatus(formData: FormData) {

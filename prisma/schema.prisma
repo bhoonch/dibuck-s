@@ -251,11 +251,14 @@ model Inquiry {
   id        String   @id @default(cuid())
   tenantId  String? // null = 아직 가입 전 (무료 체험 신청)
   tenant    Tenant?  @relation(fields: [tenantId], references: [id])
-  category  String // "기능 문의" | "구독" | "계정" | "결제" | "체험 신청"
-  title     String // 체험 신청이면 단지명(담당자)
-  contact   String? // 체험 신청 연락처
-  status    String   @default("open") // open(답변 대기) | answered(답변 완료)
-  createdAt DateTime @default(now())
+  category   String // "기능 문의" | "구독" | "계정" | "결제" | "체험 신청"
+  title      String // 문의 본문. 체험 신청이면 단지명(담당자)
+  contact    String? // 옛 체험 신청 연락처 — 전화 응대를 없애 새 문의는 쓰지 않는다
+  status     String    @default("open") // open(답변 대기) | answered(답변 완료)
+  answer     String? // 운영자 답변 본문 — 사용자가 문의 내역에서 펼쳐 읽는다
+  answeredAt DateTime?
+  fromPath   String? // 문의를 남긴 화면 경로 — "어디서 그러셨어요?"를 되묻지 않으려고
+  createdAt  DateTime  @default(now())
 
   @@index([status, createdAt])
 }
