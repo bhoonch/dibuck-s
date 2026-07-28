@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
@@ -75,6 +76,13 @@ export default async function GianDocumentPage({
         {/* 머리줄과 용지가 같은 왼쪽 시작선을 쓰도록 A4 폭으로 묶어 가운데 (기안 갈래와 같은 규칙) */}
         <div className="mx-auto max-w-[794px]">
           <div className="print:hidden">
+            <Link
+              href="/modules/approvals"
+              className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" />
+              목록
+            </Link>
             <PageHeader
               title="입주민 공고문"
               description={doc.docNo ?? undefined}
@@ -87,9 +95,6 @@ export default async function GianDocumentPage({
                   </Link>
                 </Button>
               )}
-              <Button asChild variant="ghost">
-                <Link href="/modules/approvals">목록</Link>
-              </Button>
             </PageHeader>
           </div>
           <PaperScale>
@@ -177,13 +182,25 @@ export default async function GianDocumentPage({
         두 줄로 접히는 순간 어긋난다).
       */}
       <div className="mx-auto max-w-[794px] xl:max-w-[1108px]">
+        {/* 목록은 이 문서에 하는 일이 아니라 뒤로 가기다 — 액션 버튼 무리에서 뺀다 */}
+        <Link
+          href="/modules/approvals"
+          className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground print:hidden"
+        >
+          <ChevronLeft className="size-4" />
+          목록
+        </Link>
+
         <GianSteps
           current={canEdit ? 2 : 3}
           editHref={canEdit ? `/modules/approvals/${doc.id}/edit` : undefined}
         />
 
-        {/* ── 결과 머리: 문서 유형 인장 + 액션 (목업 .result-head) ── */}
-        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        {/*
+          머리줄도 아래 격자와 같은 두 칸 — 그래야 인쇄 버튼의 왼쪽 시작선이
+          결재선 카드의 왼쪽 시작선과 같아진다(간격도 아래 격자와 같은 gap-6).
+        */}
+        <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_288px]">
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
               {docTypeLabel}
@@ -209,9 +226,6 @@ export default async function GianDocumentPage({
             <PrintButton />
             <Button asChild variant="outline">
               <Link href="/modules/approvals/new">다시 만들기</Link>
-            </Button>
-            <Button asChild variant="ghost">
-              <Link href="/modules/approvals">목록</Link>
             </Button>
           </div>
         </div>
