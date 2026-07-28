@@ -7,7 +7,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { KeyRound, Search, Trash2 } from "lucide-react";
+import { KeyRound, Search, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import type { Role } from "@/generated/prisma/enums";
 import { assignableRoles, roleLabels } from "@/lib/labels";
@@ -16,6 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { TempPasswordNotice } from "@/components/temp-password-notice";
 import {
   Table,
@@ -57,10 +66,14 @@ export function StaffTable({
   );
   const formRef = useRef<HTMLFormElement>(null);
   const [query, setQuery] = useState("");
+  // 다이얼로그는 Radix가 상태를 들고, 성공 시 숨은 닫기 버튼을 눌러 닫는다 —
+  // 효과 안에서 setState를 부르면 렌더가 연쇄된다(React Compiler 규칙)
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (addState?.success) {
       formRef.current?.reset();
+      closeRef.current?.click(); // 성공하면 닫는다 — 실패면 열어 둬야 오류 문구가 보인다
       toast.success("직원이 추가되었습니다.");
     }
   }, [addState]);
@@ -90,22 +103,109 @@ export function StaffTable({
     <div className="space-y-8">
       <TempPasswordNotice state={resetState} />
       <div className="space-y-3">
-        <div className="flex h-9 max-w-sm items-center gap-2 rounded-md border bg-card px-2.5">
-          <Search className="size-4 shrink-0 text-gray-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="이름·직책·이메일 검색"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="text-xs text-gray-500 hover:text-foreground"
-            >
-              지우기
-            </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex h-9 max-w-sm flex-1 items-center gap-2 rounded-md border bg-card px-2.5">
+            <Search className="size-4 shrink-0 text-gray-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="이름·직책·이메일 검색"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-xs text-gray-500 hover:text-foreground"
+              >
+                지우기
+              </button>
+            )}
+          </div>
+          {isDirector && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="lg">
+                  <UserPlus className="size-4" /> 직원 추가
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>직원 추가</DialogTitle>
+                  <DialogDescription>
+                    추가된 직원은 임시 비밀번호로 바로 로그인할 수 있습니다.
+                  </DialogDescription>
+                </DialogHeader>
+                <form ref={formRef} action={addAction}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="staff-name">이름</Label>
+                      <Input id="staff-name" name="name" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="staff-title">직책</Label>
+                      <Input
+                        id="staff-title"
+                        name="title"
+                        placeholder="예: 과장, 전기과장, 경비반장"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="staff-email">이메일</Label>
+                      <Input
+                        id="staff-email"
+                        name="email"
+                        type="email"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="staff-role">권한</Label>
+                      <select
+                        id="staff-role"
+                        name="role"
+                        defaultValue="STAFF"
+                        className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      >
+                        {assignableRoles.map((r) => (
+                          <option key={r} value={r}>
+                            {roleLabels[r]}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">
+                        권한 안내는 이 화면 위쪽에 있습니다. 직책과는
+                        무관합니다.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="staff-password">
+                        임시 비밀번호 (8자 이상)
+                      </Label>
+                      <Input
+                        id="staff-password"
+                        name="password"
+                        type="text"
+                        minLength={8}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-5 flex items-center justify-end gap-3">
+                    {addState?.error && (
+                      <p className="text-sm text-destructive">
+                        {addState.error}
+                      </p>
+                    )}
+                    <Button type="submit" size="lg" disabled={addPending}>
+                      {addPending ? "추가 중..." : "직원 추가"}
+                    </Button>
+                  </div>
+                  {/* 성공했을 때 효과에서 눌러 닫는다 — 상태를 하나 더 들지 않기 위해 */}
+                  <DialogClose ref={closeRef} className="hidden" />
+                </form>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
         <div className="overflow-x-auto rounded-lg border bg-card">
@@ -216,75 +316,6 @@ export function StaffTable({
           </Table>
         </div>
       </div>
-
-      {isDirector && (
-        <form
-          ref={formRef}
-          action={addAction}
-          className="max-w-2xl rounded-lg border bg-card"
-        >
-          <div className="border-b border-gray-100 px-4 py-3">
-            <h2 className="text-lg font-semibold tracking-tight">직원 추가</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              추가된 직원은 임시 비밀번호로 바로 로그인할 수 있습니다.
-            </p>
-          </div>
-          <div className="grid gap-4 p-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="staff-name">이름</Label>
-              <Input id="staff-name" name="name" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-title">직책</Label>
-              <Input
-                id="staff-title"
-                name="title"
-                placeholder="예: 과장, 전기과장, 경비반장"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-email">이메일</Label>
-              <Input id="staff-email" name="email" type="email" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-role">권한</Label>
-              <select
-                id="staff-role"
-                name="role"
-                defaultValue="STAFF"
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              >
-                {assignableRoles.map((r) => (
-                  <option key={r} value={r}>
-                    {roleLabels[r]}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                위 권한 안내를 참고하세요. 직책과는 무관합니다.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-password">임시 비밀번호 (8자 이상)</Label>
-              <Input
-                id="staff-password"
-                name="password"
-                type="text"
-                minLength={8}
-                required
-              />
-            </div>
-          </div>
-          <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-4 py-3">
-            {addState?.error && (
-              <p className="text-sm text-destructive">{addState.error}</p>
-            )}
-            <Button type="submit" size="lg" disabled={addPending}>
-              {addPending ? "추가 중..." : "직원 추가"}
-            </Button>
-          </div>
-        </form>
-      )}
     </div>
   );
 }
