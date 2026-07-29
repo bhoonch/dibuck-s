@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { Kpi, PageTitle, Pill, Section, tableRow } from "../ui";
+import { Kpi, Money, PageTitle, Pill, Section, tableRow } from "../ui";
 import {
   mrrAt,
   recentMonths,
@@ -8,7 +8,6 @@ import {
   wasPaidAt,
   wasTrialAt,
   won,
-  wonShort,
   ymd,
 } from "../metrics";
 import { requireAdmin } from "@/lib/auth";
@@ -117,20 +116,20 @@ export default async function AdminRevenuePage() {
       <PageTitle title="수입 현황" />
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="MRR" value={wonShort(mrr)} delta="체험 제외, 유료 구독만" />
+        <Kpi label="MRR" value={<Money n={mrr} short />} delta="체험 제외, 유료 구독만" />
         <Kpi
           label="연 환산 (ARR)"
-          value={wonShort(mrr * 12)}
+          value={<Money n={mrr * 12} short />}
           delta="현재 MRR × 12"
         />
         <Kpi
           label="단지당 평균"
-          value={wonShort(tenantCount ? Math.round(mrr / tenantCount) : 0)}
+          value={<Money n={tenantCount ? Math.round(mrr / tenantCount) : 0} short />}
           delta={`운영 중 ${tenantCount}개 단지 기준`}
         />
         <Kpi
           label="체험 중 (잠재 매출)"
-          value={wonShort(trialUpside)}
+          value={<Money n={trialUpside} short />}
           delta={`${trial.length}건 전환 시`}
           tone={trial.length > 0 ? "warn" : "muted"}
         />
@@ -145,7 +144,7 @@ export default async function AdminRevenuePage() {
                 className="flex h-full flex-1 flex-col items-center justify-end gap-2"
               >
                 <span className="font-mono text-xs text-gray-600">
-                  {wonShort(b.value)}
+                  <Money n={b.value} short />
                 </span>
                 <div
                   className="w-full max-w-12 rounded-t-md bg-gradient-to-b from-blue-500 to-blue-600"
@@ -172,7 +171,7 @@ export default async function AdminRevenuePage() {
                   {m.name}
                 </span>
                 <span className="shrink-0 font-mono text-sm font-medium">
-                  {won(m.amount)}
+                  <Money n={m.amount} />
                 </span>
               </div>
             ))

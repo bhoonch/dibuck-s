@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import {
   Bar,
   Kpi,
+  Money,
   PageTitle,
   Pill,
   Section,
@@ -11,7 +12,7 @@ import {
   tableHead,
   tableRow,
 } from "../ui";
-import { recentMonths, won, ymd } from "../metrics";
+import { recentMonths, ymd } from "../metrics";
 import { requireAdmin } from "@/lib/auth";
 
 const COLS = "1fr 90px 80px 110px 80px";
@@ -164,7 +165,7 @@ export default async function AdminSubscribersPage() {
                   {t.modules.length}
                 </span>
                 <span className="font-mono text-sm text-gray-600">
-                  {fee ? won(fee) : "—"}
+                  {fee ? <Money n={fee} /> : "—"}
                 </span>
                 <span>
                   {t.status !== "ACTIVE" ? (

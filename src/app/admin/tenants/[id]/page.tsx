@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StaffManager } from "./staff-manager";
 import {
   Kpi,
+  Money,
   PageTitle,
   Pill,
   Section,
@@ -14,7 +15,7 @@ import {
   btnRow,
   btnSubmit,
 } from "../../ui";
-import { won, ymd } from "../../metrics";
+import { ymd } from "../../metrics";
 import {
   impersonate,
   saveTenantMemo,
@@ -137,7 +138,7 @@ export default async function AdminTenantDetailPage({
         />
         <Kpi
           label="월 요금"
-          value={won(fee)}
+          value={<Money n={fee} />}
           delta={
             [
               `구독 ${activeSet.size}개`,

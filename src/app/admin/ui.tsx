@@ -31,6 +31,27 @@ export const btnOutline = buttonVariants({ variant: "outline" });
 export const btnRow = buttonVariants({ variant: "outline", size: "sm" });
 export const btnRowPrimary = buttonVariants({ size: "sm" });
 
+/** 금액 표시 — JetBrains Mono에 ₩·만·억 글리프가 없어 폴백 폰트가 크게 튄다.
+ *  숫자만 mono로 두고 기호·단위는 본문 폰트를 한 단계 작게 그린다. */
+export function Money({ n, short = false }: { n: number; short?: boolean }) {
+  let num = n.toLocaleString();
+  let unit = "";
+  if (short && n >= 100_000_000) {
+    num = (n / 100_000_000).toFixed(1);
+    unit = "억";
+  } else if (short && n >= 10_000) {
+    num = Math.round(n / 10_000).toLocaleString();
+    unit = "만";
+  }
+  return (
+    <span className="whitespace-nowrap">
+      <span className="mr-0.5 font-sans text-[0.72em]">₩</span>
+      {num}
+      {unit && <span className="font-sans text-[0.72em]">{unit}</span>}
+    </span>
+  );
+}
+
 /* 표 — 그리드 컬럼은 페이지마다 다르므로 style로 넘긴다 */
 export const tableHead =
   "grid gap-3 border-b bg-gray-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500";
@@ -104,7 +125,7 @@ export function Kpi({
   tone = "muted",
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   delta?: string;
   tone?: Tone;
 }) {

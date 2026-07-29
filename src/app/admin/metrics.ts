@@ -48,12 +48,6 @@ export function mrrAt(subs: SubRow[], at: Date) {
 
 export const won = (n: number) => `₩ ${n.toLocaleString()}`;
 
-/** 큰 금액 축약 표기 (₩ 18.6M) */
-export function wonShort(n: number) {
-  if (n >= 100_000_000) return `₩ ${(n / 100_000_000).toFixed(1)}억`;
-  if (n >= 10_000) return `₩ ${(n / 10_000).toLocaleString(undefined, { maximumFractionDigits: 0 })}만`;
-  return won(n);
-}
 
 export function deltaPercent(current: number, previous: number) {
   if (!previous) return null;

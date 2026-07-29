@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import {
   Bar,
   Kpi,
+  Money,
   PageTitle,
   Pill,
   Section,
@@ -11,7 +12,7 @@ import {
   tableHead,
   tableRow,
 } from "./ui";
-import { mrrAt, recentMonths, wonShort, deltaPercent, ymd } from "./metrics";
+import { mrrAt, recentMonths, deltaPercent, ymd } from "./metrics";
 import { requireAdmin } from "@/lib/auth";
 
 const COLS = "1fr 90px 90px 90px 90px";
@@ -80,7 +81,7 @@ export default async function AdminOverviewPage() {
         />
         <Kpi
           label="MRR"
-          value={wonShort(mrr)}
+          value={<Money n={mrr} short />}
           delta={
             growth === null
               ? "비교할 지난달 데이터 없음"
