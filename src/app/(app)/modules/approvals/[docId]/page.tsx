@@ -29,9 +29,11 @@ import {
   isConcreteSchedule,
   type NoticeDoc,
 } from "@/lib/gian/notice";
+import { quoteFileGap } from "@/lib/gian/attachments";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { AttachmentChecklist } from "./attachment-checklist";
+import { QuoteFiles } from "./quote-files";
 import { NoticeSchedule } from "./notice-schedule";
 import { PrintButton } from "./print-button";
 
@@ -42,6 +44,9 @@ type Meta = {
   draft: GianDraft;
   /** 첨부 체크리스트에서 확인 표시한 항목 번호 */
   attachmentsChecked?: number[];
+  quotes?: { vendor: string; amount: number }[];
+  /** 견적서 없이 상신한 긴급 예외 — 사유는 결재 패널과 인쇄물 양쪽에 남는다 */
+  quoteWaiver?: { reason: string; byName: string; at: string };
   cls?: Classification;
   plannedSteps: {
     order: number;
@@ -211,6 +216,22 @@ export default async function GianDocumentPage({
   // 예전엔 화면 버튼만 draft 조건이라 반려당한 사람이 고칠 길이 안 보였다.
   const canEdit = doc.status === "draft" || doc.status === "rejected";
 
+  // 첨부 파일 — data(Bytes)는 절대 select하지 않는다 (목록 쿼리에 파일이 딸려온다)
+  const attachmentFiles = await db.documentAttachment.findMany({
+    where: { documentId: doc.id },
+    select: { id: true, name: true, size: true, quoteIndex: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const quotes = meta.quotes ?? [];
+  const gap = meta.cls
+    ? quoteFileGap(meta.cls.context, quotes, attachmentFiles)
+    : null;
+  // 파일이 채워지면 waiver는 안 쓴다 — 부족한 채 상신했을 때만 사유가 문서에 남는다
+  const waiverNote =
+    gap && meta.quoteWaiver
+      ? `※ 견적서 미첨부 — 사유: ${meta.quoteWaiver.reason} (${meta.quoteWaiver.at} ${meta.quoteWaiver.byName})`
+      : null;
+
   const docType = meta.cls?.docType;
   const docTypeLabel =
     docType === "gian"
@@ -334,6 +355,16 @@ export default async function GianDocumentPage({
               canSubmit={canSubmit}
               steps={panelSteps}
             />
+
+            {meta.cls && meta.cls.context !== "none" && (
+              <QuoteFiles
+                docId={doc.id}
+                vendors={quotes.map((q) => q.vendor)}
+                files={attachmentFiles}
+                showDocSlot={meta.cls.context === "bid"}
+                editable={canEdit}
+              />
+            )}
 
             {draft.attachments.length > 0 && (
               <AttachmentChecklist
