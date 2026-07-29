@@ -27,6 +27,9 @@ import { NoticePaper } from "@/components/notice-paper";
 import {
   findNoticeFor,
   isConcreteSchedule,
+  splitPlaces,
+  DEFAULT_POST_TO,
+  NOTICE_PLACES,
   type NoticeDoc,
 } from "@/lib/gian/notice";
 import { quoteFileGap, waiverNoteOf } from "@/lib/gian/attachments";
@@ -34,6 +37,7 @@ import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { AttachmentChecklist } from "./attachment-checklist";
 import { QuoteFiles } from "./quote-files";
+import { NoticePosting } from "./notice-posting";
 import { NoticeSchedule } from "./notice-schedule";
 import { PrintButton } from "./print-button";
 
@@ -144,6 +148,15 @@ export default async function GianDocumentPage({
               label={meta.notice.rows[0]?.k ?? "일자"}
             />
           )}
+          {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
+          <NoticePosting
+            docId={doc.id}
+            place={meta.notice.place}
+            postTo={meta.notice.postTo}
+            options={NOTICE_PLACES}
+            defaultPostTo={DEFAULT_POST_TO}
+            {...splitPlaces(meta.notice.place)}
+          />
           <PaperScale>
             <NoticePaper
               notice={meta.notice}

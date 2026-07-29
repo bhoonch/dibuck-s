@@ -25,6 +25,52 @@ export type NoticeDoc = {
   notes: { text: string; red?: boolean }[];
 };
 
+/**
+ * 게시장소 후보 — 관리사무소가 실제로 붙이는 자리. 여기 없는 곳은 직접 입력한다.
+ * 값을 배열로 따로 저장하지 않고 `place` 문자열 하나만 둔다 —
+ * 이미 만들어진 공고문도 그대로 읽히고, 체크 상태는 splitPlaces가 되돌린다.
+ */
+export const NOTICE_PLACES = [
+  "승강기",
+  "게시판",
+  "동 출입구",
+  "관리사무소",
+  "단지 홈페이지",
+] as const;
+
+export const DEFAULT_PLACES = ["승강기", "게시판"];
+
+/** 게시 종료일 기본값 — 대부분의 공사·점검 공고가 이렇게 나간다 */
+export const DEFAULT_POST_TO = "완료 시";
+
+/**
+ * 체크된 후보 + 직접 입력 → 저장할 `place` 문자열.
+ * 순서는 **후보 목록 순서**를 따른다 — 저장할 때마다 순서가 뒤바뀌면 인쇄물이 흔들린다.
+ * 빈 배열이면 호출부가 거부한다(게시장소 없는 공고문은 붙일 데가 없다).
+ */
+export function mergePlaces(checked: string[], custom: string): string[] {
+  const known = NOTICE_PLACES as readonly string[];
+  const picked = known.filter((p) => checked.includes(p));
+  const extra = custom
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s && !picked.includes(s));
+  return [...picked, ...new Set(extra)];
+}
+
+/** "승강기, 게시판, 지하주차장" → 알려진 곳(체크)과 그 밖(직접 입력)으로 가른다 */
+export function splitPlaces(place: string) {
+  const all = place
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const known = NOTICE_PLACES as readonly string[];
+  return {
+    checked: all.filter((p) => known.includes(p)),
+    custom: all.filter((p) => !known.includes(p)).join(", "),
+  };
+}
+
 /** 받침 유무로 조사 선택 — "공사를" / "점검을" */
 export function josa(word: string, withJong: string, without: string) {
   const w = word.trim();
@@ -47,9 +93,9 @@ export function buildNotice(input: {
 
   return {
     kind: "공 고 문",
-    place: "승강기, 게시판",
+    place: DEFAULT_PLACES.join(", "),
     postFrom: ymdKst(input.approvedAt),
-    postTo: "완료 시",
+    postTo: DEFAULT_POST_TO,
     title: /안내$/.test(work) ? work : `${work} 시행 안내`,
     intro:
       `입주민 여러분께 안내 말씀드립니다. 아래와 같이 ${work}${josa(work, "을", "를")} ` +

@@ -19,6 +19,8 @@ import type { GianDraft } from "@/lib/gian/claude";
 import {
   createNoticeFrom,
   findNoticeFor,
+  mergePlaces,
+  DEFAULT_POST_TO,
   type NoticeDoc,
 } from "@/lib/gian/notice";
 import { Role } from "@/generated/prisma/enums";
@@ -283,6 +285,42 @@ export async function updateNoticeSchedule(
         ...rows.map((r) => `${r.k}: ${r.v}`),
         ...notice.notes.map((n) => n.text),
       ].join("\n"),
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
+  return undefined;
+}
+
+/**
+ * 공고문 게시 설정 — 어디에 붙이고 언제까지 두는가.
+ * 결재받은 *내용*이 아니라 게시 실무라 결재 완료 후에도 고칠 수 있다
+ * (일자 수정과 달리 문서 본문이 바뀌지 않으므로 content도 손대지 않는다).
+ */
+export async function updateNoticePosting(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const docId = String(formData.get("docId") ?? "");
+  const { doc } = await myDoc(docId);
+  const meta = doc?.meta as { notice?: NoticeDoc } | null;
+  if (!doc || !meta?.notice) return { error: "공고문을 찾을 수 없습니다." };
+
+  const places = mergePlaces(
+    formData.getAll("places").map(String),
+    String(formData.get("customPlace") ?? ""),
+  );
+  if (places.length === 0)
+    return { error: "게시장소를 한 곳 이상 정해 주세요." };
+
+  const postTo = String(formData.get("postTo") ?? "").trim() || DEFAULT_POST_TO;
+
+  await db.document.update({
+    where: { id: doc.id },
+    data: {
+      meta: {
+        ...(doc.meta as object),
+        notice: { ...meta.notice, place: places.join(", "), postTo },
+      },
     },
   });
   revalidatePath(`/modules/approvals/${doc.id}`);

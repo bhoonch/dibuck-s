@@ -2,7 +2,15 @@
  * 공고문 파생 규칙 검증 (DB 불필요) — npx tsx gian-notice.test.ts
  */
 import assert from "node:assert";
-import { buildNotice, isConcreteSchedule, josa } from "./src/lib/gian/notice";
+import {
+  buildNotice,
+  isConcreteSchedule,
+  josa,
+  mergePlaces,
+  splitPlaces,
+  DEFAULT_PLACES,
+  DEFAULT_POST_TO,
+} from "./src/lib/gian/notice";
 
 const at = new Date("2026-07-28T01:00:00Z"); // KST 2026-07-28 10:00
 const form = {
@@ -51,3 +59,54 @@ assert.equal(isConcreteSchedule("8월 중"), false);
 assert.equal(isConcreteSchedule("(추후 공지)"), false);
 assert.equal(isConcreteSchedule(""), false);
 console.log("✓ 일정 확정 판정 통과");
+
+// ── 게시장소: 문자열 하나로 저장하고 체크 상태를 되돌린다 ──
+// 새로 만든 공고문의 기본값이 그대로 체크로 돌아와야 한다
+assert.equal(work.place, DEFAULT_PLACES.join(", "));
+assert.equal(work.postTo, DEFAULT_POST_TO);
+assert.deepEqual(splitPlaces(work.place).checked, DEFAULT_PLACES);
+assert.equal(splitPlaces(work.place).custom, "");
+// 후보에 없는 곳은 직접 입력칸으로 — 저장했다 열면 사라지는 일이 없어야 한다
+assert.deepEqual(splitPlaces("승강기, 지하주차장 입구"), {
+  checked: ["승강기"],
+  custom: "지하주차장 입구",
+});
+assert.deepEqual(splitPlaces("노인정, 어린이집"), {
+  checked: [],
+  custom: "노인정, 어린이집",
+});
+// 공백·빈 항목이 섞여도 깨지지 않는다
+assert.deepEqual(splitPlaces("  승강기 ,, 게시판 ,").checked, [
+  "승강기",
+  "게시판",
+]);
+assert.deepEqual(splitPlaces(""), { checked: [], custom: "" });
+
+// ── 저장: 체크 + 직접 입력 → place 문자열 ──
+// 순서는 체크한 순서가 아니라 후보 목록 순서 — 저장할 때마다 인쇄물이 흔들리면 안 된다
+assert.deepEqual(mergePlaces(["게시판", "승강기"], ""), ["승강기", "게시판"]);
+assert.deepEqual(mergePlaces(["동 출입구", "게시판"], ""), [
+  "게시판",
+  "동 출입구",
+]);
+// 직접 입력은 체크 뒤에 붙고, 쉼표로 여러 곳을 받는다
+assert.deepEqual(mergePlaces(["승강기"], "지하주차장 입구, 노인정"), [
+  "승강기",
+  "지하주차장 입구",
+  "노인정",
+]);
+// 후보에 없는 값이 places로 들어와도 무시한다(폼을 조작해도 임의 값이 안 들어간다)
+assert.deepEqual(mergePlaces(["승강기", "아무거나"], ""), ["승강기"]);
+// 체크한 곳을 직접 입력에 또 적어도 중복되지 않는다
+assert.deepEqual(mergePlaces(["승강기"], "승강기, 노인정"), ["승강기", "노인정"]);
+assert.deepEqual(mergePlaces(["승강기"], "노인정, 노인정"), ["승강기", "노인정"]);
+// 아무것도 안 고르면 빈 배열 — 호출부가 거부한다
+assert.deepEqual(mergePlaces([], "  ,  "), []);
+
+// 저장 → 다시 열기 왕복이 값을 잃지 않는다
+const round = mergePlaces(["승강기", "게시판"], "지하주차장 입구").join(", ");
+assert.deepEqual(splitPlaces(round), {
+  checked: ["승강기", "게시판"],
+  custom: "지하주차장 입구",
+});
+console.log("✓ 게시장소 왕복 통과");
