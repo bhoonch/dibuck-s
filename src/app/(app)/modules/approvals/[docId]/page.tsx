@@ -32,7 +32,11 @@ import {
   NOTICE_PLACES,
   type NoticeDoc,
 } from "@/lib/gian/notice";
-import { quoteFileGap, waiverNoteOf } from "@/lib/gian/attachments";
+import {
+  attachmentLines,
+  quoteFileGap,
+  waiverNoteOf,
+} from "@/lib/gian/attachments";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { AttachmentChecklist } from "./attachment-checklist";
@@ -326,7 +330,15 @@ export default async function GianDocumentPage({
           <div className="min-w-0">
             <PaperScale>
               <GianPaper
-                draft={draft}
+                // 붙임은 실제 첨부가 사실이다 — 렌더 시점 병합이라 옛 문서에도 적용된다
+                draft={{
+                  ...draft,
+                  attachments: attachmentLines(
+                    quotes,
+                    attachmentFiles,
+                    draft.attachments,
+                  ),
+                }}
                 steps={paperSteps}
                 docNo={doc.docNo}
                 office={`${tenant.name} 관리사무소`}

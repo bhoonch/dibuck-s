@@ -9,7 +9,11 @@ import {
 import { FileText } from "lucide-react";
 import { GianPaper, type PaperStep } from "@/components/gian-paper";
 import { PaperScale } from "@/components/paper-scale";
-import { waiverNoteOf, type QuoteWaiver } from "@/lib/gian/attachments";
+import {
+  attachmentLines,
+  waiverNoteOf,
+  type QuoteWaiver,
+} from "@/lib/gian/attachments";
 import type { ContractContext } from "@/lib/gian/rules";
 import { SignForm } from "./sign-form";
 
@@ -150,7 +154,15 @@ export default async function ApproveByTokenPage({
       {/* 용지는 210mm 고정이라 좁은 화면(모바일)에서 칸을 뚫고 나간다 — 문서 화면과 같은 부품으로 줄인다 */}
       <PaperScale>
         <GianPaper
-          draft={meta.draft}
+          // 문서 화면과 같은 규칙 — 회장이 보는 붙임도 실제 첨부가 사실이다
+          draft={{
+            ...meta.draft,
+            attachments: attachmentLines(
+              meta.quotes ?? [],
+              attachmentFiles,
+              meta.draft.attachments,
+            ),
+          }}
           steps={paperSteps}
           docNo={doc.docNo}
           office={`${tenant?.name ?? ""} 관리사무소`}

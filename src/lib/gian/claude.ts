@@ -60,7 +60,8 @@ const DRAFT_SCHEMA = {
     attachments: {
       type: "array",
       items: { type: "string" },
-      description: "붙임 목록 (예: '견적서 비교표 및 사업자등록증 각 1부')",
+      description:
+        "붙임 목록 — 서류 하나당 한 항목으로 나눈다 (예: '견적서 2부.', '사업자등록증 사본 1부.'). 여러 서류를 '및'으로 묶지 않는다. 견적서는 반드시 별도 항목으로 — 실제 첨부 파일이 붙으면 그 항목만 업체명으로 대체된다",
     },
     legalNotices: {
       type: "array",
