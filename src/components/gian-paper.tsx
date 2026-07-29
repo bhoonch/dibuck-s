@@ -46,6 +46,7 @@ export function GianPaper({
   office,
   docType,
   createdAt,
+  waiver,
   id = "a4-sheet",
 }: {
   draft: GianDraft;
@@ -54,6 +55,8 @@ export function GianPaper({
   office?: string; // "행복아파트 관리사무소"
   docType?: DocType;
   createdAt?: Date;
+  /** 견적서 미첨부 사유 한 줄 — 종이만 보는 감사에 대응한다 */
+  waiver?: string | null;
   id?: string;
 }) {
   const boxes = steps.length > 0 ? steps : EMPTY_STEPS;
@@ -140,6 +143,16 @@ export function GianPaper({
       {draft.sections.map((sec, i) => (
         <Section key={i} index={i + 2} heading={sec.heading} lines={sec.lines} />
       ))}
+
+      {/*
+        미첨부 사유는 붙임 **위**에 — 붙임 마지막 항목이 ".　　끝."으로 문서를 닫으므로
+        그 뒤에 무엇을 적으면 공문서 형식이 깨진다.
+      */}
+      {waiver && (
+        <p className="mt-[8mm] text-[10.5pt] text-[var(--gian-stamp)]">
+          {waiver}
+        </p>
+      )}
 
       {/* 붙임 — 번호 시작 위치를 라벨 오른쪽에 맞춰 정렬(한 줄이 길어져도 유지) */}
       <div className="mt-[8mm]">

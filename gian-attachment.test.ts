@@ -3,7 +3,7 @@
  * 이 판정이 상신 차단의 기준이다: 수의계약은 업체마다, 입찰은 문서에 1장.
  */
 import assert from "node:assert/strict";
-import { quoteFileGap } from "./src/lib/gian/attachments";
+import { quoteFileGap, waiverNoteOf } from "./src/lib/gian/attachments";
 
 const q = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ vendor: `업체${i + 1}` }));
@@ -32,5 +32,18 @@ assert.ok(quoteFileGap("direct", q(2), f(0))!.includes("업체2"));
 assert.notEqual(quoteFileGap("bid", [], []), null);
 assert.equal(quoteFileGap("bid", [], f(null)), null);
 assert.equal(quoteFileGap("bid", q(2), f(0)), null); // 업체 줄 첨부도 증빙이다
+
+// ── 미첨부 사유 한 줄 ──
+const w = { reason: "긴급 누수", byName: "김소장", at: "2026-07-29" };
+// 사유가 없으면 줄도 없다
+assert.equal(waiverNoteOf("direct", q(2), f(0), null), null);
+// 증빙이 부족한 채 사유가 있으면 찍힌다
+const note = waiverNoteOf("direct", q(2), f(0), w);
+assert.ok(note?.startsWith("※ 견적서 미첨부"));
+assert.ok(note!.includes("긴급 누수") && note!.includes("김소장"));
+// 반려 후 파일을 채우면 낡은 사유는 찍지 않는다 (지우지 않고 판정에서 뺀다)
+assert.equal(waiverNoteOf("direct", q(2), f(0, 1), w), null);
+// 예산 없는 문서는 애초에 강제하지 않으므로 사유가 남아 있어도 안 찍는다
+assert.equal(waiverNoteOf("none", [], [], w), null);
 
 console.log("✓ 견적서 첨부 판정 통과");

@@ -7,6 +7,8 @@ import {
   type ExternalRole,
 } from "@/lib/gian/rules";
 import { GianPaper, type PaperStep } from "@/components/gian-paper";
+import { waiverNoteOf, type QuoteWaiver } from "@/lib/gian/attachments";
+import type { ContractContext } from "@/lib/gian/rules";
 import { SignForm } from "./sign-form";
 
 /**
@@ -42,7 +44,12 @@ export default async function ApproveByTokenPage({
     );
 
   const doc = step!.document;
-  const meta = doc.meta as { draft: GianDraft; cls?: { docType: DocType } } | null;
+  const meta = doc.meta as {
+    draft: GianDraft;
+    cls?: { docType: DocType; context: ContractContext };
+    quotes?: { vendor: string }[];
+    quoteWaiver?: QuoteWaiver;
+  } | null;
   if (!meta?.draft)
     return shell(
       <div className="rounded-lg border bg-card p-6 text-center text-sm text-muted-foreground">
@@ -55,6 +62,24 @@ export default async function ApproveByTokenPage({
     where: { id: doc.tenantId },
     select: { name: true },
   });
+
+  /*
+   * 견적서 미첨부 사유는 외부 결재자(회장·감사)에게 특히 중요하다 —
+   * 증빙 없이 승인 서명을 하는 당사자가 그 사실을 모르면 안 된다.
+   * 파일 본문(data)은 select하지 않는다: 판정에 필요한 건 어느 업체에 붙었는지뿐.
+   */
+  const attachmentFiles = await db.documentAttachment.findMany({
+    where: { documentId: doc.id },
+    select: { quoteIndex: true },
+  });
+  const waiverNote = meta.cls
+    ? waiverNoteOf(
+        meta.cls.context,
+        meta.quotes ?? [],
+        attachmentFiles,
+        meta.quoteWaiver,
+      )
+    : null;
 
   const paperSteps: PaperStep[] = doc.approvalSteps.map((s) => ({
     order: s.order,
@@ -75,6 +100,12 @@ export default async function ApproveByTokenPage({
           : "결재자"}
         ) 결재 요청
       </p>
+      {/* 증빙 없이 올라온 문서 — 서명 버튼보다 위에 둔다 */}
+      {waiverNote && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {waiverNote}
+        </div>
+      )}
       {state === "done" ? (
         <div className="rounded-lg border bg-card p-4 text-center text-sm font-medium">
           이미 처리된 결재입니다.
@@ -90,6 +121,7 @@ export default async function ApproveByTokenPage({
           office={`${tenant?.name ?? ""} 관리사무소`}
           docType={meta.cls?.docType}
           createdAt={doc.createdAt}
+          waiver={waiverNote}
           id="sign-sheet"
         />
       </div>

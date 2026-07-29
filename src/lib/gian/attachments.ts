@@ -34,3 +34,23 @@ export function quoteFileGap(
     ? `${missing.join("·")}의 견적서가 첨부되지 않았습니다`
     : null;
 }
+
+export type QuoteWaiver = { reason: string; byName: string; at: string };
+
+/**
+ * 화면·인쇄물에 찍는 미첨부 사유 한 줄. 증빙이 채워졌으면 null.
+ * 문서 화면과 외부 결재자 서명 페이지가 같은 문장을 쓰도록 여기서만 만든다 —
+ * 각자 포맷하면 두 화면의 결재자가 다른 것을 보게 된다.
+ */
+export function waiverNoteOf(
+  context: ContractContext,
+  quotes: { vendor: string }[],
+  files: { quoteIndex: number | null }[],
+  waiver?: QuoteWaiver | null,
+): string | null {
+  if (!waiver) return null;
+  // 반려 후 파일을 채우면 사유는 낡은 값이 된다 — 지우지 않고 판정에서 뺀다
+  return quoteFileGap(context, quotes, files)
+    ? `※ 견적서 미첨부 — 사유: ${waiver.reason} (${waiver.at} ${waiver.byName})`
+    : null;
+}

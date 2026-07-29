@@ -29,7 +29,7 @@ import {
   isConcreteSchedule,
   type NoticeDoc,
 } from "@/lib/gian/notice";
-import { quoteFileGap } from "@/lib/gian/attachments";
+import { waiverNoteOf } from "@/lib/gian/attachments";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { AttachmentChecklist } from "./attachment-checklist";
@@ -223,14 +223,9 @@ export default async function GianDocumentPage({
     orderBy: { createdAt: "asc" },
   });
   const quotes = meta.quotes ?? [];
-  const gap = meta.cls
-    ? quoteFileGap(meta.cls.context, quotes, attachmentFiles)
+  const waiverNote = meta.cls
+    ? waiverNoteOf(meta.cls.context, quotes, attachmentFiles, meta.quoteWaiver)
     : null;
-  // 파일이 채워지면 waiver는 안 쓴다 — 부족한 채 상신했을 때만 사유가 문서에 남는다
-  const waiverNote =
-    gap && meta.quoteWaiver
-      ? `※ 견적서 미첨부 — 사유: ${meta.quoteWaiver.reason} (${meta.quoteWaiver.at} ${meta.quoteWaiver.byName})`
-      : null;
 
   const docType = meta.cls?.docType;
   const docTypeLabel =
@@ -319,6 +314,7 @@ export default async function GianDocumentPage({
                 office={`${tenant.name} 관리사무소`}
                 docType={docType}
                 createdAt={doc.createdAt}
+                waiver={waiverNote}
               />
             </PaperScale>
 
