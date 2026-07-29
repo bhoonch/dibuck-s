@@ -13,6 +13,7 @@ import {
 import { parseWon } from "@/lib/won";
 import { kstDayEnd, kstDayStart, normalizeEmail, ymdKst } from "@/lib/utils";
 import { logAdmin } from "@/lib/admin-log";
+import { roleLabels } from "@/lib/labels";
 import { notifyTenant } from "@/lib/notifications";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
 import { Role, TenantStatus } from "@/generated/prisma/enums";
@@ -56,16 +57,20 @@ export async function setModuleTrial(formData: FormData) {
     trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + days);
   }
+  // 변경 전 값을 로그에 남긴다 — 잘못 바꿨을 때 되돌릴 근거가 로그뿐이다
+  const prev = await db.tenantModule.findUnique({
+    where: { tenantId_moduleId: { tenantId, moduleId } },
+    select: { trialEndsAt: true },
+  });
   await db.tenantModule.upsert({
     where: { tenantId_moduleId: { tenantId, moduleId } },
     update: { status: "ACTIVE", trialEndsAt },
     create: { tenantId, moduleId, trialEndsAt },
   });
+  const label = (d: Date | null) => (d ? `체험 ~${ymdKst(d)}` : "유료");
   await logAdmin("module_trial", {
     tenantId,
-    detail: trialEndsAt
-      ? `${moduleId} 체험 ~${ymdKst(trialEndsAt)}`
-      : `${moduleId} 유료 전환`,
+    detail: `${moduleId} ${prev ? label(prev.trialEndsAt) : "신규"} → ${label(trialEndsAt)}`,
   });
   revalidatePath(`/admin/tenants/${tenantId}`);
   revalidatePath("/admin/revenue");
@@ -133,7 +138,10 @@ export async function adminAddStaff(
   await db.user.create({
     data: { tenantId, email, name, title, role, passwordHash: hashSync(password, 10) },
   });
-  await logAdmin("staff_add", { tenantId, detail: `${name} (${email})` });
+  await logAdmin("staff_add", {
+    tenantId,
+    detail: `${name} (${email}) · ${roleLabels[role]} 권한`,
+  });
   revalidatePath(`/admin/tenants/${tenantId}`);
   return { tempPassword: password, email, name };
 }
