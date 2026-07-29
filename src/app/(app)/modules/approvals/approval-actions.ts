@@ -241,6 +241,11 @@ export async function voidGian(docId: string): Promise<ActionState> {
       where: { documentId: docId, status: "pending" },
       data: { status: "waiting" },
     }),
+    // 폐기 문서의 파일 본문 회수 — 이름·해시(row)는 결재 기록으로 남긴다
+    db.documentAttachment.updateMany({
+      where: { documentId: docId },
+      data: { data: null },
+    }),
     db.document.update({ where: { id: docId }, data: { status: "void" } }),
   ]);
   revalidatePath(`/modules/approvals/${docId}`);
