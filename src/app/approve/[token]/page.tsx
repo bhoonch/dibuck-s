@@ -34,7 +34,8 @@ export default async function ApproveByTokenPage({
   const state = tokenState(step, step?.document.status);
 
   const shell = (children: React.ReactNode) => (
-    <main className="mx-auto min-h-screen max-w-3xl space-y-4 p-4">
+    // PC에서는 용지+판단 2단이 서도록 넓힌다 (794 + 340 + gap) — 오류 화면은 내용이 좁아 영향 없다
+    <main className="mx-auto min-h-screen max-w-3xl space-y-4 p-4 lg:max-w-[1180px]">
       <p className="text-lg font-bold tracking-tight text-primary">디벅</p>
       {children}
     </main>
@@ -107,71 +108,83 @@ export default async function ApproveByTokenPage({
           : "결재자"}
         ) 결재 요청
       </p>
-      {/* 증빙 없이 올라온 문서 — 서명 버튼보다 위에 둔다 */}
-      {waiverNote && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {waiverNote}
-        </div>
-      )}
-      {state === "done" ? (
-        <div className="rounded-lg border bg-card p-4 text-center text-sm font-medium">
-          이미 처리된 결재입니다.
-        </div>
-      ) : (
-        <SignForm token={token} signerName={step!.name} />
-      )}
 
       {/*
-        견적서 — 결재자가 판단 근거를 봐야 결재가 형식이 되지 않는다.
-        세션이 없으므로 링크에 토큰을 실어 보낸다(라우트가 이 문서의 토큰인지 확인).
+        모바일(카톡 링크가 주 입구)은 사유→서명→첨부→용지 세로 그대로.
+        PC에서는 용지를 왼쪽에 세우고 판단·서명을 오른쪽에 붙인다 —
+        한 줄로 길게 내리면 기안서를 한눈에 볼 수 없다. 문서 화면과 같은 문법.
       */}
-      {attachmentFiles.length > 0 && (
-        <div className="rounded-lg border bg-card p-4">
-          <h2 className="mb-2 text-sm font-bold">첨부파일</h2>
-          <ul className="space-y-1.5">
-            {attachmentFiles.map((f) => (
-              <li key={f.id} className="flex items-center gap-1.5 text-sm">
-                <FileText className="size-4 shrink-0 text-muted-foreground" />
-                <a
-                  href={`/api/attachments/${f.id}?token=${token}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="truncate underline underline-offset-2"
-                >
-                  {f.quoteIndex !== null && meta.quotes?.[f.quoteIndex]
-                    ? `${meta.quotes[f.quoteIndex].vendor} — ${f.name}`
-                    : f.name}
-                </a>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                  {Math.max(1, Math.round(f.size / 1024))}KB
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="lg:grid lg:grid-cols-[minmax(0,794px)_340px] lg:items-start lg:gap-6">
+        <aside className="space-y-4 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1">
+          {/* 증빙 없이 올라온 문서 — 서명 버튼보다 위에 둔다 */}
+          {waiverNote && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {waiverNote}
+            </div>
+          )}
+          {state === "done" ? (
+            <div className="rounded-lg border bg-card p-4 text-center text-sm font-medium">
+              이미 처리된 결재입니다.
+            </div>
+          ) : (
+            <SignForm token={token} signerName={step!.name} />
+          )}
 
-      {/* 용지는 210mm 고정이라 좁은 화면(모바일)에서 칸을 뚫고 나간다 — 문서 화면과 같은 부품으로 줄인다 */}
-      <PaperScale>
-        <GianPaper
-          // 문서 화면과 같은 규칙 — 회장이 보는 붙임도 실제 첨부가 사실이다
-          draft={{
-            ...meta.draft,
-            attachments: attachmentLines(
-              meta.quotes ?? [],
-              attachmentFiles,
-              meta.draft.attachments,
-            ),
-          }}
-          steps={paperSteps}
-          docNo={doc.docNo}
-          office={`${tenant?.name ?? ""} 관리사무소`}
-          docType={meta.cls?.docType}
-          createdAt={doc.createdAt}
-          waiver={waiverNote}
-          id="sign-sheet"
-        />
-      </PaperScale>
+          {/*
+            견적서 — 결재자가 판단 근거를 봐야 결재가 형식이 되지 않는다.
+            세션이 없으므로 링크에 토큰을 실어 보낸다(라우트가 이 문서의 토큰인지 확인).
+          */}
+          {attachmentFiles.length > 0 && (
+            <div className="rounded-lg border bg-card p-4">
+              <h2 className="mb-2 text-sm font-bold">첨부파일</h2>
+              <ul className="space-y-1.5">
+                {attachmentFiles.map((f) => (
+                  <li key={f.id} className="flex items-center gap-1.5 text-sm">
+                    <FileText className="size-4 shrink-0 text-muted-foreground" />
+                    <a
+                      href={`/api/attachments/${f.id}?token=${token}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate underline underline-offset-2"
+                    >
+                      {f.quoteIndex !== null && meta.quotes?.[f.quoteIndex]
+                        ? `${meta.quotes[f.quoteIndex].vendor} — ${f.name}`
+                        : f.name}
+                    </a>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {Math.max(1, Math.round(f.size / 1024))}KB
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </aside>
+
+        {/* 용지는 210mm 고정이라 좁은 칸에서는 PaperScale이 배율로 줄인다 */}
+        <div className="mt-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:mt-0">
+          <PaperScale>
+            <GianPaper
+              // 문서 화면과 같은 규칙 — 회장이 보는 붙임도 실제 첨부가 사실이다
+              draft={{
+                ...meta.draft,
+                attachments: attachmentLines(
+                  meta.quotes ?? [],
+                  attachmentFiles,
+                  meta.draft.attachments,
+                ),
+              }}
+              steps={paperSteps}
+              docNo={doc.docNo}
+              office={`${tenant?.name ?? ""} 관리사무소`}
+              docType={meta.cls?.docType}
+              createdAt={doc.createdAt}
+              waiver={waiverNote}
+              id="sign-sheet"
+            />
+          </PaperScale>
+        </div>
+      </div>
     </>,
   );
 }
