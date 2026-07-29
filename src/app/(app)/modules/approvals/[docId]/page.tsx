@@ -27,11 +27,20 @@ import { NoticePaper } from "@/components/notice-paper";
 import {
   findNoticeFor,
   isConcreteSchedule,
+  splitPlaces,
+  DEFAULT_POST_TO,
+  NOTICE_PLACES,
   type NoticeDoc,
 } from "@/lib/gian/notice";
+import {
+  attachmentLines,
+  quoteFileGap,
+  waiverNoteOf,
+} from "@/lib/gian/attachments";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
-import { AttachmentChecklist } from "./attachment-checklist";
+import { QuoteFiles } from "./quote-files";
+import { NoticePosting } from "./notice-posting";
 import { NoticeSchedule } from "./notice-schedule";
 import { PrintButton } from "./print-button";
 
@@ -40,8 +49,9 @@ type Meta = {
   notice?: NoticeDoc;
   sourceDocId?: string;
   draft: GianDraft;
-  /** 첨부 체크리스트에서 확인 표시한 항목 번호 */
-  attachmentsChecked?: number[];
+  quotes?: { vendor: string; amount: number }[];
+  /** 견적서 없이 상신한 긴급 예외 — 사유는 결재 패널과 인쇄물 양쪽에 남는다 */
+  quoteWaiver?: { reason: string; byName: string; at: string };
   cls?: Classification;
   plannedSteps: {
     order: number;
@@ -96,7 +106,13 @@ export default async function GianDocumentPage({
   if (meta?.notice) {
     const tenant = await db.tenant.findUniqueOrThrow({
       where: { id: doc.tenantId },
-      select: { name: true, phone: true, fax: true, sealImage: true },
+      select: {
+        name: true,
+        phone: true,
+        fax: true,
+        sealImage: true,
+        logoImage: true,
+      },
     });
     const tel = [
       tenant.phone && `TEL : ${tenant.phone}`,
@@ -139,6 +155,15 @@ export default async function GianDocumentPage({
               label={meta.notice.rows[0]?.k ?? "일자"}
             />
           )}
+          {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
+          <NoticePosting
+            docId={doc.id}
+            place={meta.notice.place}
+            postTo={meta.notice.postTo}
+            options={NOTICE_PLACES}
+            defaultPostTo={DEFAULT_POST_TO}
+            {...splitPlaces(meta.notice.place)}
+          />
           <PaperScale>
             <NoticePaper
               notice={meta.notice}
@@ -146,6 +171,7 @@ export default async function GianDocumentPage({
               office={`${tenant.name} 관리사무소`}
               tel={tel}
               sealImage={tenant.sealImage}
+              logoImage={tenant.logoImage}
             />
           </PaperScale>
           {!tenant.phone && (
@@ -204,12 +230,28 @@ export default async function GianDocumentPage({
     isExternal: !s.userId,
     token: s.token,
     tokenExpired: !s.tokenExpiresAt || s.tokenExpiresAt <= now,
+    signature: s.signature as PanelStep["signature"],
   }));
   const canSubmit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
   // 반려도 수정 가능하다 — saveGianDraft·edit 페이지가 draft·rejected 둘 다 받는다.
   // 예전엔 화면 버튼만 draft 조건이라 반려당한 사람이 고칠 길이 안 보였다.
   const canEdit = doc.status === "draft" || doc.status === "rejected";
+
+  // 첨부 파일 — data(Bytes)는 절대 select하지 않는다 (목록 쿼리에 파일이 딸려온다)
+  const attachmentFiles = await db.documentAttachment.findMany({
+    where: { documentId: doc.id },
+    select: { id: true, name: true, size: true, quoteIndex: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const quotes = meta.quotes ?? [];
+  // 지금 부족한 증빙 — 패널이 이걸 보고 사유칸을 열고 닫는다(클라이언트에 상태를 남기지 않는다)
+  const evidenceGap = meta.cls
+    ? quoteFileGap(meta.cls.context, quotes, attachmentFiles)
+    : null;
+  const waiverNote = meta.cls
+    ? waiverNoteOf(meta.cls.context, quotes, attachmentFiles, meta.quoteWaiver)
+    : null;
 
   const docType = meta.cls?.docType;
   const docTypeLabel =
@@ -234,7 +276,7 @@ export default async function GianDocumentPage({
         용지와 패널이 같은 높이에서 출발하게 했다(패널에 mt를 주면 머리줄 버튼이
         두 줄로 접히는 순간 어긋난다).
       */}
-      <div className="mx-auto max-w-[794px] xl:max-w-[1108px]">
+      <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
         {/* 목록은 이 문서에 하는 일이 아니라 뒤로 가기다 — 액션 버튼 무리에서 뺀다 */}
         <Link
           href="/modules/approvals"
@@ -253,7 +295,7 @@ export default async function GianDocumentPage({
           머리줄도 아래 격자와 같은 두 칸 — 그래야 인쇄 버튼의 왼쪽 시작선이
           결재선 카드의 왼쪽 시작선과 같아진다(간격도 아래 격자와 같은 gap-6).
         */}
-        <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_288px]">
+        <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_320px]">
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
               {docTypeLabel}
@@ -274,6 +316,18 @@ export default async function GianDocumentPage({
                   : "결재가 시작되어 내용을 수정할 수 없습니다"}
               </span>
             )}
+            {/* 용지 우측 끝단과 같은 선 — 인쇄 버튼 줄(오른쪽 칸)과는 다른 칸이다 */}
+            {canEdit && (
+              <Button
+                asChild
+                variant="outline"
+                className="ml-auto print:hidden"
+              >
+                <Link href={`/modules/approvals/${doc.id}/edit`}>
+                  내용 수정
+                </Link>
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <PrintButton />
@@ -288,16 +342,21 @@ export default async function GianDocumentPage({
           안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
           패널을 문서 위로 올린다.
         */}
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_288px]">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
           <div className="min-w-0">
             <PaperScale>
               <GianPaper
-                draft={draft}
+                // 붙임은 실제 첨부파일만이 사실이다 — 렌더 시점 대체라 옛 문서에도 적용된다
+                draft={{
+                  ...draft,
+                  attachments: attachmentLines(quotes, attachmentFiles),
+                }}
                 steps={paperSteps}
                 docNo={doc.docNo}
                 office={`${tenant.name} 관리사무소`}
                 docType={docType}
                 createdAt={doc.createdAt}
+                waiver={waiverNote}
               />
             </PaperScale>
 
@@ -333,16 +392,18 @@ export default async function GianDocumentPage({
               docStatus={doc.status}
               canSubmit={canSubmit}
               steps={panelSteps}
+              waiverNote={waiverNote}
+              evidenceGap={evidenceGap}
             />
 
-            {draft.attachments.length > 0 && (
-              <AttachmentChecklist
-                docId={doc.id}
-                items={draft.attachments}
-                checked={meta.attachmentsChecked ?? []}
-                editable={canEdit}
-              />
-            )}
+            {/* 예산 없는 기안도 그 밖의 서류(점검표 등)를 올린다 — 붙임은 이 카드가 원천이다 */}
+            <QuoteFiles
+              docId={doc.id}
+              vendors={quotes.map((q) => q.vendor)}
+              files={attachmentFiles}
+              editable={canEdit}
+              suggested={draft.attachments}
+            />
 
             {draft.legalNotices.length > 0 && (
               <div

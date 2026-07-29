@@ -37,7 +37,7 @@ export default async function NewGianPage() {
   // 제목·단계표시·폼·판정을 문서 화면과 같은 기둥에 세운다 — 794(A4) + 288(패널).
   // 예전엔 여기만 620px 가운데 정렬이라 초안 확인에서 돌아올 때 화면이 옆으로 튀었다.
   return (
-    <div className="mx-auto max-w-[794px] xl:max-w-[1108px]">
+    <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
       <Link
         href="/modules/approvals"
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"

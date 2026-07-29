@@ -41,7 +41,7 @@ export default async function EditGianPage({
     // 기둥은 다른 기안·품의 화면과 같다 — A4 폭(794)에서 시작해야 오갈 때 안 튄다
     <form
       action={saveGianDraft}
-      className="mx-auto max-w-[794px] xl:max-w-[1108px]"
+      className="mx-auto max-w-[794px] xl:max-w-[1138px]"
     >
       <input type="hidden" name="docId" value={doc.id} />
       <Link
@@ -115,21 +115,11 @@ export default async function EditGianPage({
           </div>
         ))}
 
-        <div>
-          <label htmlFor="attachments" className={fieldLabel}>
-            붙임
-            <span className="text-xs font-normal text-[var(--gian-ink-soft)]">
-              한 줄에 하나, 비우면 &quot;끝.&quot;만 인쇄
-            </span>
-          </label>
-          <textarea
-            id="attachments"
-            name="attachments"
-            rows={2}
-            className={`${fieldInput} resize-y`}
-            defaultValue={draft.attachments.join("\n")}
-          />
-        </div>
+        {/* 붙임은 여기서 안 고친다 — 실제 첨부파일이 곧 붙임 목록이다 (문서 화면의 첨부파일 카드) */}
+        <p className="text-xs text-[var(--gian-ink-soft)]">
+          붙임 목록은 문서 화면의 &lsquo;첨부파일&rsquo;에 올린 파일로 자동
+          작성됩니다.
+        </p>
 
         <div className="flex justify-end gap-2 border-t border-[var(--gian-line)] pt-4">
           <Button asChild variant="outline">

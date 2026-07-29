@@ -161,10 +161,14 @@ export async function submitDocument(docId: string, actorUserId: string) {
  * 승인/반려 공통 처리. 호출 전에 권한(내부: userId 일치, 외부: 토큰 검증)이 끝나 있어야 한다.
  * 조건부 updateMany가 이중 제출을 막는다 — 링크를 두 번 눌러도 한 번만 처리된다.
  */
+export type SignEvidence = { ip: string; ua: string; typedName: string };
+
 export async function actOnStep(
   stepId: string,
   action: "approve" | "reject",
   comment: string,
+  /** 외부(토큰) 서명일 때만 — 내부 결재는 세션이 곧 증적이라 없다 */
+  signature?: SignEvidence,
 ): Promise<{ error?: string; done?: boolean }> {
   const step = await db.approvalStep.findUnique({
     where: { id: stepId },
@@ -179,6 +183,7 @@ export async function actOnStep(
       status: action === "approve" ? "approved" : "rejected",
       comment: comment.trim() || null,
       actedAt: new Date(),
+      ...(signature ? { signature } : {}),
     },
   });
   if (updated.count === 0)

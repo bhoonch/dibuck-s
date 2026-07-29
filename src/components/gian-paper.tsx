@@ -46,6 +46,7 @@ export function GianPaper({
   office,
   docType,
   createdAt,
+  waiver,
   id = "a4-sheet",
 }: {
   draft: GianDraft;
@@ -54,6 +55,8 @@ export function GianPaper({
   office?: string; // "행복아파트 관리사무소"
   docType?: DocType;
   createdAt?: Date;
+  /** 견적서 미첨부 사유 한 줄 — 종이만 보는 감사에 대응한다 */
+  waiver?: string | null;
   id?: string;
 }) {
   const boxes = steps.length > 0 ? steps : EMPTY_STEPS;
@@ -61,7 +64,9 @@ export function GianPaper({
   return (
     <article
       id={id}
-      className="w-full max-w-[210mm] shrink-0 bg-[var(--gian-card)] px-[16mm] py-[14mm] text-[11.5pt] leading-[1.6] whitespace-pre-wrap text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:border-0 print:p-0 print:shadow-none"
+      // min-h 297mm: 내용이 짧아도 종이는 A4 한 장 (인쇄는 @page 담당이라 강제하지 않는다).
+      // flex-col + 스페이서로 맺음말·명의 두 줄을 용지 맨 아래에 앉힌다 — notice-paper와 같은 방식
+      className="flex w-full max-w-[210mm] shrink-0 flex-col bg-[var(--gian-card)] px-[16mm] py-[14mm] text-[11.5pt] leading-[1.6] whitespace-pre-wrap text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
     >
       {/* 문서 머리 — 좌: 문서번호·시행일자·수신 / 우: 결재란 */}
       <div className="flex items-start justify-between gap-4">
@@ -76,11 +81,15 @@ export function GianPaper({
         </div>
 
         <table className="border-collapse">
-          <caption className="pr-1.5 text-[8pt] tracking-[.3em] text-[var(--gian-ink-soft)] [caption-side:left] [writing-mode:vertical-rl]">
-            결재
-          </caption>
           <tbody>
             <tr>
+              {/* S-APT 원문의 결/재 세로 칸 — 표 밖 글자가 아니라 결재란의 첫 칸이다 */}
+              <th
+                rowSpan={2}
+                className="w-[7mm] border border-[var(--gian-doc-line)] bg-[var(--gian-paper)] px-1.5 text-center text-[8.5pt] leading-[1.5] font-semibold"
+              >
+                결<br />재
+              </th>
               {boxes.map((s) => (
                 <th
                   key={s.order}
@@ -141,6 +150,16 @@ export function GianPaper({
         <Section key={i} index={i + 2} heading={sec.heading} lines={sec.lines} />
       ))}
 
+      {/*
+        미첨부 사유는 붙임 **위**에 — 붙임 마지막 항목이 ".　　끝."으로 문서를 닫으므로
+        그 뒤에 무엇을 적으면 공문서 형식이 깨진다.
+      */}
+      {waiver && (
+        <p className="mt-[8mm] text-[10.5pt] text-[var(--gian-stamp)]">
+          {waiver}
+        </p>
+      )}
+
       {/* 붙임 — 번호 시작 위치를 라벨 오른쪽에 맞춰 정렬(한 줄이 길어져도 유지) */}
       <div className="mt-[8mm]">
         {draft.attachments.length > 0 ? (
@@ -150,8 +169,10 @@ export function GianPaper({
               {draft.attachments.map((a, i) => (
                 <li key={i} className="-indent-5 pl-5">
                   {draft.attachments.length > 1 ? `${i + 1}. ` : ""}
-                  {a}
-                  {i === draft.attachments.length - 1 ? ".　　끝." : ""}
+                  {/* 마지막 항목은 제 마침표를 떼고 "끝."의 마침표를 쓴다 — "1부..  끝." 방지 */}
+                  {i === draft.attachments.length - 1
+                    ? `${a.replace(/\.+\s*$/, "")}.　　끝.`
+                    : a}
                 </li>
               ))}
             </ol>
@@ -161,6 +182,8 @@ export function GianPaper({
         )}
       </div>
 
+      {/* 맺음말·명의는 내용이 짧아도 용지 맨 아래 — 여백이 위가 아니라 가운데로 간다 */}
+      <div className="flex-1" />
       <div className="mt-[12mm] text-center text-[10pt] text-[var(--gian-ink-soft)]">
         {footText(docType)}
         <div className="mt-1 text-[13pt] font-extrabold tracking-[.4em] text-[var(--gian-ink)]">
@@ -217,6 +240,64 @@ function Section({
   // 표를 치면 개요·견적·일정이 전부 상자가 되어 한 장에 상자 서너 개가 쌓인다.
   // 격자로 폭만 맞춰도 콜론과 값이 한 줄에 서고, 종이는 개조식 그대로 남는다.
   const aligned = parsed.filter(Boolean).length >= 2;
+
+  /*
+   * 견적 비교 절만 예외로 괘선 표 — S-APT 서식 5 원문이 유일하게 표로 그리는 절이다
+   * (구분 | 업체A | 업체B, 견적금액 행). 업체가 열로 서야 금액 비교가 한눈에 된다.
+   * 제목에 "견적"이 없거나 라벨 줄이 2개 미만이면 아래 일반 렌더로 떨어진다.
+   */
+  const quoteEntries = /견적/.test(heading)
+    ? (parsed.filter(Boolean) as RegExpExecArray[])
+    : [];
+  if (quoteEntries.length >= 2) {
+    const cell = "border border-[var(--gian-doc-line)] px-2 py-[1.4mm]";
+    return (
+      <section className="mb-[6mm]">
+        <h3 className="mb-1 text-[12pt] font-extrabold">
+          {index}. {heading}
+        </h3>
+        <table className="ml-4 w-[calc(100%-1rem)] border-collapse text-center">
+          <thead>
+            <tr>
+              <th
+                className={`${cell} w-[26mm] bg-[var(--gian-paper)] font-bold tracking-[.3em]`}
+              >
+                구분
+              </th>
+              {quoteEntries.map((m, j) => (
+                <th key={j} className={`${cell} bg-[var(--gian-paper)] font-bold`}>
+                  {m[2].trim()}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th className={`${cell} bg-[var(--gian-paper)] font-bold`}>
+                견적금액
+              </th>
+              {quoteEntries.map((m, j) => (
+                <td
+                  key={j}
+                  className={`${cell} ${m[3].includes("선정") ? "font-bold" : ""}`}
+                >
+                  <Note text={m[3]} />
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        {/* 라벨 형태가 아닌 줄(※ 단서 등)은 표 아래 딸린 말로 */}
+        {lines
+          .filter((_, j) => !parsed[j])
+          .map((line, j) => (
+            <p key={j} className="pl-4 text-[10pt] text-[var(--gian-ink-soft)]">
+              {line.trim()}
+            </p>
+          ))}
+      </section>
+    );
+  }
 
   return (
     <section className="mb-[6mm]">

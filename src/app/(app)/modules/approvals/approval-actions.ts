@@ -1,14 +1,26 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ymdKst } from "@/lib/utils";
+import {
+  allowedMime,
+  quoteFileGap,
+  MAX_FILE_BYTES,
+  MAX_FILES_PER_DOC,
+  MAX_FILES_PER_QUOTE,
+} from "@/lib/gian/attachments";
+import type { Classification } from "@/lib/gian/rules";
 import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
 import type { GianDraft } from "@/lib/gian/claude";
 import {
   createNoticeFrom,
   findNoticeFor,
+  mergePlaces,
+  DEFAULT_POST_TO,
   type NoticeDoc,
 } from "@/lib/gian/notice";
 import { Role } from "@/generated/prisma/enums";
@@ -28,13 +40,57 @@ async function myDoc(docId: string) {
   return { session, doc };
 }
 
-export async function submitGian(docId: string): Promise<ActionState> {
+export async function submitGian(
+  docId: string,
+  waiverReason?: string,
+): Promise<{ error?: string; needWaiver?: boolean } | undefined> {
   const { session, doc } = await myDoc(docId);
   if (!doc) return { error: "문서를 찾을 수 없습니다." };
   // 상신은 작성자·마스터·매니저 — 남의 초안을 아무나 결재에 올리지 못하게 막되,
   // 지출 문서를 실제로 챙기는 매니저는 올릴 수 있어야 한다
   if (doc.createdById !== session.userId && !canSubmitOthers(session.role))
     return { error: "작성자·마스터·매니저만 상신할 수 있습니다." };
+
+  // 증빙 가드 — 결재 시스템의 증거는 체크박스가 아니라 실물 파일이다
+  const meta = doc.meta as {
+    cls?: Classification;
+    quotes?: { vendor: string; amount: number }[];
+    quoteWaiver?: { reason: string };
+  } | null;
+  if (meta?.cls) {
+    const files = await db.documentAttachment.findMany({
+      where: { documentId: doc.id },
+      select: { quoteIndex: true },
+    });
+    const gap = quoteFileGap(meta.cls.context, meta.quotes ?? [], files);
+    if (gap && !meta.quoteWaiver) {
+      const reason = waiverReason?.trim();
+      // 긴급 예외 — 막기만 하면 아무 파일이나 올려서 뚫는다.
+      // 사유를 받아 통과시키되 그 사유가 결재선과 인쇄물에 남는다.
+      if (!reason)
+        return {
+          error: `${gap}. 파일을 첨부하거나 긴급 사유를 적어 주세요.`,
+          needWaiver: true,
+        };
+      const user = await db.user.findUnique({
+        where: { id: session.userId },
+        select: { name: true },
+      });
+      await db.document.update({
+        where: { id: doc.id },
+        data: {
+          meta: {
+            ...(doc.meta as object),
+            quoteWaiver: {
+              reason,
+              byName: user?.name ?? "",
+              at: ymdKst(new Date()),
+            },
+          },
+        },
+      });
+    }
+  }
 
   const result = await submitDocument(docId, session.userId);
   revalidatePath(`/modules/approvals/${docId}`);
@@ -98,7 +154,8 @@ export async function saveGianDraft(formData: FormData) {
       heading: String(formData.get(`heading${i}`) ?? "").trim() || sec.heading,
       lines: lines(`lines${i}`),
     })),
-    attachments: lines("attachments"),
+    // 붙임은 폼에 없다 — 실제 첨부파일이 곧 붙임 목록이라 여기서 건드리지 않는다
+    attachments: meta.draft.attachments,
   };
 
   await db.document.update({
@@ -187,6 +244,11 @@ export async function voidGian(docId: string): Promise<ActionState> {
       where: { documentId: docId, status: "pending" },
       data: { status: "waiting" },
     }),
+    // 폐기 문서의 파일 본문 회수 — 이름·해시(row)는 결재 기록으로 남긴다
+    db.documentAttachment.updateMany({
+      where: { documentId: docId },
+      data: { data: null },
+    }),
     db.document.update({ where: { id: docId }, data: { status: "void" } }),
   ]);
   revalidatePath(`/modules/approvals/${docId}`);
@@ -230,20 +292,40 @@ export async function updateNoticeSchedule(
   return undefined;
 }
 
-/** 첨부 확인 체크 — 결재 전 문서만. 목록 자체(draft.attachments)는 건드리지 않는다 */
-export async function toggleGianAttachment(docId: string, checked: number[]) {
+/**
+ * 공고문 게시 설정 — 어디에 붙이고 언제까지 두는가.
+ * 결재받은 *내용*이 아니라 게시 실무라 결재 완료 후에도 고칠 수 있다
+ * (일자 수정과 달리 문서 본문이 바뀌지 않으므로 content도 손대지 않는다).
+ */
+export async function updateNoticePosting(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const docId = String(formData.get("docId") ?? "");
   const { doc } = await myDoc(docId);
-  if (!doc || (doc.status !== "draft" && doc.status !== "rejected")) return;
+  const meta = doc?.meta as { notice?: NoticeDoc } | null;
+  if (!doc || !meta?.notice) return { error: "공고문을 찾을 수 없습니다." };
+
+  const places = mergePlaces(
+    formData.getAll("places").map(String),
+    String(formData.get("customPlace") ?? ""),
+  );
+  if (places.length === 0)
+    return { error: "게시장소를 한 곳 이상 정해 주세요." };
+
+  const postTo = String(formData.get("postTo") ?? "").trim() || DEFAULT_POST_TO;
+
   await db.document.update({
     where: { id: doc.id },
     data: {
       meta: {
         ...(doc.meta as object),
-        attachmentsChecked: [...new Set(checked)].sort((a, b) => a - b),
+        notice: { ...meta.notice, place: places.join(", "), postTo },
       },
     },
   });
   revalidatePath(`/modules/approvals/${doc.id}`);
+  return undefined;
 }
 
 export async function reissueGianToken(stepId: string): Promise<ActionState> {
@@ -258,4 +340,89 @@ export async function reissueGianToken(stepId: string): Promise<ActionState> {
   const result = await reissueToken(stepId);
   revalidatePath(`/modules/approvals/${step.document.id}`);
   return "error" in result ? { error: result.error } : undefined;
+}
+
+/**
+ * 견적서 파일 첨부 — 결재 전 문서만. 브라우저가 이미지를 줄여 보내지만
+ * 여기가 신뢰 경계라 mime·크기·개수·소유권을 전부 다시 확인한다.
+ */
+export async function uploadQuoteFile(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const docId = String(formData.get("docId") ?? "");
+  const rawIdx = String(formData.get("quoteIndex") ?? "");
+  const quoteIndex = rawIdx === "" ? null : Number(rawIdx);
+  if (quoteIndex !== null && (!Number.isInteger(quoteIndex) || quoteIndex < 0))
+    return { error: "잘못된 요청입니다." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0)
+    return { error: "파일을 선택해 주세요." };
+  if (!allowedMime(file.type))
+    return { error: "이미지 또는 PDF만 첨부할 수 있습니다." };
+  if (file.size > MAX_FILE_BYTES)
+    return {
+      error:
+        "3MB 이하만 첨부할 수 있습니다. 종이 견적서는 사진으로 찍어 올리면 자동으로 줄어듭니다.",
+    };
+
+  const { doc } = await myDoc(docId);
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "draft" && doc.status !== "rejected")
+    return { error: "결재가 시작된 문서에는 첨부할 수 없습니다." };
+
+  const existing = await db.documentAttachment.findMany({
+    where: { documentId: doc.id },
+    select: { quoteIndex: true },
+  });
+  if (existing.length >= MAX_FILES_PER_DOC)
+    return { error: `문서당 ${MAX_FILES_PER_DOC}장까지 첨부할 수 있습니다.` };
+  if (
+    quoteIndex !== null &&
+    existing.filter((x) => x.quoteIndex === quoteIndex).length >=
+      MAX_FILES_PER_QUOTE
+  )
+    return { error: `업체당 ${MAX_FILES_PER_QUOTE}장까지 첨부할 수 있습니다.` };
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  await db.documentAttachment.create({
+    data: {
+      documentId: doc.id,
+      quoteIndex,
+      name: file.name,
+      mime: file.type,
+      size: buf.byteLength,
+      // 결재 당시 파일의 지문 — 나중에 "그때 그 파일인가"를 검증한다
+      sha256: crypto.createHash("sha256").update(buf).digest("hex"),
+      data: buf,
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
+  return undefined;
+}
+
+/** 첨부 삭제 — 결재 전 문서만 (상신 후 바꿔치기 방지는 업로드와 같은 가드) */
+export async function deleteQuoteFile(
+  attachmentId: string,
+): Promise<ActionState> {
+  const session = await requireSession();
+  const att = await db.documentAttachment.findUnique({
+    where: { id: attachmentId },
+    include: {
+      document: {
+        select: { id: true, tenantId: true, status: true, moduleId: true },
+      },
+    },
+  });
+  if (
+    !att ||
+    att.document.tenantId !== session.tenantId ||
+    att.document.moduleId !== "approvals"
+  )
+    return { error: "파일을 찾을 수 없습니다." };
+  if (att.document.status !== "draft" && att.document.status !== "rejected")
+    return { error: "결재가 시작된 문서의 첨부는 지울 수 없습니다." };
+  await db.documentAttachment.delete({ where: { id: attachmentId } });
+  revalidatePath(`/modules/approvals/${att.document.id}`);
+  return undefined;
 }

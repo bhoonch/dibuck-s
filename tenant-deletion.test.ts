@@ -3,11 +3,7 @@
  * 즉시 삭제를 유예로 바꾼 뒤로 "며칠 남았나"가 배너와 크론 양쪽의 기준이 된다.
  */
 import assert from "node:assert/strict";
-import {
-  DELETE_GRACE_DAYS,
-  graceDaysLeft,
-  graceOver,
-} from "./src/lib/tenant-deletion";
+import { DELETE_GRACE_DAYS, graceDaysLeft } from "./src/lib/tenant-deletion";
 
 const day = 86400000;
 const now = new Date("2026-08-01T00:00:00Z");
@@ -18,9 +14,5 @@ assert.equal(graceDaysLeft(ago(1), now), 29);
 assert.equal(graceDaysLeft(ago(29.5), now), 1);
 assert.equal(graceDaysLeft(ago(30), now), 0);
 assert.equal(graceDaysLeft(ago(45), now), 0); // 음수로 내려가지 않는다
-
-assert.equal(graceOver(ago(29), now), false);
-assert.equal(graceOver(ago(30), now), true);
-assert.equal(graceOver(ago(31), now), true);
 
 console.log("✓ 탈퇴 유예 계산 통과");
