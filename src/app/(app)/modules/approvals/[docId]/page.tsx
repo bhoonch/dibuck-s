@@ -312,6 +312,19 @@ export default async function GianDocumentPage({
                   : "결재가 시작되어 내용을 수정할 수 없습니다"}
               </span>
             )}
+            {/* 용지 우측 끝단과 같은 선 — 인쇄 버튼 줄(오른쪽 칸)과는 다른 칸이다 */}
+            {canEdit && (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="ml-auto print:hidden"
+              >
+                <Link href={`/modules/approvals/${doc.id}/edit`}>
+                  내용 수정
+                </Link>
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <PrintButton />
@@ -389,19 +402,26 @@ export default async function GianDocumentPage({
                 docId={doc.id}
                 vendors={quotes.map((q) => q.vendor)}
                 files={attachmentFiles}
-                showDocSlot={meta.cls.context === "bid"}
                 editable={canEdit}
               />
             )}
 
-            {draft.attachments.length > 0 && (
-              <AttachmentChecklist
-                docId={doc.id}
-                items={draft.attachments}
-                checked={meta.attachmentsChecked ?? []}
-                editable={canEdit}
-              />
-            )}
+            {/* 견적서 항목은 뺀다 — 실물 파일이 검증하므로 체크는 중복이고 혼란만 준다 */}
+            {(() => {
+              const items = draft.attachments
+                .map((label, idx) => ({ idx, label }))
+                .filter((x) => !x.label.includes("견적서"));
+              return (
+                items.length > 0 && (
+                  <AttachmentChecklist
+                    docId={doc.id}
+                    items={items}
+                    checked={meta.attachmentsChecked ?? []}
+                    editable={canEdit}
+                  />
+                )
+              );
+            })()}
 
             {draft.legalNotices.length > 0 && (
               <div

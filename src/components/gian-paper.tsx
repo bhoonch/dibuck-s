@@ -231,6 +231,64 @@ function Section({
   // 격자로 폭만 맞춰도 콜론과 값이 한 줄에 서고, 종이는 개조식 그대로 남는다.
   const aligned = parsed.filter(Boolean).length >= 2;
 
+  /*
+   * 견적 비교 절만 예외로 괘선 표 — S-APT 서식 5 원문이 유일하게 표로 그리는 절이다
+   * (구분 | 업체A | 업체B, 견적금액 행). 업체가 열로 서야 금액 비교가 한눈에 된다.
+   * 제목에 "견적"이 없거나 라벨 줄이 2개 미만이면 아래 일반 렌더로 떨어진다.
+   */
+  const quoteEntries = /견적/.test(heading)
+    ? (parsed.filter(Boolean) as RegExpExecArray[])
+    : [];
+  if (quoteEntries.length >= 2) {
+    const cell = "border border-[var(--gian-doc-line)] px-2 py-[1.4mm]";
+    return (
+      <section className="mb-[6mm]">
+        <h3 className="mb-1 text-[12pt] font-extrabold">
+          {index}. {heading}
+        </h3>
+        <table className="ml-4 w-[calc(100%-1rem)] border-collapse text-center">
+          <thead>
+            <tr>
+              <th
+                className={`${cell} w-[26mm] bg-[var(--gian-paper)] font-bold tracking-[.3em]`}
+              >
+                구분
+              </th>
+              {quoteEntries.map((m, j) => (
+                <th key={j} className={`${cell} bg-[var(--gian-paper)] font-bold`}>
+                  {m[2].trim()}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th className={`${cell} bg-[var(--gian-paper)] font-bold`}>
+                견적금액
+              </th>
+              {quoteEntries.map((m, j) => (
+                <td
+                  key={j}
+                  className={`${cell} ${m[3].includes("선정") ? "font-bold" : ""}`}
+                >
+                  <Note text={m[3]} />
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        {/* 라벨 형태가 아닌 줄(※ 단서 등)은 표 아래 딸린 말로 */}
+        {lines
+          .filter((_, j) => !parsed[j])
+          .map((line, j) => (
+            <p key={j} className="pl-4 text-[10pt] text-[var(--gian-ink-soft)]">
+              {line.trim()}
+            </p>
+          ))}
+      </section>
+    );
+  }
+
   return (
     <section className="mb-[6mm]">
       <h3 className="mb-1 text-[12pt] font-extrabold">

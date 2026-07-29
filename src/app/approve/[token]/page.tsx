@@ -127,7 +127,7 @@ export default async function ApproveByTokenPage({
       */}
       {attachmentFiles.length > 0 && (
         <div className="rounded-lg border bg-card p-4">
-          <h2 className="mb-2 text-sm font-bold">첨부 견적서·증빙</h2>
+          <h2 className="mb-2 text-sm font-bold">첨부파일</h2>
           <ul className="space-y-1.5">
             {attachmentFiles.map((f) => (
               <li key={f.id} className="flex items-center gap-1.5 text-sm">

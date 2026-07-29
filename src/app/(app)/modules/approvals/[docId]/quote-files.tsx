@@ -46,6 +46,8 @@ function Slot({
   files,
   editable,
   onError,
+  buttonLabel = "올리기",
+  emptyText = "견적서 사진·PDF를 올려 주세요",
 }: {
   docId: string;
   label: string;
@@ -53,6 +55,8 @@ function Slot({
   files: FileRow[];
   editable: boolean;
   onError: (msg?: string) => void;
+  buttonLabel?: string;
+  emptyText?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,14 +102,14 @@ function Slot({
               ) : (
                 <Paperclip className="size-3.5" />
               )}
-              올리기
+              {buttonLabel}
             </Button>
           </>
         )}
       </div>
       {files.length === 0 ? (
         <p className="mt-0.5 text-xs text-[var(--gian-ink-soft)]">
-          {editable ? "견적서 사진·PDF를 올려 주세요" : "첨부 없음"}
+          {editable ? emptyText : "첨부 없음"}
         </p>
       ) : (
         <ul className="mt-1 space-y-1">
@@ -147,46 +151,48 @@ function Slot({
   );
 }
 
-/** 견적서 첨부 패널 — 업체마다 한 슬롯, 입찰이면 문서 단위 슬롯 하나 */
+/**
+ * 첨부파일 패널 — 업체마다 견적서 슬롯 하나, 맨 아래는 그 밖의 서류
+ * (사업자등록증·시방서·산출근거 등) 자유 슬롯. 그 밖의 서류는 붙임 목록에
+ * 파일명으로 실린다(attachmentLines).
+ */
 export function QuoteFiles({
   docId,
   vendors,
   files,
-  showDocSlot,
   editable,
 }: {
   docId: string;
   vendors: string[];
   files: FileRow[];
-  showDocSlot: boolean;
   editable: boolean;
 }) {
   const [error, setError] = useState<string>();
   return (
     <div className={panel}>
-      <h4 className={panelTitle}>견적서 첨부</h4>
+      <h4 className={panelTitle}>첨부파일</h4>
       <ul className="space-y-2.5">
         {vendors.map((v, i) => (
           <Slot
             key={i}
             docId={docId}
-            label={v}
+            label={`견적서 · ${v}`}
             quoteIndex={i}
             files={files.filter((f) => f.quoteIndex === i)}
             editable={editable}
             onError={setError}
           />
         ))}
-        {showDocSlot && (
-          <Slot
-            docId={docId}
-            label="증빙 서류 (산출근거 등)"
-            quoteIndex={null}
-            files={files.filter((f) => f.quoteIndex === null)}
-            editable={editable}
-            onError={setError}
-          />
-        )}
+        <Slot
+          docId={docId}
+          label="그 밖의 서류"
+          quoteIndex={null}
+          files={files.filter((f) => f.quoteIndex === null)}
+          editable={editable}
+          onError={setError}
+          buttonLabel="추가"
+          emptyText="사업자등록증·시방서 등이 필요하면 여기에 올려 주세요"
+        />
       </ul>
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
