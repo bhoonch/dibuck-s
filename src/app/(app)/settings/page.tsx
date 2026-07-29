@@ -110,6 +110,48 @@ export default async function TenantSettingsPage() {
         <form action={updateTenantInfo}>
           {/* 입력칸마다 붙던 안내는 그 칸 밑 한 줄로 — 오른쪽 도움말 카드는 없앴다 */}
           <Card className="p-6">
+            {/* 저장된 값이 입력칸 안에만 있으면 placeholder와 구분이 안 된다 — 전결 규정과 같은 문법 */}
+            <div className="space-y-1.5 rounded-md border bg-muted/40 px-4 py-3 text-sm">
+              <p>
+                <b>{tenant.name}</b>
+                {tenant.households
+                  ? ` · ${tenant.households.toLocaleString()}세대`
+                  : " · 세대수 미등록"}
+                {tenant.buildingInfo ? ` · ${tenant.buildingInfo}` : ""}
+              </p>
+              <p className="text-muted-foreground">
+                {tenant.address ?? "주소 미등록"} · TEL {tenant.phone ?? "미등록"}{" "}
+                · FAX {tenant.fax ?? "미등록"}
+              </p>
+              <p className="flex items-center gap-4 text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  직인{" "}
+                  {tenant.sealImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+                    <img
+                      src={tenant.sealImage}
+                      alt="등록된 직인"
+                      className="size-8 rounded border bg-white object-contain"
+                    />
+                  ) : (
+                    "미등록"
+                  )}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  로고{" "}
+                  {tenant.logoImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+                    <img
+                      src={tenant.logoImage}
+                      alt="등록된 로고"
+                      className="size-8 rounded border bg-white object-contain"
+                    />
+                  ) : (
+                    "미등록"
+                  )}
+                </span>
+              </p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">단지명</Label>
