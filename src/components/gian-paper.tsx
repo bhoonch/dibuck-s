@@ -64,7 +64,8 @@ export function GianPaper({
   return (
     <article
       id={id}
-      className="w-full max-w-[210mm] shrink-0 bg-[var(--gian-card)] px-[16mm] py-[14mm] text-[11.5pt] leading-[1.6] whitespace-pre-wrap text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:border-0 print:p-0 print:shadow-none"
+      // min-h 297mm: 내용이 짧아도 종이는 A4 한 장이다 (인쇄는 @page가 맡으므로 강제하지 않는다)
+      className="w-full max-w-[210mm] shrink-0 bg-[var(--gian-card)] px-[16mm] py-[14mm] text-[11.5pt] leading-[1.6] whitespace-pre-wrap text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
     >
       {/* 문서 머리 — 좌: 문서번호·시행일자·수신 / 우: 결재란 */}
       <div className="flex items-start justify-between gap-4">
@@ -79,11 +80,15 @@ export function GianPaper({
         </div>
 
         <table className="border-collapse">
-          <caption className="pr-1.5 text-[8pt] tracking-[.3em] text-[var(--gian-ink-soft)] [caption-side:left] [writing-mode:vertical-rl]">
-            결재
-          </caption>
           <tbody>
             <tr>
+              {/* S-APT 원문의 결/재 세로 칸 — 표 밖 글자가 아니라 결재란의 첫 칸이다 */}
+              <th
+                rowSpan={2}
+                className="w-[7mm] border border-[var(--gian-doc-line)] bg-[var(--gian-paper)] px-1.5 text-center text-[8.5pt] leading-[1.5] font-semibold"
+              >
+                결<br />재
+              </th>
               {boxes.map((s) => (
                 <th
                   key={s.order}
