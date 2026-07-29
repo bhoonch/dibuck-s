@@ -1,9 +1,16 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import {
+  allowedMime,
+  MAX_FILE_BYTES,
+  MAX_FILES_PER_DOC,
+  MAX_FILES_PER_QUOTE,
+} from "@/lib/gian/attachments";
 import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
 import type { GianDraft } from "@/lib/gian/claude";
 import {
@@ -258,4 +265,89 @@ export async function reissueGianToken(stepId: string): Promise<ActionState> {
   const result = await reissueToken(stepId);
   revalidatePath(`/modules/approvals/${step.document.id}`);
   return "error" in result ? { error: result.error } : undefined;
+}
+
+/**
+ * 견적서 파일 첨부 — 결재 전 문서만. 브라우저가 이미지를 줄여 보내지만
+ * 여기가 신뢰 경계라 mime·크기·개수·소유권을 전부 다시 확인한다.
+ */
+export async function uploadQuoteFile(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const docId = String(formData.get("docId") ?? "");
+  const rawIdx = String(formData.get("quoteIndex") ?? "");
+  const quoteIndex = rawIdx === "" ? null : Number(rawIdx);
+  if (quoteIndex !== null && (!Number.isInteger(quoteIndex) || quoteIndex < 0))
+    return { error: "잘못된 요청입니다." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0)
+    return { error: "파일을 선택해 주세요." };
+  if (!allowedMime(file.type))
+    return { error: "이미지 또는 PDF만 첨부할 수 있습니다." };
+  if (file.size > MAX_FILE_BYTES)
+    return {
+      error:
+        "3MB 이하만 첨부할 수 있습니다. 종이 견적서는 사진으로 찍어 올리면 자동으로 줄어듭니다.",
+    };
+
+  const { doc } = await myDoc(docId);
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "draft" && doc.status !== "rejected")
+    return { error: "결재가 시작된 문서에는 첨부할 수 없습니다." };
+
+  const existing = await db.documentAttachment.findMany({
+    where: { documentId: doc.id },
+    select: { quoteIndex: true },
+  });
+  if (existing.length >= MAX_FILES_PER_DOC)
+    return { error: `문서당 ${MAX_FILES_PER_DOC}장까지 첨부할 수 있습니다.` };
+  if (
+    quoteIndex !== null &&
+    existing.filter((x) => x.quoteIndex === quoteIndex).length >=
+      MAX_FILES_PER_QUOTE
+  )
+    return { error: `업체당 ${MAX_FILES_PER_QUOTE}장까지 첨부할 수 있습니다.` };
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  await db.documentAttachment.create({
+    data: {
+      documentId: doc.id,
+      quoteIndex,
+      name: file.name,
+      mime: file.type,
+      size: buf.byteLength,
+      // 결재 당시 파일의 지문 — 나중에 "그때 그 파일인가"를 검증한다
+      sha256: crypto.createHash("sha256").update(buf).digest("hex"),
+      data: buf,
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
+  return undefined;
+}
+
+/** 첨부 삭제 — 결재 전 문서만 (상신 후 바꿔치기 방지는 업로드와 같은 가드) */
+export async function deleteQuoteFile(
+  attachmentId: string,
+): Promise<ActionState> {
+  const session = await requireSession();
+  const att = await db.documentAttachment.findUnique({
+    where: { id: attachmentId },
+    include: {
+      document: {
+        select: { id: true, tenantId: true, status: true, moduleId: true },
+      },
+    },
+  });
+  if (
+    !att ||
+    att.document.tenantId !== session.tenantId ||
+    att.document.moduleId !== "approvals"
+  )
+    return { error: "파일을 찾을 수 없습니다." };
+  if (att.document.status !== "draft" && att.document.status !== "rejected")
+    return { error: "결재가 시작된 문서의 첨부는 지울 수 없습니다." };
+  await db.documentAttachment.delete({ where: { id: attachmentId } });
+  revalidatePath(`/modules/approvals/${att.document.id}`);
+  return undefined;
 }
