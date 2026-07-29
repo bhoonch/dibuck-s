@@ -15,25 +15,27 @@ const STAFF_ROLES: Role[] = [Role.DIRECTOR, Role.ACCOUNTANT, Role.STAFF];
 /** 세대 엑셀 1회 업로드 상한 — 국내 최대 단지도 1만 세대를 넘지 않는다 */
 const MAX_UNIT_ROWS = 20000;
 
+/**
+ * 이미지 입력칸 → data URI. 파일 스토리지가 없어 DB에 저장한다(직인·로고, 수십 KB급).
+ * undefined = 변경 없음 / null = 삭제 체크박스
+ */
+async function imageField(formData: FormData, name: string, removeName: string) {
+  if (formData.get(removeName) === "on") return null;
+  const f = formData.get(name);
+  if (!(f instanceof File) || f.size === 0) return undefined;
+  if (!f.type.startsWith("image/"))
+    throw new Error("이미지 파일만 업로드할 수 있습니다.");
+  if (f.size > 1024 * 1024)
+    throw new Error("이미지는 1MB 이하로 업로드해 주세요.");
+  return `data:${f.type};base64,${Buffer.from(await f.arrayBuffer()).toString("base64")}`;
+}
+
 export async function updateTenantInfo(formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);
   const households = Number(formData.get("households"));
 
-  // 직인 이미지: 파일 스토리지가 없어 data URI로 DB에 저장 — 도장 이미지는 수십 KB면 충분
-  let sealImage: string | null | undefined = undefined; // undefined = 변경 없음
-  if (formData.get("removeSeal") === "on") sealImage = null;
-  else {
-    const seal = formData.get("sealImage");
-    if (seal instanceof File && seal.size > 0) {
-      if (!seal.type.startsWith("image/"))
-        throw new Error("직인은 이미지 파일만 업로드할 수 있습니다.");
-      if (seal.size > 1024 * 1024)
-        throw new Error("직인 이미지는 1MB 이하로 업로드해 주세요.");
-      sealImage = `data:${seal.type};base64,${Buffer.from(
-        await seal.arrayBuffer(),
-      ).toString("base64")}`;
-    }
-  }
+  const sealImage = await imageField(formData, "sealImage", "removeSeal");
+  const logoImage = await imageField(formData, "logoImage", "removeLogo");
 
   await db.tenant.update({
     where: { id: session.tenantId! },
@@ -45,6 +47,7 @@ export async function updateTenantInfo(formData: FormData) {
       buildingInfo: String(formData.get("buildingInfo") ?? "").trim() || null,
       households: Number.isFinite(households) && households > 0 ? households : null,
       sealImage,
+      logoImage,
     },
   });
   revalidatePath("/settings");

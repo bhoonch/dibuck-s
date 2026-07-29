@@ -223,6 +223,44 @@ export default async function TenantSettingsPage() {
                   </div>
                 </div>
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="logoImage">아파트 로고</Label>
+                <div className="flex items-start gap-4">
+                  {tenant.logoImage && (
+                    // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+                    <img
+                      src={tenant.logoImage}
+                      alt="등록된 로고"
+                      className="size-24 shrink-0 rounded border bg-white object-contain p-1"
+                    />
+                  )}
+                  <div className="flex-1 space-y-1.5">
+                    {isDirector ? (
+                      <>
+                        <FileUpload name="logoImage" accept="image/*" />
+                        <p className="text-xs text-muted-foreground">
+                          PNG 권장, 1MB 이하. 입주민 공고문 하단의 단지명 앞에
+                          표시됩니다. 등록하지 않으면 이름만 나갑니다.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        로고는 마스터만 등록할 수 있습니다.
+                      </p>
+                    )}
+                    {tenant.logoImage && isDirector && (
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          name="removeLogo"
+                          className="size-3.5"
+                        />
+                        등록된 로고 삭제
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">

@@ -11,6 +11,7 @@ export function NoticePaper({
   office,
   tel,
   sealImage,
+  logoImage,
   id = "a4-sheet",
 }: {
   notice: NoticeDoc;
@@ -18,6 +19,8 @@ export function NoticePaper({
   office: string;
   tel?: string;
   sealImage?: string | null;
+  /** 아파트 로고 — 하단 명의의 단지명 앞에 찍힌다 (설정 > 단지 정보) */
+  logoImage?: string | null;
   id?: string;
 }) {
   const th =
@@ -108,6 +111,14 @@ export function NoticePaper({
 
       <hr className="mb-[5mm] border-0 border-t-[3px] border-[#2456A6]" />
       <div className="flex items-center justify-center gap-[4mm]">
+        {logoImage && (
+          // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+          <img
+            src={logoImage}
+            alt="아파트 로고"
+            className="size-[12mm] shrink-0 object-contain"
+          />
+        )}
         <span className="text-[17pt] font-extrabold tracking-[.06em] whitespace-nowrap">
           {office}
           {!sealImage && (

@@ -109,7 +109,13 @@ export default async function GianDocumentPage({
   if (meta?.notice) {
     const tenant = await db.tenant.findUniqueOrThrow({
       where: { id: doc.tenantId },
-      select: { name: true, phone: true, fax: true, sealImage: true },
+      select: {
+        name: true,
+        phone: true,
+        fax: true,
+        sealImage: true,
+        logoImage: true,
+      },
     });
     const tel = [
       tenant.phone && `TEL : ${tenant.phone}`,
@@ -168,6 +174,7 @@ export default async function GianDocumentPage({
               office={`${tenant.name} 관리사무소`}
               tel={tel}
               sealImage={tenant.sealImage}
+              logoImage={tenant.logoImage}
             />
           </PaperScale>
           {!tenant.phone && (
