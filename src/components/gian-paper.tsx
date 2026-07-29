@@ -47,6 +47,7 @@ export function GianPaper({
   docType,
   createdAt,
   waiver,
+  foot,
   id = "a4-sheet",
 }: {
   draft: GianDraft;
@@ -57,6 +58,8 @@ export function GianPaper({
   createdAt?: Date;
   /** 견적서 미첨부 사유 한 줄 — 종이만 보는 감사에 대응한다 */
   waiver?: string | null;
+  /** 맺음말 직접 지정 — 완료보고·지출결의처럼 서식이 제 문구를 가진 문서용 */
+  foot?: string;
   id?: string;
 }) {
   const boxes = steps.length > 0 ? steps : EMPTY_STEPS;
@@ -185,7 +188,7 @@ export function GianPaper({
       {/* 맺음말·명의는 내용이 짧아도 용지 맨 아래 — 여백이 위가 아니라 가운데로 간다 */}
       <div className="flex-1" />
       <div className="mt-[12mm] text-center text-[10pt] text-[var(--gian-ink-soft)]">
-        {footText(docType)}
+        {foot ?? footText(docType)}
         <div className="mt-1 text-[13pt] font-extrabold tracking-[.4em] text-[var(--gian-ink)]">
           {office ?? ""}
         </div>

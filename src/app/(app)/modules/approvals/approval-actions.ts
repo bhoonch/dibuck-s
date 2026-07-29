@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { createDocument } from "@/lib/documents";
 import { ymdKst } from "@/lib/utils";
 import {
   allowedMime,
@@ -23,6 +24,15 @@ import {
   DEFAULT_POST_TO,
   type NoticeDoc,
 } from "@/lib/gian/notice";
+import {
+  buildExpenseDraft,
+  buildReportDraft,
+  findFollowupFor,
+  followupCls,
+  followupDocType,
+  type FollowupKind,
+  type SourceInfo,
+} from "@/lib/gian/followup";
 import { Role } from "@/generated/prisma/enums";
 
 export type ActionState = { error?: string } | undefined;
@@ -189,6 +199,89 @@ export async function makeGianNotice(formData: FormData) {
   const notice = await findNoticeFor(docId);
   revalidatePath(`/modules/approvals/${docId}`);
   if (notice) redirect(`/modules/approvals/${notice.id}`);
+}
+
+/**
+ * 후속 문서 생성 (완료보고서·지출결의서) — 결재 완료된 품의에서만.
+ *
+ * 원 품의의 meta를 상속하므로 폼은 **새로 알아야 하는 값만** 받는다
+ * (공사명·계약금액·업체는 다시 묻지 않는다). 만들어진 문서는 초안이라
+ * 곧바로 기존 결재 화면으로 들어가 상신·승인을 그대로 탄다.
+ */
+export async function createFollowup(formData: FormData) {
+  const docId = String(formData.get("docId") ?? "");
+  const kind = String(formData.get("kind") ?? "") as FollowupKind;
+  if (kind !== "report" && kind !== "expense") return;
+
+  const { session, doc } = await myDoc(docId);
+  if (!doc || doc.status !== "final") return;
+
+  const meta = doc.meta as {
+    cls?: Classification;
+    form?: { work: string };
+    quotes?: { vendor: string; amount: number }[];
+  } | null;
+  if (!meta?.cls || !meta.form) return;
+
+  // 이미 만들었으면 그 문서로 — 같은 품의에 완료보고가 둘이면 어느 쪽이 사실인지 알 수 없다
+  const existing = await findFollowupFor(doc.id, kind);
+  if (existing) redirect(`/modules/approvals/${existing.id}`);
+
+  const field = (k: string) => String(formData.get(k) ?? "").trim();
+  const source: SourceInfo = {
+    docNo: doc.docNo ?? "",
+    title: doc.title,
+    approvedAt: doc.updatedAt,
+    work: meta.form.work,
+    vendor: meta.quotes?.[0]?.vendor ?? "",
+    amountRaw: meta.cls.amountRaw,
+    vatIncluded: meta.cls.vatIncluded,
+  };
+
+  const draft =
+    kind === "report"
+      ? buildReportDraft(source, {
+          period: field("period") || "(입력 필요)",
+          condition: field("condition") || "(입력 필요)",
+          inspector: field("inspector") || "(입력 필요)",
+          waste: field("waste"),
+          followup: field("followup"),
+        })
+      : buildExpenseDraft(
+          source,
+          {
+            payDate: field("payDate") || "(입력 필요)",
+            account: field("account") || "(입력 필요)",
+            vendor: field("vendor") || source.vendor || "(입력 필요)",
+            ceo: field("ceo") || "(입력 필요)",
+            bizNo: field("bizNo") || "(입력 필요)",
+            bank: field("bank") || "(입력 필요)",
+          },
+          new Date(),
+        );
+
+  const created = await createDocument({
+    tenantId: doc.tenantId,
+    moduleId: "approvals",
+    type: followupDocType[kind],
+    title: draft.title,
+    content: [
+      draft.title,
+      ...draft.legalBasis,
+      ...draft.sections.flatMap((s) => [s.heading, ...s.lines]),
+    ].join("\n"),
+    meta: {
+      sourceDocId: doc.id,
+      kind,
+      draft,
+      cls: followupCls(meta.cls, kind),
+      plannedSteps: [],
+    },
+    createdById: session.userId,
+  });
+
+  revalidatePath(`/modules/approvals/${doc.id}`);
+  redirect(`/modules/approvals/${created.id}`);
 }
 
 /**

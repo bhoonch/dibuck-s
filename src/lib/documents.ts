@@ -11,6 +11,8 @@ const docNoPrefixes: Record<string, string> = {
   minutes: "회의",
   approval: "품의",
   gian: "기안",
+  report: "보고", // 완료보고서 (품의에서 파생)
+  expense: "지출", // 지출결의서 (품의에서 파생)
 };
 
 /**

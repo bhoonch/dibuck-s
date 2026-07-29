@@ -37,6 +37,11 @@ import {
   quoteFileGap,
   waiverNoteOf,
 } from "@/lib/gian/attachments";
+import {
+  findFollowupFor,
+  followupMeta,
+  type FollowupKind,
+} from "@/lib/gian/followup";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { QuoteFiles } from "./quote-files";
@@ -48,6 +53,8 @@ type Meta = {
   /** 파생 공고문이면 이쪽만 있다 */
   notice?: NoticeDoc;
   sourceDocId?: string;
+  /** 완료보고서·지출결의서면 어느 서식인지 — 없으면 원 기안·품의다 */
+  kind?: FollowupKind;
   draft: GianDraft;
   quotes?: { vendor: string; amount: number }[];
   /** 견적서 없이 상신한 긴급 예외 — 사유는 결재 패널과 인쇄물 양쪽에 남는다 */
@@ -187,7 +194,18 @@ export default async function GianDocumentPage({
 
   if (!meta?.draft) notFound();
   const { draft } = meta;
-  const notice = doc.status === "final" ? await findNoticeFor(doc.id) : null;
+  const isFollowup = !!meta.kind;
+  // 이어서 만들기 후보 — 결재가 끝난 **원** 문서에서만. 파생 문서에서 또 파생하지 않는다
+  const [notice, report, expense] =
+    doc.status === "final" && !isFollowup
+      ? await Promise.all([
+          findNoticeFor(doc.id),
+          findFollowupFor(doc.id, "report"),
+          findFollowupFor(doc.id, "expense"),
+        ])
+      : [null, null, null];
+  // 지출이 없는 문서(점검·행사 안내)에는 완료보고도 지출결의도 붙지 않는다
+  const hasSpend = (meta.cls?.amountRaw ?? 0) > 0;
 
   const roleOrName = (s: { externalRole?: string | null; name: string }) =>
     s.externalRole
@@ -254,8 +272,9 @@ export default async function GianDocumentPage({
     : null;
 
   const docType = meta.cls?.docType;
-  const docTypeLabel =
-    docType === "gian"
+  const docTypeLabel = meta.kind
+    ? followupMeta[meta.kind].docTypeLabel
+    : docType === "gian"
       ? "기 안 서"
       : docType === "ltp_work"
         ? "공사 추진 기안서"
@@ -331,9 +350,18 @@ export default async function GianDocumentPage({
           </div>
           <div className="flex flex-wrap gap-2">
             <PrintButton />
-            <Button asChild variant="outline">
-              <Link href="/modules/approvals/new">다시 만들기</Link>
-            </Button>
+            {/* 파생 문서에서 "다시 만들기"는 새 기안을 뜻해 오해를 부른다 — 원본으로 보낸다 */}
+            {isFollowup && meta.sourceDocId ? (
+              <Button asChild variant="outline">
+                <Link href={`/modules/approvals/${meta.sourceDocId}`}>
+                  원본 품의
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild variant="outline">
+                <Link href="/modules/approvals/new">다시 만들기</Link>
+              </Button>
+            )}
           </div>
         </div>
 
@@ -357,30 +385,52 @@ export default async function GianDocumentPage({
                 docType={docType}
                 createdAt={doc.createdAt}
                 waiver={waiverNote}
+                foot={meta.kind ? followupMeta[meta.kind].foot : undefined}
               />
             </PaperScale>
 
-            {/* 이어서 만들기 (목업 .followup) — 결재가 끝난 문서에서만 */}
-            {doc.status === "final" && (
+            {/* 이어서 만들기 (목업 .followup) — 결재가 끝난 원 문서에서만 */}
+            {doc.status === "final" && !isFollowup && (
               <div className="mt-4 w-full max-w-[210mm] rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-4 py-4 print:hidden">
                 <h4 className="text-sm font-bold">이어서 만들기</h4>
                 <p className="mt-1 mb-3 text-xs text-[var(--gian-ink-soft)]">
                   이 문서의 입력을 그대로 재사용합니다 — 다시 입력할 필요
                   없어요.
                 </p>
-                {notice ? (
-                  <Button asChild>
-                    <Link href={`/modules/approvals/${notice.id}`}>
-                      입주민 공고문 {notice.docNo}
-                    </Link>
-                  </Button>
-                ) : (
-                  // 자동 파생이 실패했을 때의 복구 경로
-                  <form action={makeGianNotice}>
-                    <input type="hidden" name="docId" value={doc.id} />
-                    <Button type="submit">입주민 공고문 만들기</Button>
-                  </form>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {notice ? (
+                    <Button asChild>
+                      <Link href={`/modules/approvals/${notice.id}`}>
+                        입주민 공고문 {notice.docNo}
+                      </Link>
+                    </Button>
+                  ) : (
+                    // 자동 파생이 실패했을 때의 복구 경로
+                    <form action={makeGianNotice}>
+                      <input type="hidden" name="docId" value={doc.id} />
+                      <Button type="submit">입주민 공고문 만들기</Button>
+                    </form>
+                  )}
+                  {/* 공사가 끝난 뒤·대금을 낼 때 쓰는 문서라 사람이 시작한다(자동 파생 아님) */}
+                  {hasSpend &&
+                    (["report", "expense"] as const).map((k) => {
+                      const made = k === "report" ? report : expense;
+                      return (
+                        <Button key={k} asChild variant="outline">
+                          <Link
+                            href={
+                              made
+                                ? `/modules/approvals/${made.id}`
+                                : `/modules/approvals/${doc.id}/followup/${k}`
+                            }
+                          >
+                            {followupMeta[k].label}
+                            {made ? ` ${made.docNo}` : " 만들기"}
+                          </Link>
+                        </Button>
+                      );
+                    })}
+                </div>
               </div>
             )}
           </div>

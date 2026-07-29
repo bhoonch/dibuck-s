@@ -9,6 +9,13 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./src/generated/prisma/client";
 import { actOnStep, submitDocument } from "./src/lib/gian/approval";
 import { createNoticeFrom } from "./src/lib/gian/notice";
+import { createDocument } from "./src/lib/documents";
+import {
+  buildReportDraft,
+  findFollowupFor,
+  followupCls,
+  followupDocType,
+} from "./src/lib/gian/followup";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -157,6 +164,52 @@ async function main() {
     // 중복 생성 방지 — 같은 문서로 다시 호출해도 늘지 않는다
     await createNoticeFrom(await db.document.findUniqueOrThrow({ where: { id: doc.id } }));
     assert.equal(await db.document.count({ where: { tenantId: tenant.id, type: "notice" } }), 1);
+
+    // ── 후속 문서(완료보고) 파생 → 채번·역링크·결재선 ──
+    // 공고문과 달리 자동이 아니다 — 공사가 끝난 뒤 사람이 시작한다.
+    const src = {
+      docNo: doc.docNo!,
+      title: doc.title,
+      approvedAt: new Date(),
+      work: form.work,
+      vendor: "A 이엔지(주)",
+      amountRaw: cls.amountRaw,
+      vatIncluded: cls.vatIncluded,
+    };
+    const reportDraft = buildReportDraft(src, {
+      period: "2026년 8월 10일 ~ 8월 12일",
+      condition: "교체 완료 및 정상 작동 확인함.",
+      inspector: "관리과장 김담당",
+    });
+    const report = await createDocument({
+      tenantId: tenant.id,
+      moduleId: "approvals",
+      type: followupDocType.report,
+      title: reportDraft.title,
+      meta: {
+        sourceDocId: doc.id,
+        kind: "report",
+        draft: reportDraft,
+        cls: followupCls(cls as never, "report"),
+        plannedSteps: [],
+      },
+      createdById: staff.id,
+    });
+    assert.ok(report.docNo!.startsWith("보고-"), "완료보고 채번 접두사는 보고");
+    assert.equal(report.status, "draft", "파생 문서는 초안 — 결재는 따로 받는다");
+    // 역링크 조회(JSON path 필터)가 실제 DB에서 걸리는지
+    const found = await findFollowupFor(doc.id, "report");
+    assert.equal(found?.id, report.id);
+    assert.equal(await findFollowupFor(doc.id, "expense"), null); // 종류별로 갈린다
+
+    // 완료보고는 3단 — 회장이 붙지 않는다(원 품의는 회장까지 4단이었다)
+    assert.deepEqual(await submitDocument(report.id, staff.id), {});
+    const rSteps = await db.approvalStep.findMany({
+      where: { documentId: report.id },
+      orderBy: { order: "asc" },
+    });
+    assert.equal(rSteps.length, 2, "내부 결재선 2명만 — 외부 결재자 없음");
+    assert.ok(rSteps.every((s) => s.userId), "외부(토큰) 단계가 없어야 한다");
 
     console.log("approval-run OK");
   } finally {
