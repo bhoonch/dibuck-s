@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { type Classification, formatMoney } from "./rules";
+import { LEGAL_SOURCES, canonical, verifyLegalBasis } from "./legal-sources";
 
 /**
  * 기안·품의 초안 생성 — Claude API (structured outputs + 프롬프트 캐싱).
@@ -93,16 +94,19 @@ const SYSTEM = `당신은 아파트 관리사무소의 기안서·품의서 작�
 
 ## 작성 규칙
 - 본문은 개조식: 절 안의 항목은 "가. 나. 다.", 세부 항목은 "1) 2) 3)"으로 시작한다. 문장은 "~함", "~임", "~하고자 함"으로 끝낸다.
-- 관련근거는 법령 조항(예: 공동주택관리법 제63조(관리주체의 업무))을 적는다. **관리규약은 입력에 조항이 주어졌을 때만** 그 문자열 그대로 인용하고, 주어지지 않으면 규약 줄 자체를 쓰지 않는다 — "제○○조" 같은 빈칸을 결재 문서에 남기지 않는다.
+- 관련근거는 **아래 "인용 가능한 법령" 목록에 있는 것만** 적는다. 목록에 없는 법령·조항은 아무리 관련이 있어 보여도 쓰지 않는다 — 대신 legalNotices에 "관련근거 확인 필요: ○○"으로 남긴다. **관리규약은 입력에 조항이 주어졌을 때만** 그 문자열 그대로 인용하고, 주어지지 않으면 규약 줄 자체를 쓰지 않는다 — "제○○조" 같은 빈칸을 결재 문서에 남기지 않는다.
 - "주택관리업자 및 사업자 선정지침"은 **사업자를 선정·계약하는 문서에만** 인용한다. 지출이 없는 기안서(점검·행사·내부 방침)에는 넣지 않는다.
 - 고시·지침의 **호수(제2023-○○○호)는 쓰지 않는다** — 개정되면 문서에 남은 호수가 틀린 근거가 된다. 이름만 인용한다.
 - 제목은 반드시 "~의 건"으로 끝낸다.
 - sections 순서: 기안서는 추진목적 → 주요 추진계획 → 소요예산 → 기대효과. 품의서는 품의목적 → 사업 및 지출개요 → 견적 비교(수의계약일 때) → 추진일정. 공사 추진 기안서는 추진배경 → 공사개요 및 추진계획 → 향후 추진일정(안).
 - 소요예산·계약방식·계정과목이 입력에 제공되면 **제공된 문자열 그대로** 사용한다.
 
+## 인용 가능한 법령 (관련근거는 이 목록 밖으로 나가지 않는다)
+${LEGAL_SOURCES.map((s) => `- ${canonical(s)}`).join("\n")}
+
 ## 환각 금지 (가장 중요)
 - 입력에 없는 수치·날짜·업체명·수량을 만들어내지 않는다. 필요한데 없으면 "○○" 또는 "(입력 필요)"로 표기하고 needsClarification에 무엇이 필요한지 적는다.
-- 법령 조항은 확실한 것만 쓴다. 불확실하면 legalNotices에 "조항 확인 필요"로 남긴다.`;
+- 법령 조항은 위 목록에서만 고른다. 목록 밖 조항은 legalNotices에 "관련근거 확인 필요"로 남길 뿐 관련근거에 쓰지 않는다.`;
 
 const FEWSHOT = `## 서식 예시 (S-APT 공용서식 원문)
 
@@ -253,5 +257,27 @@ export async function generateDraft(args: {
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text")
     throw new Error("초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.");
-  return JSON.parse(block.text) as GianDraft;
+  const draft = JSON.parse(block.text) as GianDraft;
+
+  /*
+   * 관련근거 검증 — 여기가 LLM 출력이 문서로 들어가는 유일한 문턱이다.
+   * 프롬프트로 목록을 줬어도 지키는지는 보장이 아니므로 나온 값을 대조한다.
+   * 목록 밖 인용은 버리지 않고 유의사항으로 돌려 작성자가 판단하게 한다 —
+   * 조용히 사라지면 근거가 왜 빠졌는지 알 수 없다.
+   */
+  const { basis, unverified } = verifyLegalBasis(
+    draft.legalBasis,
+    args.directorLimitClause,
+  );
+  return {
+    ...draft,
+    legalBasis: basis,
+    legalNotices: [
+      ...draft.legalNotices,
+      ...unverified.map(
+        (u) =>
+          `관련근거 확인 필요: "${u}" — 확인된 법령 목록에 없어 문서에서 뺐습니다. 맞는 근거라면 초안 수정에서 직접 넣어 주세요.`,
+      ),
+    ],
+  };
 }
