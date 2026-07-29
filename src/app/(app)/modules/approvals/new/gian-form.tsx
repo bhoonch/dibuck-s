@@ -393,6 +393,22 @@ export function GianForm({
               제외) 이하이고 예산에 반영된 집행이라 회장 결재를 뺐습니다.
             </p>
           )}
+          {/*
+            회장이 붙은 이유도 말해 준다 — 전결됐을 때만 설명하고 붙었을 때 침묵하면
+            "한도 이하인데 왜 회장이 있지?"를 사용자가 알 길이 없다.
+          */}
+          {!cls.withinDirectorLimit &&
+            cls.externalApprovers.includes("CHAIR") && (
+              <p className="mt-2 text-sm text-[var(--gian-ink-soft)]">
+                {cls.docType === "ltp_work"
+                  ? "장기수선충당금 집행은 한도와 무관하게 감사·회장 결재를 받습니다."
+                  : budgeted === false
+                    ? `예산 외 집행이라 전결 한도(${directorLimit ? directorLimit.toLocaleString("ko-KR") + "원" : "미설정"})를 적용하지 않아 회장 결재가 붙습니다.`
+                    : !directorLimit
+                      ? "전결 한도가 설정되지 않아 지출 문서에는 회장 결재가 붙습니다 — 설정 > 결재선에서 관리규약의 한도를 등록하면 이하 금액은 소장 전결로 처리됩니다."
+                      : `전결 한도(${directorLimit.toLocaleString("ko-KR")}원, VAT 제외)를 넘어 회장 결재가 붙습니다.`}
+              </p>
+            )}
           {line.steps.length > 0 && line.missing.length === 0 && (
             <p className="mt-2 text-sm text-[var(--gian-ink-soft)]">
               상신하는 순간 이 순서가 스냅샷으로 굳습니다.

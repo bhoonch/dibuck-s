@@ -25,6 +25,8 @@ export type PanelStep = {
   isExternal: boolean;
   token?: string | null;
   tokenExpired?: boolean;
+  /** 외부(토큰) 서명 증적 — 감사에서 "누가 눌렀는가"를 묻을 때의 답 */
+  signature?: { typedName?: string; ip?: string } | null;
 };
 
 const dotColor: Record<string, string> = {
@@ -51,6 +53,7 @@ export function ApprovalPanel({
   canSubmit,
   steps,
   waiverNote,
+  evidenceGap,
 }: {
   docId: string;
   docStatus: string;
@@ -58,12 +61,20 @@ export function ApprovalPanel({
   steps: PanelStep[];
   /** 견적서 없이 상신한 사유 — 결재자가 "증빙 없음"을 알고 승인해야 한다 */
   waiverNote?: string | null;
+  /** 지금 부족한 증빙. 파일을 올리면 서버가 null로 내려주므로 사유칸이 저절로 닫힌다 */
+  evidenceGap?: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
-  const [needWaiver, setNeedWaiver] = useState(false);
+  const [triedSubmit, setTriedSubmit] = useState(false);
   const [waiverReason, setWaiverReason] = useState("");
+
+  /*
+   * 사유칸은 상태로 굳히지 않는다 — 예전에는 한 번 막히면 needWaiver가 true로 남아,
+   * 견적서를 올려 증빙이 채워진 뒤에도 계속 사유를 요구했다. 판정은 늘 서버가 한다.
+   */
+  const needWaiver = triedSubmit && !!evidenceGap;
   const [actState, actAction, actPending] = useActionState(
     actOnGianStep,
     undefined,
@@ -128,6 +139,15 @@ export function ApprovalPanel({
                     &ldquo;{s.comment}&rdquo;
                   </p>
                 )}
+                {/* 외부 서명은 로그인 기록이 없다 — 대신 입력 성명·접속 IP를 남긴다 */}
+                {s.signature?.typedName && (
+                  <p className="mt-0.5 text-xs text-[var(--gian-ink-soft)]">
+                    서명 {s.signature.typedName}
+                    {s.signature.ip && (
+                      <span className="font-mono"> · {s.signature.ip}</span>
+                    )}
+                  </p>
+                )}
               </div>
             </li>
           ))}
@@ -172,7 +192,7 @@ export function ApprovalPanel({
                   docId,
                   needWaiver ? waiverReason : undefined,
                 );
-                if (r?.needWaiver) setNeedWaiver(true);
+                if (r?.needWaiver) setTriedSubmit(true);
                 if (r?.error) setError(r.error);
               });
             }}

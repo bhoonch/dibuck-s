@@ -325,6 +325,10 @@ model ApprovalStep {
   status     String   @default("waiting") // waiting(차례 전) | pending(결재 차례) | approved | rejected
   comment    String? // 승인·반려 의견
   actedAt    DateTime?
+  /// 외부(토큰) 서명의 증적: { ip, ua, typedName }. 링크는 카톡으로 전달되므로
+  /// "누가 눌렀는가"를 토큰만으로는 증명할 수 없다 — 감사 대응용 기록.
+  /// 본인인증이 아니다(SMS OTP는 발송 인프라 도입 후 별건).
+  signature  Json?
 
   @@unique([documentId, order])
   @@index([userId, status])

@@ -29,7 +29,7 @@ import {
   isConcreteSchedule,
   type NoticeDoc,
 } from "@/lib/gian/notice";
-import { waiverNoteOf } from "@/lib/gian/attachments";
+import { quoteFileGap, waiverNoteOf } from "@/lib/gian/attachments";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { AttachmentChecklist } from "./attachment-checklist";
@@ -209,6 +209,7 @@ export default async function GianDocumentPage({
     isExternal: !s.userId,
     token: s.token,
     tokenExpired: !s.tokenExpiresAt || s.tokenExpiresAt <= now,
+    signature: s.signature as PanelStep["signature"],
   }));
   const canSubmit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
@@ -223,6 +224,10 @@ export default async function GianDocumentPage({
     orderBy: { createdAt: "asc" },
   });
   const quotes = meta.quotes ?? [];
+  // 지금 부족한 증빙 — 패널이 이걸 보고 사유칸을 열고 닫는다(클라이언트에 상태를 남기지 않는다)
+  const evidenceGap = meta.cls
+    ? quoteFileGap(meta.cls.context, quotes, attachmentFiles)
+    : null;
   const waiverNote = meta.cls
     ? waiverNoteOf(meta.cls.context, quotes, attachmentFiles, meta.quoteWaiver)
     : null;
@@ -351,6 +356,7 @@ export default async function GianDocumentPage({
               canSubmit={canSubmit}
               steps={panelSteps}
               waiverNote={waiverNote}
+              evidenceGap={evidenceGap}
             />
 
             {meta.cls && meta.cls.context !== "none" && (

@@ -6,7 +6,9 @@ import {
   type DocType,
   type ExternalRole,
 } from "@/lib/gian/rules";
+import { FileText } from "lucide-react";
 import { GianPaper, type PaperStep } from "@/components/gian-paper";
+import { PaperScale } from "@/components/paper-scale";
 import { waiverNoteOf, type QuoteWaiver } from "@/lib/gian/attachments";
 import type { ContractContext } from "@/lib/gian/rules";
 import { SignForm } from "./sign-form";
@@ -70,7 +72,8 @@ export default async function ApproveByTokenPage({
    */
   const attachmentFiles = await db.documentAttachment.findMany({
     where: { documentId: doc.id },
-    select: { quoteIndex: true },
+    select: { id: true, name: true, size: true, quoteIndex: true },
+    orderBy: { createdAt: "asc" },
   });
   const waiverNote = meta.cls
     ? waiverNoteOf(
@@ -113,7 +116,39 @@ export default async function ApproveByTokenPage({
       ) : (
         <SignForm token={token} signerName={step!.name} />
       )}
-      <div className="overflow-x-auto">
+
+      {/*
+        견적서 — 결재자가 판단 근거를 봐야 결재가 형식이 되지 않는다.
+        세션이 없으므로 링크에 토큰을 실어 보낸다(라우트가 이 문서의 토큰인지 확인).
+      */}
+      {attachmentFiles.length > 0 && (
+        <div className="rounded-lg border bg-card p-4">
+          <h2 className="mb-2 text-sm font-bold">첨부 견적서·증빙</h2>
+          <ul className="space-y-1.5">
+            {attachmentFiles.map((f) => (
+              <li key={f.id} className="flex items-center gap-1.5 text-sm">
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                <a
+                  href={`/api/attachments/${f.id}?token=${token}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate underline underline-offset-2"
+                >
+                  {f.quoteIndex !== null && meta.quotes?.[f.quoteIndex]
+                    ? `${meta.quotes[f.quoteIndex].vendor} — ${f.name}`
+                    : f.name}
+                </a>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                  {Math.max(1, Math.round(f.size / 1024))}KB
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 용지는 210mm 고정이라 좁은 화면(모바일)에서 칸을 뚫고 나간다 — 문서 화면과 같은 부품으로 줄인다 */}
+      <PaperScale>
         <GianPaper
           draft={meta.draft}
           steps={paperSteps}
@@ -124,7 +159,7 @@ export default async function ApproveByTokenPage({
           waiver={waiverNote}
           id="sign-sheet"
         />
-      </div>
+      </PaperScale>
     </>,
   );
 }
