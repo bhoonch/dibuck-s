@@ -296,7 +296,8 @@ model Document {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  approvalSteps ApprovalStep[]
+  approvalSteps   ApprovalStep[]
+  attachmentFiles DocumentAttachment[]
 
   // 공문서 번호는 단지 안에서 유일해야 한다 — 채번이 겹치면 DB가 막는다
   @@unique([tenantId, docNo])
@@ -345,4 +346,24 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt])
+}
+
+/// 결재 문서의 실물 증빙 — 견적서 사진·PDF. 파일 스토리지가 없어 DB에 담는다.
+/// Document.attachments(Json)와 다르다: 거기는 목록 문구, 여기는 파일 본문.
+model DocumentAttachment {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// meta.quotes 배열 위치 — 어느 업체의 견적서인가. null = 문서 단위 첨부(입찰 산출근거 등)
+  quoteIndex Int?
+  name       String
+  mime       String
+  size       Int
+  /// 결재 당시 파일의 지문 — 사후 위변조 검증용. data를 비워도 남는다
+  sha256     String
+  /// 문서 폐기(void) 시 null — 이름·해시는 기록으로 남고 용량만 회수
+  data       Bytes?
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
 }
