@@ -44,17 +44,16 @@ export default async function AdminSupportPage() {
             const answered = q.status === "answered";
             const isTrial = !q.tenant;
             return (
-              // 답변 대기는 펼친 채로 연다 — 열자마자 바로 답을 쓸 수 있게
-              <details
-                key={q.id}
-                open={!answered && !isTrial}
-                className="border-b last:border-0"
-              >
-                <summary className={`${tableRow} cursor-pointer border-0 hover:bg-gray-50`} style={{ gridTemplateColumns: COLS }}>
+              <details key={q.id} className="group border-b last:border-0">
+                <summary
+                  className={`${tableRow} cursor-pointer border-0 hover:bg-gray-50`}
+                  style={{ gridTemplateColumns: COLS }}
+                >
                   <span className="truncate text-sm font-medium">
                     {q.tenant?.name ?? q.title}
                   </span>
-                  <span className="truncate text-sm text-gray-600">
+                  {/* 문의 내용은 이 줄에만 있다 — 펼치면 잘림을 풀어 전문이 그대로 보인다 */}
+                  <span className="truncate text-sm text-gray-600 group-open:overflow-visible group-open:whitespace-pre-wrap">
                     {isTrial ? "무료 체험 신청" : q.title}
                   </span>
                   <span>
@@ -76,20 +75,12 @@ export default async function AdminSupportPage() {
                   </span>
                 </summary>
 
-                <div className="grid max-w-3xl gap-3 bg-gray-50 px-4 py-4">
-                  <div>
-                    <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                      문의 내용
+                <div className="grid gap-3 bg-gray-50 px-4 py-4">
+                  {q.fromPath && (
+                    <p className="font-mono text-xs text-gray-500">
+                      문의한 화면: {q.fromPath}
                     </p>
-                    <p className="mt-1.5 text-sm whitespace-pre-wrap">
-                      {q.title}
-                    </p>
-                    {q.fromPath && (
-                      <p className="mt-1.5 font-mono text-xs text-gray-500">
-                        문의한 화면: {q.fromPath}
-                      </p>
-                    )}
-                  </div>
+                  )}
 
                   {isTrial ? (
                     <p className="text-sm text-gray-500">
