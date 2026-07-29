@@ -41,7 +41,7 @@ export default async function EditGianPage({
     // 기둥은 다른 기안·품의 화면과 같다 — A4 폭(794)에서 시작해야 오갈 때 안 튄다
     <form
       action={saveGianDraft}
-      className="mx-auto max-w-[794px] xl:max-w-[1108px]"
+      className="mx-auto max-w-[794px] xl:max-w-[1138px]"
     >
       <input type="hidden" name="docId" value={doc.id} />
       <Link

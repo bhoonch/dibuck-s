@@ -64,8 +64,9 @@ export function GianPaper({
   return (
     <article
       id={id}
-      // min-h 297mm: 내용이 짧아도 종이는 A4 한 장이다 (인쇄는 @page가 맡으므로 강제하지 않는다)
-      className="w-full max-w-[210mm] shrink-0 bg-[var(--gian-card)] px-[16mm] py-[14mm] text-[11.5pt] leading-[1.6] whitespace-pre-wrap text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
+      // min-h 297mm: 내용이 짧아도 종이는 A4 한 장 (인쇄는 @page 담당이라 강제하지 않는다).
+      // flex-col + 스페이서로 맺음말·명의 두 줄을 용지 맨 아래에 앉힌다 — notice-paper와 같은 방식
+      className="flex w-full max-w-[210mm] shrink-0 flex-col bg-[var(--gian-card)] px-[16mm] py-[14mm] text-[11.5pt] leading-[1.6] whitespace-pre-wrap text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
     >
       {/* 문서 머리 — 좌: 문서번호·시행일자·수신 / 우: 결재란 */}
       <div className="flex items-start justify-between gap-4">
@@ -168,8 +169,10 @@ export function GianPaper({
               {draft.attachments.map((a, i) => (
                 <li key={i} className="-indent-5 pl-5">
                   {draft.attachments.length > 1 ? `${i + 1}. ` : ""}
-                  {a}
-                  {i === draft.attachments.length - 1 ? ".　　끝." : ""}
+                  {/* 마지막 항목은 제 마침표를 떼고 "끝."의 마침표를 쓴다 — "1부..  끝." 방지 */}
+                  {i === draft.attachments.length - 1
+                    ? `${a.replace(/\.+\s*$/, "")}.　　끝.`
+                    : a}
                 </li>
               ))}
             </ol>
@@ -179,6 +182,8 @@ export function GianPaper({
         )}
       </div>
 
+      {/* 맺음말·명의는 내용이 짧아도 용지 맨 아래 — 여백이 위가 아니라 가운데로 간다 */}
+      <div className="flex-1" />
       <div className="mt-[12mm] text-center text-[10pt] text-[var(--gian-ink-soft)]">
         {footText(docType)}
         <div className="mt-1 text-[13pt] font-extrabold tracking-[.4em] text-[var(--gian-ink)]">

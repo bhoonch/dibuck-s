@@ -93,14 +93,14 @@ function Slot({
             />
             <Button
               variant="outline"
-              size="sm"
+              size="xs"
               disabled={pending}
               onClick={() => inputRef.current?.click()}
             >
               {pending ? (
-                <Loader2 className="size-3.5 animate-spin" />
+                <Loader2 className="size-3 animate-spin" />
               ) : (
-                <Paperclip className="size-3.5" />
+                <Paperclip className="size-3" />
               )}
               {buttonLabel}
             </Button>

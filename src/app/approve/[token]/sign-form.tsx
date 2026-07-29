@@ -62,7 +62,6 @@ export function SignForm({ token, signerName }: { token: string; signerName: str
           type="submit"
           name="action"
           value="approve"
-          size="lg"
           className="flex-1"
           disabled={pending}
         >
@@ -72,7 +71,6 @@ export function SignForm({ token, signerName }: { token: string; signerName: str
           type="submit"
           name="action"
           value="reject"
-          size="lg"
           variant="destructive"
           className="flex-1"
           disabled={pending}

@@ -276,7 +276,7 @@ export default async function GianDocumentPage({
         용지와 패널이 같은 높이에서 출발하게 했다(패널에 mt를 주면 머리줄 버튼이
         두 줄로 접히는 순간 어긋난다).
       */}
-      <div className="mx-auto max-w-[794px] xl:max-w-[1108px]">
+      <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
         {/* 목록은 이 문서에 하는 일이 아니라 뒤로 가기다 — 액션 버튼 무리에서 뺀다 */}
         <Link
           href="/modules/approvals"
@@ -295,7 +295,7 @@ export default async function GianDocumentPage({
           머리줄도 아래 격자와 같은 두 칸 — 그래야 인쇄 버튼의 왼쪽 시작선이
           결재선 카드의 왼쪽 시작선과 같아진다(간격도 아래 격자와 같은 gap-6).
         */}
-        <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_288px]">
+        <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_320px]">
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
               {docTypeLabel}
@@ -321,7 +321,6 @@ export default async function GianDocumentPage({
               <Button
                 asChild
                 variant="outline"
-                size="sm"
                 className="ml-auto print:hidden"
               >
                 <Link href={`/modules/approvals/${doc.id}/edit`}>
@@ -343,7 +342,7 @@ export default async function GianDocumentPage({
           안 나와 용지 배율이 0.44배로 떨어진다(11.5pt → 5pt). 그 아래에서는
           패널을 문서 위로 올린다.
         */}
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_288px]">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
           <div className="min-w-0">
             <PaperScale>
               <GianPaper

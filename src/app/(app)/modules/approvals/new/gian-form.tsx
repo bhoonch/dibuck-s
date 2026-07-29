@@ -82,7 +82,7 @@ export function GianForm({
   return (
     <form
       action={formAction}
-      className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_288px]"
+      className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]"
     >
       <div className="rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-7 pb-6 text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
         <h2 className="text-lg font-bold tracking-tight text-balance">
