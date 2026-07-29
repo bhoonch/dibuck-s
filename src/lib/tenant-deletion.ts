@@ -18,35 +18,26 @@ export const graceDaysLeft = (requestedAt: Date, now = new Date()) =>
       Math.floor((now.getTime() - requestedAt.getTime()) / 86400000),
   );
 
-/** 유예가 끝났는가 */
-export const graceOver = (requestedAt: Date, now = new Date()) =>
-  now.getTime() - requestedAt.getTime() >= DELETE_GRACE_DAYS * 86400000;
-
-/**
- * 단지와 그 안의 모든 데이터를 지운다.
- * Tenant의 자식 관계에는 cascade가 없어 순서대로 직접 지운다.
- */
-export async function purgeTenant(tenantId: string) {
-  await db.$transaction([
-    db.notification.deleteMany({ where: { tenantId } }),
-    db.document.deleteMany({ where: { tenantId } }),
-    db.unit.deleteMany({ where: { tenantId } }),
-    db.inquiry.deleteMany({ where: { tenantId } }),
-    db.tenantModule.deleteMany({ where: { tenantId } }),
-    db.payment.deleteMany({ where: { tenantId } }),
-    db.billing.deleteMany({ where: { tenantId } }),
-    db.user.deleteMany({ where: { tenantId } }),
-    db.tenant.delete({ where: { id: tenantId } }),
-  ]);
-}
-
 /** 크론에서 호출 — 유예가 끝난 단지를 지운다. 지운 수를 돌려준다 */
 export async function purgeExpiredTenants(now = new Date()) {
   const due = new Date(now.getTime() - DELETE_GRACE_DAYS * 86400000);
+  // deleteRequestedAt이 null이면 lte 비교에 걸리지 않는다 — 신청한 단지만 나온다
   const tenants = await db.tenant.findMany({
-    where: { deleteRequestedAt: { not: null, lte: due } },
+    where: { deleteRequestedAt: { lte: due } },
     select: { id: true },
   });
-  for (const t of tenants) await purgeTenant(t.id);
+  // Tenant의 자식 관계에는 cascade가 없다 — 순서대로 직접 지운다
+  for (const { id: tenantId } of tenants)
+    await db.$transaction([
+      db.notification.deleteMany({ where: { tenantId } }),
+      db.document.deleteMany({ where: { tenantId } }),
+      db.unit.deleteMany({ where: { tenantId } }),
+      db.inquiry.deleteMany({ where: { tenantId } }),
+      db.tenantModule.deleteMany({ where: { tenantId } }),
+      db.payment.deleteMany({ where: { tenantId } }),
+      db.billing.deleteMany({ where: { tenantId } }),
+      db.user.deleteMany({ where: { tenantId } }),
+      db.tenant.delete({ where: { id: tenantId } }),
+    ]);
   return tenants.length;
 }
