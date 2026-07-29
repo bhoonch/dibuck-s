@@ -316,7 +316,8 @@ export function ApprovalLineEditor({
           <CardTitle>관리소장 전결 규정</CardTitle>
           <CardDescription>
             한도 이하이고 연간 예산에 반영된 지출은 회장 결재 없이 소장 결재로
-            끝납니다. 비워 두면 지출 문서에 항상 회장이 붙습니다 —
+            끝납니다. 비워 두면 지출 문서에 항상 회장이 붙습니다.
+            <br />
             장기수선충당금은 한도와 무관하게 감사·회장 결재를 받습니다.
           </CardDescription>
         </CardHeader>
