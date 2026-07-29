@@ -154,7 +154,8 @@ export async function saveGianDraft(formData: FormData) {
       heading: String(formData.get(`heading${i}`) ?? "").trim() || sec.heading,
       lines: lines(`lines${i}`),
     })),
-    attachments: lines("attachments"),
+    // 붙임은 폼에 없다 — 실제 첨부파일이 곧 붙임 목록이라 여기서 건드리지 않는다
+    attachments: meta.draft.attachments,
   };
 
   await db.document.update({
@@ -325,22 +326,6 @@ export async function updateNoticePosting(
   });
   revalidatePath(`/modules/approvals/${doc.id}`);
   return undefined;
-}
-
-/** 첨부 확인 체크 — 결재 전 문서만. 목록 자체(draft.attachments)는 건드리지 않는다 */
-export async function toggleGianAttachment(docId: string, checked: number[]) {
-  const { doc } = await myDoc(docId);
-  if (!doc || (doc.status !== "draft" && doc.status !== "rejected")) return;
-  await db.document.update({
-    where: { id: doc.id },
-    data: {
-      meta: {
-        ...(doc.meta as object),
-        attachmentsChecked: [...new Set(checked)].sort((a, b) => a - b),
-      },
-    },
-  });
-  revalidatePath(`/modules/approvals/${doc.id}`);
 }
 
 export async function reissueGianToken(stepId: string): Promise<ActionState> {

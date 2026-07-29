@@ -36,27 +36,22 @@ export function quoteFileGap(
 }
 
 /**
- * 인쇄물의 붙임 목록 — 실제 첨부가 있으면 그것이 사실이다.
+ * 인쇄물의 붙임 목록 — **실제 첨부파일만이 사실이다.** LLM이 쓴 붙임 문구는
+ * 종이에 싣지 않는다: 파일에 없는 "사업자등록증 1부"가 찍히면 종이가 거짓말을 한다.
  * 업체 파일은 "견적서(업체명) 1부."로(사진 2장이어도 1부 — 장수가 부수가 아니다),
- * 문서 단위 파일은 파일명(확장자 제거)으로 적는다. 파일이 하나도 없으면
- * 생성된 문구를 그대로 둔다(파일 없는 서류 목록도 붙임의 역할이다).
+ * 문서 단위 파일은 파일명(확장자 제거)으로. 파일이 없으면 빈 목록 → 용지는 "끝."만.
  */
 export function attachmentLines(
   quotes: { vendor: string }[],
   files: { quoteIndex: number | null; name: string }[],
-  manual: string[],
 ): string[] {
-  if (files.length === 0) return manual;
   const vendorLines = quotes
     .filter((_, i) => files.some((f) => f.quoteIndex === i))
     .map((q) => `견적서(${q.vendor}) 1부.`);
   const docLines = files
     .filter((f) => f.quoteIndex === null)
     .map((f) => `${f.name.replace(/\.[^.]+$/, "")} 1부.`);
-  // ponytail: "견적서"가 든 문구는 통째로 걷어낸다 — "견적서 비교표 및 사업자등록증 각 1부"처럼
-  // 묶인 옛 문구는 뒤 항목까지 같이 사라진다. 생성 스키마를 항목별로 바꿔 새 문서에는 안 생긴다.
-  const rest = manual.filter((l) => !l.includes("견적서"));
-  return [...vendorLines, ...docLines, ...rest];
+  return [...vendorLines, ...docLines];
 }
 
 export type QuoteWaiver = { reason: string; byName: string; at: string };

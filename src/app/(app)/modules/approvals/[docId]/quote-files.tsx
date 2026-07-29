@@ -161,11 +161,14 @@ export function QuoteFiles({
   vendors,
   files,
   editable,
+  suggested = [],
 }: {
   docId: string;
   vendors: string[];
   files: FileRow[];
   editable: boolean;
+  /** AI가 권한 서류 목록 — 무엇을 올릴지 알려주는 참고일 뿐, 인쇄물엔 실리지 않는다 */
+  suggested?: string[];
 }) {
   const [error, setError] = useState<string>();
   return (
@@ -195,6 +198,12 @@ export function QuoteFiles({
         />
       </ul>
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {editable && suggested.length > 0 && (
+        <p className="mt-2 text-xs text-[var(--gian-ink-soft)]">
+          이런 서류를 보통 붙입니다: {suggested.join(" ")} — 올린 파일이
+          인쇄물의 붙임 목록이 됩니다.
+        </p>
+      )}
     </div>
   );
 }

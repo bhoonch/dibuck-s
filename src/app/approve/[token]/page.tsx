@@ -165,13 +165,12 @@ export default async function ApproveByTokenPage({
         <div className="mt-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:mt-0">
           <PaperScale>
             <GianPaper
-              // 문서 화면과 같은 규칙 — 회장이 보는 붙임도 실제 첨부가 사실이다
+              // 문서 화면과 같은 규칙 — 회장이 보는 붙임도 실제 첨부파일만이 사실이다
               draft={{
                 ...meta.draft,
                 attachments: attachmentLines(
                   meta.quotes ?? [],
                   attachmentFiles,
-                  meta.draft.attachments,
                 ),
               }}
               steps={paperSteps}

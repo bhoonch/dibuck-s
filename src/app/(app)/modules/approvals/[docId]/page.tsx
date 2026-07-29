@@ -39,7 +39,6 @@ import {
 } from "@/lib/gian/attachments";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
-import { AttachmentChecklist } from "./attachment-checklist";
 import { QuoteFiles } from "./quote-files";
 import { NoticePosting } from "./notice-posting";
 import { NoticeSchedule } from "./notice-schedule";
@@ -50,8 +49,6 @@ type Meta = {
   notice?: NoticeDoc;
   sourceDocId?: string;
   draft: GianDraft;
-  /** 첨부 체크리스트에서 확인 표시한 항목 번호 */
-  attachmentsChecked?: number[];
   quotes?: { vendor: string; amount: number }[];
   /** 견적서 없이 상신한 긴급 예외 — 사유는 결재 패널과 인쇄물 양쪽에 남는다 */
   quoteWaiver?: { reason: string; byName: string; at: string };
@@ -350,14 +347,10 @@ export default async function GianDocumentPage({
           <div className="min-w-0">
             <PaperScale>
               <GianPaper
-                // 붙임은 실제 첨부가 사실이다 — 렌더 시점 병합이라 옛 문서에도 적용된다
+                // 붙임은 실제 첨부파일만이 사실이다 — 렌더 시점 대체라 옛 문서에도 적용된다
                 draft={{
                   ...draft,
-                  attachments: attachmentLines(
-                    quotes,
-                    attachmentFiles,
-                    draft.attachments,
-                  ),
+                  attachments: attachmentLines(quotes, attachmentFiles),
                 }}
                 steps={paperSteps}
                 docNo={doc.docNo}
@@ -404,31 +397,14 @@ export default async function GianDocumentPage({
               evidenceGap={evidenceGap}
             />
 
-            {meta.cls && meta.cls.context !== "none" && (
-              <QuoteFiles
-                docId={doc.id}
-                vendors={quotes.map((q) => q.vendor)}
-                files={attachmentFiles}
-                editable={canEdit}
-              />
-            )}
-
-            {/* 견적서 항목은 뺀다 — 실물 파일이 검증하므로 체크는 중복이고 혼란만 준다 */}
-            {(() => {
-              const items = draft.attachments
-                .map((label, idx) => ({ idx, label }))
-                .filter((x) => !x.label.includes("견적서"));
-              return (
-                items.length > 0 && (
-                  <AttachmentChecklist
-                    docId={doc.id}
-                    items={items}
-                    checked={meta.attachmentsChecked ?? []}
-                    editable={canEdit}
-                  />
-                )
-              );
-            })()}
+            {/* 예산 없는 기안도 그 밖의 서류(점검표 등)를 올린다 — 붙임은 이 카드가 원천이다 */}
+            <QuoteFiles
+              docId={doc.id}
+              vendors={quotes.map((q) => q.vendor)}
+              files={attachmentFiles}
+              editable={canEdit}
+              suggested={draft.attachments}
+            />
 
             {draft.legalNotices.length > 0 && (
               <div

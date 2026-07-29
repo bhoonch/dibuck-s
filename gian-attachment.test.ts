@@ -50,37 +50,29 @@ assert.equal(waiverNoteOf("direct", q(2), f(0, 1), w), null);
 // 예산 없는 문서는 애초에 강제하지 않으므로 사유가 남아 있어도 안 찍는다
 assert.equal(waiverNoteOf("none", [], [], w), null);
 
-// ── 붙임 목록: 실제 첨부가 있으면 그것이 사실이다 ──
+// ── 붙임 목록: 실제 첨부파일만이 사실이다 (LLM 문구는 종이에 안 싣는다) ──
 const F = (quoteIndex: number | null, name: string) => ({ quoteIndex, name });
-// 파일이 없으면 생성 문구 그대로 (파일 없는 서류 목록도 붙임의 역할)
-assert.deepEqual(attachmentLines(q(2), [], ["견적서 2부."]), ["견적서 2부."]);
-// 업체 파일 → 업체명 줄로 대체, 견적서 아닌 문구는 남는다
-assert.deepEqual(
-  attachmentLines(
-    q(2),
-    [F(0, "a.webp"), F(1, "b.pdf")],
-    ["견적서 2부.", "사업자등록증 사본 1부."],
-  ),
-  ["견적서(업체1) 1부.", "견적서(업체2) 1부.", "사업자등록증 사본 1부."],
-);
+// 파일이 없으면 빈 목록 — 용지는 "끝."만 찍는다
+assert.deepEqual(attachmentLines(q(2), []), []);
+// 업체 파일 → 업체명 줄
+assert.deepEqual(attachmentLines(q(2), [F(0, "a.webp"), F(1, "b.pdf")]), [
+  "견적서(업체1) 1부.",
+  "견적서(업체2) 1부.",
+]);
 // 같은 업체 사진 2장이어도 1부 — 장수가 부수가 아니다
-assert.deepEqual(attachmentLines(q(1), [F(0, "a.webp"), F(0, "b.webp")], []), [
+assert.deepEqual(attachmentLines(q(1), [F(0, "a.webp"), F(0, "b.webp")]), [
   "견적서(업체1) 1부.",
 ]);
 // 파일 없는 업체는 줄이 안 생긴다 (긴급 예외로 상신한 문서)
-assert.deepEqual(attachmentLines(q(2), [F(0, "a.webp")], []), [
+assert.deepEqual(attachmentLines(q(2), [F(0, "a.webp")]), [
   "견적서(업체1) 1부.",
 ]);
-// 문서 단위 첨부는 파일명(확장자 제거)으로
-assert.deepEqual(attachmentLines([], [F(null, "추정가격 산출근거.pdf")], []), [
+// 문서 단위 첨부(그 밖의 서류)는 파일명(확장자 제거)으로
+assert.deepEqual(attachmentLines([], [F(null, "추정가격 산출근거.pdf")]), [
   "추정가격 산출근거 1부.",
 ]);
-// 옛 묶음 문구는 통째로 빠진다 — 알려진 천장 (생성 스키마는 항목별로 바뀜)
 assert.deepEqual(
-  attachmentLines(q(1), [F(0, "a.webp")], [
-    "견적서 비교표 및 사업자등록증 각 1부",
-    "공사 시방서 1부.",
-  ]),
+  attachmentLines(q(1), [F(0, "a.webp"), F(null, "공사 시방서.pdf")]),
   ["견적서(업체1) 1부.", "공사 시방서 1부."],
 );
 
