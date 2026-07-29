@@ -5,12 +5,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ymdKst } from "@/lib/utils";
 import {
   allowedMime,
+  quoteFileGap,
   MAX_FILE_BYTES,
   MAX_FILES_PER_DOC,
   MAX_FILES_PER_QUOTE,
 } from "@/lib/gian/attachments";
+import type { Classification } from "@/lib/gian/rules";
 import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
 import type { GianDraft } from "@/lib/gian/claude";
 import {
@@ -35,13 +38,57 @@ async function myDoc(docId: string) {
   return { session, doc };
 }
 
-export async function submitGian(docId: string): Promise<ActionState> {
+export async function submitGian(
+  docId: string,
+  waiverReason?: string,
+): Promise<{ error?: string; needWaiver?: boolean } | undefined> {
   const { session, doc } = await myDoc(docId);
   if (!doc) return { error: "문서를 찾을 수 없습니다." };
   // 상신은 작성자·마스터·매니저 — 남의 초안을 아무나 결재에 올리지 못하게 막되,
   // 지출 문서를 실제로 챙기는 매니저는 올릴 수 있어야 한다
   if (doc.createdById !== session.userId && !canSubmitOthers(session.role))
     return { error: "작성자·마스터·매니저만 상신할 수 있습니다." };
+
+  // 증빙 가드 — 결재 시스템의 증거는 체크박스가 아니라 실물 파일이다
+  const meta = doc.meta as {
+    cls?: Classification;
+    quotes?: { vendor: string; amount: number }[];
+    quoteWaiver?: { reason: string };
+  } | null;
+  if (meta?.cls) {
+    const files = await db.documentAttachment.findMany({
+      where: { documentId: doc.id },
+      select: { quoteIndex: true },
+    });
+    const gap = quoteFileGap(meta.cls.context, meta.quotes ?? [], files);
+    if (gap && !meta.quoteWaiver) {
+      const reason = waiverReason?.trim();
+      // 긴급 예외 — 막기만 하면 아무 파일이나 올려서 뚫는다.
+      // 사유를 받아 통과시키되 그 사유가 결재선과 인쇄물에 남는다.
+      if (!reason)
+        return {
+          error: `${gap}. 파일을 첨부하거나 긴급 사유를 적어 주세요.`,
+          needWaiver: true,
+        };
+      const user = await db.user.findUnique({
+        where: { id: session.userId },
+        select: { name: true },
+      });
+      await db.document.update({
+        where: { id: doc.id },
+        data: {
+          meta: {
+            ...(doc.meta as object),
+            quoteWaiver: {
+              reason,
+              byName: user?.name ?? "",
+              at: ymdKst(new Date()),
+            },
+          },
+        },
+      });
+    }
+  }
 
   const result = await submitDocument(docId, session.userId);
   revalidatePath(`/modules/approvals/${docId}`);

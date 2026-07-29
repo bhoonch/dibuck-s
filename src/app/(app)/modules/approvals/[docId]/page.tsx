@@ -354,6 +354,7 @@ export default async function GianDocumentPage({
               docStatus={doc.status}
               canSubmit={canSubmit}
               steps={panelSteps}
+              waiverNote={waiverNote}
             />
 
             {meta.cls && meta.cls.context !== "none" && (

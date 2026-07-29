@@ -50,15 +50,20 @@ export function ApprovalPanel({
   docStatus,
   canSubmit,
   steps,
+  waiverNote,
 }: {
   docId: string;
   docStatus: string;
   canSubmit: boolean;
   steps: PanelStep[];
+  /** 견적서 없이 상신한 사유 — 결재자가 "증빙 없음"을 알고 승인해야 한다 */
+  waiverNote?: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [needWaiver, setNeedWaiver] = useState(false);
+  const [waiverReason, setWaiverReason] = useState("");
   const [actState, actAction, actPending] = useActionState(
     actOnGianStep,
     undefined,
@@ -129,6 +134,13 @@ export function ApprovalPanel({
         </ol>
       )}
 
+      {/* 견적서 없이 상신한 문서 — 결재자가 먼저 본다 */}
+      {waiverNote && (
+        <p className="mt-2 rounded-md bg-[var(--gian-stamp-soft)] p-2 text-xs text-[var(--gian-stamp)]">
+          {waiverNote}
+        </p>
+      )}
+
       {/* 상신 / 재상신 */}
       {canSubmit && (docStatus === "draft" || docStatus === "rejected") && (
         <div className="mt-3 space-y-2 border-t border-[var(--gian-line)] pt-3">
@@ -139,18 +151,42 @@ export function ApprovalPanel({
               상신하면 결재가 처음부터 진행됩니다.
             </p>
           )}
+          {/* 증빙 부족 → 사유를 받아 긴급 예외로 상신 (사유는 결재선·인쇄물에 남는다) */}
+          {needWaiver && (
+            <textarea
+              rows={2}
+              value={waiverReason}
+              onChange={(e) => setWaiverReason(e.target.value)}
+              placeholder="견적서 없이 상신하는 사유 (결재자와 인쇄물에 표시됩니다)"
+              className="w-full rounded-md border border-[var(--gian-line-strong)] bg-[var(--gian-paper)] px-3 py-2 text-sm"
+            />
+          )}
           <Button
             size="lg"
             className="w-full"
-            disabled={pending}
-            onClick={() => run(() => submitGian(docId))}
+            disabled={pending || (needWaiver && !waiverReason.trim())}
+            onClick={() => {
+              setError(undefined);
+              startTransition(async () => {
+                const r = await submitGian(
+                  docId,
+                  needWaiver ? waiverReason : undefined,
+                );
+                if (r?.needWaiver) setNeedWaiver(true);
+                if (r?.error) setError(r.error);
+              });
+            }}
           >
             {pending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Send className="size-4" />
             )}
-            {docStatus === "rejected" ? "다시 상신" : "결재 상신"}
+            {needWaiver
+              ? "사유와 함께 상신"
+              : docStatus === "rejected"
+                ? "다시 상신"
+                : "결재 상신"}
           </Button>
         </div>
       )}
