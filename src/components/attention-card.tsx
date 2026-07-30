@@ -4,9 +4,11 @@ import { TriangleAlert } from "lucide-react";
  * "지금 이 문서에서 채워야 할 것" 한 장 — 공고문 게시 전 일정 확정,
  * 초안의 미확정 추진일정처럼 **막지는 않지만 그냥 지나치면 안 되는** 안내.
  *
- * 배경색을 깔지 않는다: 이 화면에서 색이 있는 자리는 결재 판정과 문서 자체이고,
- * 안내가 색을 가져가면 정작 봐야 할 곳과 경쟁한다. 신호는 아이콘 하나로 충분하다.
- * (앰버 배경 버전을 두 번 시도했다가 둘 다 "색이 진하다"로 되돌렸다 — 다시 깔지 말 것)
+ * 배경은 연한 청색(--gian-navy-soft) — 공고문 표 헤더·괘선과 같은 계열이라 이 문서
+ * 화면의 색으로 읽힌다. 앰버가 아닌 이유는 두 가지다: 이 카드는 막는 경고가 아니라
+ * 지나치면 안 되는 안내고, 예전에 두 번 되돌린 앰버 판은 **배경과 글자를 같이 칠해서**
+ * 카드가 통째로 노란 덩어리가 됐다. 주의 신호는 앰버 아이콘 하나가 진다 —
+ * 배경색을 글자·테두리까지 번지게 하지 말 것.
  */
 export function AttentionCard({
   title,
@@ -22,7 +24,9 @@ export function AttentionCard({
   className?: string;
 }) {
   return (
-    <div className={`rounded-lg border bg-card p-4 print:hidden ${className}`}>
+    <div
+      className={`rounded-lg border bg-[var(--gian-navy-soft)] p-4 print:hidden ${className}`}
+    >
       <p className="flex items-center gap-2 text-sm font-bold">
         <TriangleAlert className="size-4 shrink-0 text-[var(--gian-warn)]" />
         {title}

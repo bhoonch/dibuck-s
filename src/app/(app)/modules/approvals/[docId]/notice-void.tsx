@@ -16,12 +16,14 @@ export function NoticeVoid({ docId }: { docId: string }) {
 
   return (
     <>
+      {/* outline + 빨간 글씨 — ghost는 테두리가 없어 버튼이 아니라 글씨로 읽혔다.
+          destructive(채움)는 "반려"가 쓰는 무게라 되돌릴 수 없는 조용한 일에는 과하다 */}
       <ConfirmDialog
         trigger={
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="text-destructive"
+            className="text-destructive hover:text-destructive"
             disabled={pending}
           >
             공고문 폐기

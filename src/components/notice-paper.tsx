@@ -4,6 +4,11 @@ import type { NoticeDoc } from "@/lib/gian/notice";
  * 입주민 공고문 A4 렌더러 (210×297mm) — 실제 관리사무소 게시물 양식.
  * 3분할 헤더 → 청색 괘선 → 대제목 → 인사 → "- 아 래 -" → 정보표 → ▶유의사항
  * → (여백) → 굵은 청색선 → 명의+직인 → TEL/FAX
+ *
+ * 활자는 기안서(11.5pt)보다 크다 — 같은 A4라도 읽는 거리가 다르다. 결재문서는 책상에서
+ * 30cm에 놓고 보지만 공고문은 승강기 벽에 붙여 서서 1m 밖에서 본다. 본문 14pt가 기준선이고
+ * 나머지는 여기에 딸려 간다. 헤더 표(8.5pt)·명의(17pt)·머리글자(25pt)는 크기가 아니라
+ * 가로 폭에 묶여 있어 예외다 — 키우면 52mm 표가 접히고 66mm 가운데 칸이 넘친다.
  */
 export function NoticePaper({
   notice,
@@ -30,7 +35,7 @@ export function NoticePaper({
   return (
     <div
       id={id}
-      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[12pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none"
+      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[14pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none"
     >
       {/* 3분할 헤더 */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[5mm]">
@@ -66,15 +71,16 @@ export function NoticePaper({
 
       <hr className="mt-[4mm] mb-[9mm] border-0 border-t-2 border-[#2456A6]" />
 
-      <h2 className="mb-[8mm] text-center text-[19pt] font-extrabold tracking-[.02em] text-[#2456A6]">
+      <h2 className="mb-[8mm] text-center text-[21pt] font-extrabold tracking-[.02em] text-[#2456A6]">
         {notice.title}
       </h2>
       <p className="mb-[5mm] indent-[2ch]">{notice.intro}</p>
-      <p className="my-[5mm] text-center text-[12.5pt] font-bold tracking-[1.1em] indent-[1.1em]">
+      <p className="my-[5mm] text-center text-[14.5pt] font-bold tracking-[1.1em] indent-[1.1em]">
         - 아 래 -
       </p>
 
-      <table className="mb-[6mm] w-full border-collapse text-[11.5pt]">
+      {/* 본문보다 0.5pt 작게 — 34mm 라벨 칸 안에서 "청 소 일 시"가 줄바꿈되지 않는 한계선 */}
+      <table className="mb-[6mm] w-full border-collapse text-[13.5pt]">
         <tbody>
           {notice.rows.map((r) => (
             <tr key={r.k}>
@@ -94,11 +100,11 @@ export function NoticePaper({
       </table>
 
       {notice.notes.length > 0 && (
-        <ul className="mb-[4mm] text-[10.5pt]">
+        <ul className="mb-[4mm] text-[12pt]">
           {notice.notes.map((n, i) => (
             <li
               key={i}
-              className={`relative mb-[1.2mm] pl-[5mm] before:absolute before:left-0 before:text-[8.5pt] before:text-[#2456A6] before:content-['▶'] ${
+              className={`relative mb-[1.2mm] pl-[5mm] before:absolute before:left-0 before:text-[9.5pt] before:text-[#2456A6] before:content-['▶'] ${
                 n.red ? "font-semibold text-[#C22A21]" : ""
               }`}
             >
@@ -138,7 +144,7 @@ export function NoticePaper({
         )}
       </div>
       {tel && (
-        <p className="mt-[2.5mm] text-center text-[10pt] text-[#222]">{tel}</p>
+        <p className="mt-[2.5mm] text-center text-[11pt] text-[#222]">{tel}</p>
       )}
     </div>
   );

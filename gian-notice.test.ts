@@ -13,6 +13,7 @@ import {
   DEFAULT_PLACES,
   DEFAULT_POST_TO,
 } from "./src/lib/gian/notice";
+import type { GianDraft } from "./src/lib/gian/claude";
 
 const at = new Date("2026-07-28T01:00:00Z"); // KST 2026-07-28 10:00
 const form = {
@@ -141,3 +142,75 @@ assert.deepEqual(readNoticeMark("* 일정은 변경될 수 있습니다."), {
 const row = { k: "공 사 일 자", v: "8월 14일", red: true };
 assert.deepEqual(parseNoticeRow(`${row.red ? "*" : ""}${row.k}: ${row.v}`), row);
 console.log("✓ 공고문 본문 수정 왕복 통과");
+
+// ── 공고문은 결재된 본문(meta.draft)을 싣는다 ──
+// 입주민이 읽는 건 입력 키워드("LED 교체")가 아니라 결재가 끝난 그 문장이어야 한다.
+const kw = {
+  work: "LED 교체",
+  location: "지하주차장",
+  why: "어두움",
+  schedule: "2026년 8월 12일(수)",
+};
+const draft: GianDraft = {
+  title: "지하주차장 LED 등기구 교체공사 지출품의의 건",
+  legalBasis: ["가. 공동주택관리법 시행령 제19조"],
+  sections: [
+    {
+      heading: "품의목적",
+      lines: [
+        "가. 지하주차장 내 노후 형광등의 잦은 고장 및 침침함 해소",
+        "나. 고효율 LED 조명 교체를 통한 공용전기료 절감",
+      ],
+    },
+    {
+      heading: "사업 및 지출개요",
+      lines: [
+        "가. 공 사 명: 지하주차장 노후 등기구 LED 교체 공사",
+        "나. 공사위치: 지하주차장 1~2층 전구역",
+        "다. 소요예산: 금 4,500,000원 (VAT 포함)",
+      ],
+    },
+    { heading: "추진일정", lines: ["가. 공사시행: 2026년 ○월 ○일 ~ ○월 ○일"] },
+  ],
+  attachments: [],
+  legalNotices: [],
+  needsClarification: [],
+};
+const base = { docType: "pumui" as const, docNo: "품의-2026-0009", approvedAt: at };
+const vOf = (n: ReturnType<typeof buildNotice>, k: string) =>
+  n.rows.find((r) => r.k === k)?.v ?? "";
+
+const fromDraft = buildNotice({ form: kw, draft, ...base });
+// 라벨은 "공 사 명"처럼 자간이 벌어져 온다 — 공백을 지우고 맞춰야 잡힌다
+assert.equal(vOf(fromDraft, "공사내용"), "지하주차장 노후 등기구 LED 교체 공사");
+assert.equal(vOf(fromDraft, "공사위치"), "지하주차장 1~2층 전구역");
+assert.equal(fromDraft.title, "지하주차장 노후 등기구 LED 교체 공사 시행 안내");
+assert.ok(fromDraft.intro.includes("지하주차장 노후 등기구 LED 교체 공사를"));
+// 사유는 목적 절의 개조식 항목에서 "가." 기호를 떼고 이어 붙인다
+assert.equal(
+  fromDraft.notes[0].text,
+  "추진 사유: 지하주차장 내 노후 형광등의 잦은 고장 및 침침함 해소 / 고효율 LED 조명 교체를 통한 공용전기료 절감",
+);
+// 일정만은 초안을 안 본다 — 초안 일정은 "○월 ○일"이라 게시물에 실리면 안 된다
+assert.equal(vOf(fromDraft, "공사일자"), kw.schedule);
+
+// 초안이 자리표시자만 가진 항목은 없는 값 — 원 입력으로 떨어진다
+const placeholder = buildNotice({
+  form: kw,
+  draft: {
+    ...draft,
+    sections: [
+      { heading: "품의목적", lines: ["가. (입력 필요)"] },
+      { heading: "사업 및 지출개요", lines: ["가. 공 사 명: ○○ 공사"] },
+    ],
+  },
+  ...base,
+});
+assert.equal(vOf(placeholder, "공사내용"), "LED 교체");
+assert.equal(placeholder.notes[0].text, "추진 사유: 어두움");
+
+// 초안이 아예 없는 옛 문서도 그대로 — 위 work/gian 검증이 이미 이 경로다
+const noDraft = buildNotice({ form: kw, ...base });
+assert.equal(vOf(noDraft, "공사내용"), "LED 교체");
+assert.equal(vOf(noDraft, "공사위치"), "지하주차장");
+console.log("✓ 공고문이 결재된 본문을 싣는다");

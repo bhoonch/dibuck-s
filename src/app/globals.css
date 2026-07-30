@@ -233,6 +233,8 @@
   --gian-ink-soft: #5b6672;
   --gian-navy: #1e4066;
   --gian-navy-deep: #16324f;
+  /* 공고문 표 헤더(#EAF0FA)와 같은 계열 — 화면 안내 카드의 바탕색 */
+  --gian-navy-soft: #eef3fa;
   --gian-stamp: #b3382c;
   --gian-stamp-soft: #f7e9e6;
   --gian-ok: #2e7d4f;

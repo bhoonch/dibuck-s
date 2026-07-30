@@ -308,9 +308,14 @@ export function ApprovalPanel({
               <Undo2 className="size-3.5" /> 상신 회수
             </Button>
           )}
+          {/* 옆의 "상신 회수"와 같은 outline — ghost는 버튼이 아니라 글씨로 읽혔다 */}
           <ConfirmDialog
             trigger={
-              <Button variant="ghost" size="sm" className="text-destructive">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+              >
                 {numbered ? "문서 폐기" : "초안 삭제"}
               </Button>
             }

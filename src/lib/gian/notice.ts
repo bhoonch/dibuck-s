@@ -1,15 +1,18 @@
 import { db } from "@/lib/db";
 import { createDocument } from "@/lib/documents";
 import { koreanDateKst, ymdKst } from "@/lib/utils";
+import type { GianDraft } from "./claude";
 import type { Classification } from "./rules";
 
 /**
  * 결재 완료 문서 → 입주민 공고문 자동 파생.
  *
  * **결재가 끝난 문서에서만** 만든다 — 승인 전에 공고가 나가면 결재 자체가 무의미해진다.
- * 재료는 원본 Document.meta.form 그대로다. 사용자 입력을 다시 받지 않는다.
- * 문구는 전부 결정적 코드 — LLM을 다시 부르지 않는다(결재 완료가 API 실패로 막히면 안 되고,
- * 공고문은 정형 문구라 작문이 필요 없다).
+ * 재료는 **결재된 본문(meta.draft)이 먼저**, 없는 값만 원 입력(meta.form)으로 떨어진다.
+ * 결재를 받은 것은 "LED 교체"라는 입력 키워드가 아니라 "지하주차장 노후 등기구 LED 교체
+ * 공사"라고 적힌 그 문서다 — 입주민에게는 결재된 문장이 나가야 한다.
+ * 그래도 LLM을 다시 부르지는 않는다(결재 완료가 API 실패로 막히면 안 된다) —
+ * 이미 저장된 초안에서 읽기만 하므로 여전히 결정적 코드다.
  *
  * 명의·연락처·직인은 스냅샷하지 않고 렌더 시점의 Tenant 값을 읽는다(연락처는 최신이 맞다).
  */
@@ -79,14 +82,62 @@ export function josa(word: string, withJong: string, without: string) {
   return korean && (c - 0xac00) % 28 ? withJong : without;
 }
 
+/** 개조식 한 줄 "가. 공 사 명: 지하주차장 …" → [라벨, 값] */
+const LABELED_LINE = /^\s*[가-힣]\.\s*([^:：]{2,20}?)\s*[:：]\s*(.+)$/;
+
+/**
+ * 초안이 입력 부족을 표시한 자리 — 프롬프트가 "○○"·"(입력 필요)"를 쓰게 돼 있다.
+ * 이런 값이 공고문에 실리면 원 입력보다 나쁘므로 없는 값으로 친다.
+ */
+const isPlaceholder = (v: string) => /[○�]|입력\s*(필요|없음)/.test(v);
+
+/**
+ * 결재된 본문에서 라벨로 값 찾기. 라벨은 "공 사 명"처럼 자간을 공백으로 벌려 오므로
+ * 공백을 지우고 맞춘다. 절 순서는 서식마다 달라서 절을 가리지 않고 전부 훑는다.
+ */
+function labelValue(draft: GianDraft | undefined, label: RegExp) {
+  for (const sec of draft?.sections ?? [])
+    // 한 항목에 줄바꿈이 섞여 오는 경우가 있다 — GianPaper와 같은 이유로 먼저 편다
+    for (const line of sec.lines.flatMap((l) => l.split(/\r?\n/))) {
+      const m = LABELED_LINE.exec(line);
+      if (m && label.test(m[1].replace(/\s+/g, ""))) {
+        const v = m[2].trim();
+        if (!isPlaceholder(v)) return v;
+      }
+    }
+  return "";
+}
+
+/** 목적·배경 절의 개조식 항목들 → 공고문 유의사항 한 줄 ("가." 기호는 뗀다) */
+function purposeOf(draft: GianDraft | undefined) {
+  const sec = draft?.sections.find((s) => /목적|배경|사유/.test(s.heading));
+  return (sec?.lines ?? [])
+    .flatMap((l) => l.split(/\r?\n/))
+    .map((l) => l.replace(/^\s*[가-힣]\.\s*/, "").trim())
+    .filter((l) => l && !isPlaceholder(l))
+    .join(" / ");
+}
+
 export function buildNotice(input: {
   form: { work: string; location: string; why: string; schedule: string };
+  /** 결재된 본문 — 있으면 이쪽이 먼저다. 옛 문서엔 없을 수 있어 선택값 */
+  draft?: GianDraft;
   docType: Classification["docType"];
   docNo: string;
   approvedAt: Date;
 }): NoticeDoc {
-  const { form } = input;
-  const work = form.work.trim() || "안건";
+  const { form, draft } = input;
+  // 일정만은 초안을 안 본다 — 초안의 일정은 "○월 ○일"인 경우가 흔하고,
+  // 이 값은 게시 전 확정 카드(isConcreteSchedule)가 잡아서 고치게 돼 있다
+  const schedule = form.schedule;
+  const work =
+    labelValue(draft, /공사명|사업명|용역명|점검명|안건명/) ||
+    form.work.trim() ||
+    "안건";
+  const location =
+    labelValue(draft, /공사위치|작업위치|대상범위|점검대상|위치|대상/) ||
+    form.location.trim();
+  const why = purposeOf(draft) || form.why.trim();
   // 예산이 없는 기안(점검·행사 안내 등)에 공사 문구를 붙이면 오탐이 된다 — Phase 2의 장충금 경고와 같은 이유
   const isWork = input.docType !== "gian";
   const noun = isWork ? "공사" : "시행";
@@ -101,8 +152,8 @@ export function buildNotice(input: {
       `입주민 여러분께 안내 말씀드립니다. 아래와 같이 ${work}${josa(work, "을", "를")} ` +
       `시행하오니 입주민 여러분의 많은 이해와 협조를 부탁드립니다.`,
     rows: [
-      { k: `${noun}일자`, v: form.schedule.trim() || "(추후 공지)", red: true },
-      { k: `${noun}위치`, v: form.location.trim() || "-" },
+      { k: `${noun}일자`, v: schedule.trim() || "(추후 공지)", red: true },
+      { k: `${noun}위치`, v: location || "-" },
       { k: `${noun}내용`, v: work },
       {
         k: "시행근거",
@@ -110,7 +161,7 @@ export function buildNotice(input: {
       },
     ],
     notes: [
-      ...(form.why.trim() ? [{ text: `추진 사유: ${form.why.trim()}` }] : []),
+      ...(why ? [{ text: `추진 사유: ${why}` }] : []),
       ...(isWork
         ? [{ text: "작업 시간대에는 해당 구역의 통행 및 주차가 일부 제한될 수 있습니다." }]
         : []),
@@ -203,6 +254,7 @@ type SourceDoc = {
 export async function createNoticeFrom(doc: SourceDoc) {
   const meta = doc.meta as {
     form?: { work: string; location: string; why: string; schedule: string };
+    draft?: GianDraft;
     cls?: Classification;
   } | null;
   if (!meta?.form || !meta.cls) return null;
@@ -210,6 +262,7 @@ export async function createNoticeFrom(doc: SourceDoc) {
 
   const notice = buildNotice({
     form: meta.form,
+    draft: meta.draft,
     docType: meta.cls.docType,
     docNo: doc.docNo ?? "",
     approvedAt: new Date(),
