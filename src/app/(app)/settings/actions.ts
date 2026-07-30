@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
@@ -168,6 +169,21 @@ export async function saveApprovalLine(formData: FormData) {
     /* 깨진 입력은 빈 목록 취급 */
   }
   const seen = new Set<string>();
+  /*
+   * 상시 열람 링크 토큰 — 이미 있으면 그대로 둔다(전달해 둔 링크가 살아 있어야 한다).
+   * 빈 값으로 오면 새로 발급되므로 화면의 "새로 발급"은 이 칸을 비우기만 하면 된다.
+   *
+   * 판정은 **생성기와 같은 기준**으로 한다(내 단지 접두어 + 64자리 hex 길이).
+   * 문자셋 정규식으로 검사하면 cuid 형식이 바뀌는 날 멀쩡한 토큰이 전부 재발급돼
+   * 나가 있는 링크가 한꺼번에 죽는다. 접두어를 보므로 남의 단지 토큰도 못 붙여넣는다.
+   */
+  const prefix = `${session.tenantId}.`;
+  const inboxToken = (v: unknown) =>
+    typeof v === "string" &&
+    v.startsWith(prefix) &&
+    v.length === prefix.length + 64
+      ? v
+      : prefix + crypto.randomBytes(32).toString("hex");
   const externalApprovers = (Array.isArray(raw) ? raw : [])
     .slice(0, 10)
     .map((e: Record<string, unknown>) => ({
@@ -177,6 +193,7 @@ export async function saveApprovalLine(formData: FormData) {
       name: String(e.name ?? "").trim().slice(0, 30),
       phone: String(e.phone ?? "").trim().slice(0, 20) || undefined,
       email: String(e.email ?? "").trim().slice(0, 100) || undefined,
+      token: inboxToken(e.token),
     }))
     .filter((e) => e.name)
     // 회장·감사는 각 1명 — 중복 제출이 와도 첫 항목만 남긴다
@@ -187,14 +204,29 @@ export async function saveApprovalLine(formData: FormData) {
       return true;
     });
 
+  await db.tenant.update({
+    where: { id: session.tenantId! },
+    data: { approvalLine: line, externalApprovers },
+  });
+  revalidatePath("/settings/approval-line");
+  redirect("/settings/approval-line?saved=1");
+}
+
+/**
+ * 전결 규정 — 결재선과 같은 판단(이 문서가 누구에게 가느냐)이지만 화면을 나눴다.
+ * 결재선 카드 아래에 붙어 있으니 안 보인다는 지적이 있었다.
+ *
+ * ⚠️ 저장도 반드시 따로다. 한 액션이 둘 다 쓰면, 전결 입력칸이 없는 결재선 화면에서
+ * 저장할 때마다 폼에 없는 전결 한도가 null로 덮여 조용히 지워진다.
+ */
+export async function saveDirectorLimit(formData: FormData) {
+  const session = await requireRole(Role.DIRECTOR);
   // 0이나 빈 칸은 "한도 없음"(null)으로 — 0원 한도는 모든 지출이 전결이라는 뜻이 되어 위험하다
   const limit = parseWon(formData.get("directorLimit"));
 
   await db.tenant.update({
     where: { id: session.tenantId! },
     data: {
-      approvalLine: line,
-      externalApprovers,
       directorLimit: limit > 0 ? limit : null,
       directorLimitClause:
         String(formData.get("directorLimitClause") ?? "")
@@ -202,8 +234,8 @@ export async function saveApprovalLine(formData: FormData) {
           .slice(0, 100) || null,
     },
   });
-  revalidatePath("/settings/approval-line");
-  redirect("/settings/approval-line?saved=1");
+  revalidatePath("/settings/director-limit");
+  redirect("/settings/director-limit?saved=1");
 }
 
 export async function uploadUnits(

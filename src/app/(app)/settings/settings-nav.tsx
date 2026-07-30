@@ -9,6 +9,7 @@ import {
   CreditCard,
   LayoutGrid,
   Package,
+  Scale,
   Stamp,
   Users,
   type LucideIcon,
@@ -29,6 +30,7 @@ const groups: { label: string; items: Item[] }[] = [
       { name: "세대 관리", href: "/settings/units", icon: LayoutGrid },
       { name: "직원 관리", href: "/settings/staff", icon: Users },
       { name: "결재선", href: "/settings/approval-line", icon: Stamp },
+      { name: "전결 규정", href: "/settings/director-limit", icon: Scale },
     ],
   },
   {

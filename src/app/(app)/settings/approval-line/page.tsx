@@ -1,7 +1,10 @@
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { roleLabels } from "@/lib/labels";
-import { ApprovalLineEditor } from "./approval-line-editor";
+import {
+  ApprovalLineEditor,
+  type ExternalApproverInput,
+} from "./approval-line-editor";
 
 export default async function ApprovalLinePage() {
   const session = await requireSession();
@@ -14,16 +17,10 @@ export default async function ApprovalLinePage() {
     }),
   ]);
   const line = (tenant.approvalLine as string[] | null) ?? [];
+  // 저장 모양 그대로 — token까지 실어 보내야 편집기가 결재함 링크를 그리고,
+  // 저장할 때 그 값이 되돌아와 재발급되지 않는다
   const external =
-    (tenant.externalApprovers as
-      | {
-          role: "CHAIR" | "AUDITOR" | "ETC";
-          label?: string;
-          name: string;
-          phone?: string;
-          email?: string;
-        }[]
-      | null) ?? [];
+    (tenant.externalApprovers as ExternalApproverInput[] | null) ?? [];
 
   return (
     <ApprovalLineEditor
@@ -34,8 +31,6 @@ export default async function ApprovalLinePage() {
       }))}
       initialLine={line}
       initialExternal={external}
-      initialDirectorLimit={tenant.directorLimit}
-      initialDirectorLimitClause={tenant.directorLimitClause}
       isDirector={session.role === "DIRECTOR"}
     />
   );

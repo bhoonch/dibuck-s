@@ -194,16 +194,37 @@ export function legalNoticesFor(cls: Classification): string[] {
 }
 
 export type ExternalApprover = {
-  role: ExternalRole;
+  /**
+   * 저장된 값은 회장·감사 말고 "ETC"(이사·동대표 등 자유 등록)도 있다.
+   * 결재선에 자동으로 붙는 건 CHAIR·AUDITOR뿐이라 `Classification.externalApprovers`는
+   * 좁은 채로 두고, **저장 모양인 이쪽만** 실제와 맞춘다.
+   */
+  role: ExternalRole | "ETC";
+  /** ETC의 역할명 (예: 이사, 동대표). 고정 역할은 externalRoleLabels가 이름을 갖는다 */
+  label?: string;
   name: string;
   phone?: string;
   email?: string;
+  /**
+   * 상시 열람 링크 토큰 — 문서별 서명 토큰(ApprovalStep.token, 7일 만료)과 다르다.
+   * 서명 토큰은 그 문서 한 건에만 쓰이고 만료되므로, 회장이 **지난 결재 건을 다시 볼**
+   * 방법이 없었다. 이 토큰 하나로 `/approve/inbox/[token]`에서 자기 결재 목록을 연다.
+   * 형식은 `<tenantId>.<랜덤>` — 앞부분으로 단지를 인덱스 조회하고 전체를 대조한다
+   * (JSON 안을 검색하지 않아도 O(1)이다).
+   */
+  token?: string;
 };
 
 export const externalRoleLabels: Record<ExternalRole, string> = {
   CHAIR: "입주자대표회장",
   AUDITOR: "감사",
 };
+
+/** 등록된 외부 결재자의 표시 이름 — ETC는 직접 적은 역할명, 없으면 "위원" */
+export const approverRoleLabel = (e: Pick<ExternalApprover, "role" | "label">) =>
+  e.role === "ETC"
+    ? e.label?.trim() || "위원"
+    : externalRoleLabels[e.role];
 
 /**
  * 상신 시 ApprovalStep 스냅샷 재료를 만든다.
