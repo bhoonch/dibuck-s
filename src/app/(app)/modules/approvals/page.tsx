@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { ymdKst } from "@/lib/utils";
+import { waitingOnLabel } from "@/lib/gian/rules";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -27,6 +28,12 @@ export default async function GianModulePage() {
       status: true,
       createdAt: true,
       createdBy: { select: { name: true } },
+      // 지금 결재 차례인 사람 — 목록에서 "누구에서 멈춰 있나"가 안 보였다
+      approvalSteps: {
+        where: { status: "pending" },
+        select: { name: true, externalRole: true },
+        take: 1,
+      },
     },
   });
 
@@ -63,6 +70,7 @@ export default async function GianModulePage() {
             title: d.title,
             type: d.type,
             status: d.status,
+            waitingOn: waitingOnLabel(d.approvalSteps[0]),
             author: d.createdBy?.name ?? "-",
             createdAt: ymdKst(d.createdAt),
           }))}

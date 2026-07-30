@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fieldInput, fieldLabel, panel, panelTitle } from "@/components/gian-ui";
@@ -19,6 +19,31 @@ const docTypeLabel = {
   pumui: "품의서 · 4단 결재 (+회장)",
   ltp_work: "공사 추진 기안서 · 5단 결재 (+감사·회장)",
 };
+
+/**
+ * 초안 생성 대기 — 폼 위를 덮는 반투명 막.
+ * 경과 초를 세는 이유: 10~30초짜리 대기에서 "멈춘 건지 도는 건지"를 가르는 건
+ * 스피너가 아니라 숫자가 올라가는 것이다.
+ */
+function GeneratingOverlay() {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSec((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-[var(--gian-card)]/85 backdrop-blur-[1px]">
+      <Loader2 className="size-8 animate-spin text-[var(--gian-ink-soft)]" />
+      <p className="text-base font-bold">초안을 만들고 있습니다</p>
+      <p className="text-sm text-[var(--gian-ink-soft)]">
+        보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
+      </p>
+      <p className="text-xs text-[var(--gian-ink-soft)]">
+        이 창을 닫지 마세요.
+      </p>
+    </div>
+  );
+}
 
 /** 칸 밑 한 줄 — "이 칸은 얼마나 대충이어도 되는지"를 예로 보여준다 */
 function Hint({ children }: { children: React.ReactNode }) {
@@ -84,7 +109,12 @@ export function GianForm({
       action={formAction}
       className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]"
     >
-      <div className="rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-7 pb-6 text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
+      <div className="relative rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] px-8 pt-7 pb-6 text-[var(--gian-ink)] shadow-[var(--gian-shadow)]">
+        {/*
+          10~30초는 버튼 안 스피너만으로 버티기엔 길다 — 그동안 화면이 죽은 것처럼 보였다.
+          입력칸 위를 덮어 "지금 이 폼은 건드릴 수 없다"까지 같이 말한다.
+        */}
+        {pending && <GeneratingOverlay />}
         <h2 className="text-lg font-bold tracking-tight text-balance">
           어떤 문서를 올릴까요?
         </h2>

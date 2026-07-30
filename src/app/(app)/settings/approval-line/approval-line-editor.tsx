@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SummaryBox } from "@/components/ui/summary-box";
 import { saveApprovalLine } from "../actions";
 
 export type StaffOption = {
@@ -326,26 +327,33 @@ export function ApprovalLineEditor({
           지금 적용 중인 규정을 문장으로 먼저 보여준다 — 값이 입력칸 안에만 있으면
           placeholder(예시)와 저장된 값이 같은 회색 글씨로 보여 구분이 안 된다.
         */}
-        <div className="border-b border-gray-100 px-4 py-3 text-sm">
-          {initialDirectorLimit ? (
-            <>
-              현재{" "}
-              <b className="font-mono">
-                {initialDirectorLimit.toLocaleString("ko-KR")}원
-              </b>
-              (VAT 제외) 이하이고 예산에 반영된 지출은{" "}
-              <b>관리소장 전결</b>로 끝납니다
-              {initialDirectorLimitClause
-                ? ` — 근거: ${initialDirectorLimitClause}`
-                : " (근거 조항 미등록: 문서에는 법령만 인용됩니다)"}
-              .
-            </>
-          ) : (
-            <span className="text-muted-foreground">
-              전결 한도가 등록되지 않아 <b>모든 지출 문서에 회장 결재</b>가
-              붙습니다. 관리규약의 한도를 아래에 등록해 주세요.
-            </span>
-          )}
+        <div className="border-b border-gray-100 px-4 py-3">
+          <SummaryBox>
+            {initialDirectorLimit ? (
+              <>
+                <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+                  지금 적용 중
+                </span>
+                <p className="mt-1">
+                  <b className="font-mono text-xl tracking-tight">
+                    {initialDirectorLimit.toLocaleString("ko-KR")}원
+                  </b>
+                  <span className="text-muted-foreground"> (VAT 제외)</span> 이하이고
+                  예산에 반영된 지출은 <b>관리소장 전결</b>로 끝납니다.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {initialDirectorLimitClause
+                    ? `근거 조항: ${initialDirectorLimitClause}`
+                    : "근거 조항 미등록 — 문서에는 법령만 인용됩니다"}
+                </p>
+              </>
+            ) : (
+              <span className="text-muted-foreground">
+                전결 한도가 등록되지 않아 <b>모든 지출 문서에 회장 결재</b>가
+                붙습니다. 관리규약의 한도를 아래에 등록해 주세요.
+              </span>
+            )}
+          </SummaryBox>
         </div>
         <CardContent className="grid gap-4 p-4 sm:grid-cols-2">
           <div className="space-y-2">

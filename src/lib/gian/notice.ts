@@ -138,6 +138,24 @@ export function isConcreteSchedule(v: string) {
   );
 }
 
+/**
+ * 초안의 일정 절이 "2026년 ○월 ○일"처럼 미정으로 남아 있는가.
+ * ○ 표기는 공문에서 미정을 뜻하는 정식 관행이라 틀린 게 아니다 — 다만 계약이 잡힌 뒤에도
+ * 그대로 결재에 올라가는 일이 있어, 초안 화면에서 한 번 짚어 준다.
+ * 결재를 막지는 않는다(공고문 게시 때와 같은 판단).
+ */
+export function vagueScheduleLine(
+  sections: { heading: string; lines: string[] }[],
+): string | null {
+  const sec = sections.find((s) => /일정/.test(s.heading));
+  return (
+    sec?.lines.find((l) => {
+      const value = l.split(/[:：]/).slice(1).join(":");
+      return value.trim() ? !isConcreteSchedule(value) : false;
+    }) ?? null
+  );
+}
+
 /** 원본 문서에서 파생된 공고문 — 중복 생성 방지와 양방향 링크가 같은 조회를 쓴다 */
 export function findNoticeFor(sourceDocId: string) {
   return db.document.findFirst({

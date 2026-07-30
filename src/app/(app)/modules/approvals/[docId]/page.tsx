@@ -27,6 +27,7 @@ import { NoticePaper } from "@/components/notice-paper";
 import {
   findNoticeFor,
   isConcreteSchedule,
+  vagueScheduleLine,
   splitPlaces,
   DEFAULT_POST_TO,
   NOTICE_PLACES,
@@ -99,6 +100,10 @@ export default async function GianDocumentPage({
   // ── 결재 완료에서 파생된 입주민 공고문 ──
   // 명의·연락처·직인은 스냅샷이 아니라 지금의 단지 정보를 읽는다
   if (meta?.notice) {
+    // 첫 행이 공사·시행일자 — buildNotice가 늘 그 순서로 만든다
+    const scheduleRow = meta.notice.rows[0];
+    const scheduleLabel = scheduleRow?.k ?? "일자";
+    const scheduleVague = !isConcreteSchedule(scheduleRow?.v ?? "");
     const tenant = await db.tenant.findUniqueOrThrow({
       where: { id: doc.tenantId },
       select: {
@@ -132,7 +137,13 @@ export default async function GianDocumentPage({
               title="입주민 공고문"
               description={doc.docNo ?? undefined}
             >
-              <PrintButton />
+              <PrintButton
+                blocked={
+                  scheduleVague
+                    ? `${scheduleLabel}를 확정해야 인쇄할 수 있습니다`
+                    : undefined
+                }
+              />
               {meta.sourceDocId && (
                 <Button asChild variant="outline">
                   <Link href={`/modules/approvals/${meta.sourceDocId}`}>
@@ -142,12 +153,11 @@ export default async function GianDocumentPage({
               )}
             </PageHeader>
           </div>
-          {/* 첫 행이 공사·시행일자 — buildNotice가 늘 그 순서로 만든다 */}
-          {!isConcreteSchedule(meta.notice.rows[0]?.v ?? "") && (
+          {scheduleVague && (
             <NoticeSchedule
               docId={doc.id}
-              current={meta.notice.rows[0]?.v ?? ""}
-              label={meta.notice.rows[0]?.k ?? "일자"}
+              current={scheduleRow?.v ?? ""}
+              label={scheduleLabel}
             />
           )}
           {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
@@ -243,6 +253,7 @@ export default async function GianDocumentPage({
   // 반려도 수정 가능하다 — saveGianDraft·edit 페이지가 draft·rejected 둘 다 받는다.
   // 예전엔 화면 버튼만 draft 조건이라 반려당한 사람이 고칠 길이 안 보였다.
   const canEdit = doc.status === "draft" || doc.status === "rejected";
+  const vagueLine = vagueScheduleLine(meta.draft.sections);
 
   // 첨부 파일 — data(Bytes)는 절대 select하지 않는다 (목록 쿼리에 파일이 딸려온다)
   const attachmentFiles = await db.documentAttachment.findMany({
@@ -352,6 +363,27 @@ export default async function GianDocumentPage({
             )}
           </div>
         </div>
+
+        {/*
+          일정이 "○월 ○일"로 남아 있으면 초안일 때 한 번 짚어 준다 — 결재는 막지 않는다.
+          공고문 게시 전 일정 확정과 같은 판단이고, 고치는 곳은 초안 수정 화면이다.
+        */}
+        {canEdit && vagueLine && (
+          <div className="mb-4 rounded-lg border border-l-4 border-[var(--gian-warn)]/40 border-l-[var(--gian-warn)] bg-[var(--gian-warn-soft)] p-4 print:hidden">
+            <p className="text-sm font-bold text-[var(--gian-warn)]">
+              추진일정이 아직 확정되지 않았습니다
+            </p>
+            <p className="mt-1 text-sm text-[var(--gian-warn)]/90">
+              &ldquo;{vagueLine.trim()}&rdquo; — 날짜가 정해졌다면 결재를 올리기
+              전에 채워 주세요. 미정인 채로 올려도 결재는 진행됩니다.
+            </p>
+            <Button asChild variant="outline" className="mt-3">
+              <Link href={`/modules/approvals/${doc.id}/edit`}>
+                일정 채우기
+              </Link>
+            </Button>
+          </div>
+        )}
 
         {/*
           2단은 xl(1280px)부터 — lg(1024px)에서 2단을 쓰면 문서 칸이 352px밖에

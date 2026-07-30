@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
+import { docTypeLabels } from "@/lib/labels";
+import { StatusCell } from "@/components/doc-status";
 import { DataTable, type Column } from "@/components/ui/data-table";
 
 export type DocRow = {
@@ -10,6 +11,8 @@ export type DocRow = {
   type: string;
   moduleName: string;
   status: string;
+  /** 지금 결재 차례인 사람 — 결재선이 없는 모듈 문서는 null */
+  waitingOn: string | null;
   createdAt: string;
   /** 열어 볼 화면이 있는 문서만 링크 — 아직 화면이 없는 모듈은 null */
   href: string | null;
@@ -57,13 +60,7 @@ const columns: Column<DocRow>[] = [
   {
     key: "status",
     header: "상태",
-    render: (row) => (
-      <span
-        className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${docStatusStyles[row.status] ?? "bg-gray-100 text-gray-600"}`}
-      >
-        {docStatusLabels[row.status] ?? row.status}
-      </span>
-    ),
+    render: (row) => <StatusCell status={row.status} waitingOn={row.waitingOn} />,
   },
   {
     key: "createdAt",

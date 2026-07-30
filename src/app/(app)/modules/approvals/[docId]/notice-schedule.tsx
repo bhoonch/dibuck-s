@@ -27,14 +27,20 @@ export function NoticeSchedule({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mb-4 rounded-lg border border-[var(--gian-warn)]/40 bg-[var(--gian-warn-soft)] p-4 print:hidden">
-      <p className="flex items-center gap-2 text-sm font-semibold text-[var(--gian-warn)]">
-        <CalendarClock className="size-4 shrink-0" />
+    /*
+      색은 경고(주황) 그대로 — 이 앱에서 붉은색은 반려·폐기·오류 전용이고,
+      일정 미확정은 오류가 아니라 게시 전에 채워야 할 값이다.
+      대신 왼쪽 굵은 띠와 큰 아이콘으로 존재감만 올린다(그냥 지나치던 카드였다).
+    */
+    <div className="mb-4 rounded-lg border border-l-4 border-[var(--gian-warn)]/40 border-l-[var(--gian-warn)] bg-[var(--gian-warn-soft)] p-4 print:hidden">
+      <p className="flex items-center gap-2 text-base font-bold text-[var(--gian-warn)]">
+        <CalendarClock className="size-5 shrink-0" />
         게시 전에 {label}를 확정해 주세요
       </p>
       <p className="mt-1 text-sm text-[var(--gian-warn)]/90">
         지금 값은 &ldquo;{current}&rdquo;입니다. 입주민 공고문에 대략적인 일정이
         실리면 &ldquo;언제냐&rdquo;는 문의가 관리사무소로 돌아옵니다.
+        <b> 확정 전에는 인쇄할 수 없습니다.</b>
       </p>
       {open ? (
         <form action={action} className="mt-3 flex flex-wrap items-center gap-2">

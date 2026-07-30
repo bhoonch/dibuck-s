@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
+import { docTypeLabels } from "@/lib/labels";
 import { DataTable, type Column } from "@/components/ui/data-table";
+import { StatusCell } from "@/components/doc-status";
 
 export type GianRow = {
   id: string;
@@ -10,6 +11,8 @@ export type GianRow = {
   title: string;
   type: string;
   status: string;
+  /** 지금 결재 차례인 사람 — 결재 중이 아니면 null */
+  waitingOn: string | null;
   author: string;
   createdAt: string;
   [key: string]: unknown;
@@ -51,13 +54,7 @@ const columns: Column<GianRow>[] = [
   {
     key: "status",
     header: "상태",
-    render: (row) => (
-      <span
-        className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${docStatusStyles[row.status] ?? "bg-gray-100 text-gray-600"}`}
-      >
-        {docStatusLabels[row.status] ?? row.status}
-      </span>
-    ),
+    render: (row) => <StatusCell status={row.status} waitingOn={row.waitingOn} />,
   },
   {
     key: "author",

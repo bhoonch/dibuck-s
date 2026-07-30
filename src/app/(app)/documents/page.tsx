@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { DocumentsFilter } from "./documents-filter";
 import { DocumentsTable, type DocRow } from "./documents-table";
 import { ymdKst } from "@/lib/utils";
+import { waitingOnLabel } from "@/lib/gian/rules";
 
 /** 기간 필터의 기준 시각. 0·NaN이면 기간 제한 없음 */
 function daysAgo(n: number) {
@@ -47,6 +48,14 @@ export default async function DocumentsPage({
       },
       orderBy: { createdAt: "desc" },
       take: 200,
+      // 결재 중인 문서는 지금 누구 차례인지까지 — 결재선 없는 모듈 문서는 빈 배열
+      include: {
+        approvalSteps: {
+          where: { status: "pending" },
+          select: { name: true, externalRole: true },
+          take: 1,
+        },
+      },
     }),
     db.module.findMany({ select: { id: true, name: true } }),
   ]);
@@ -58,6 +67,7 @@ export default async function DocumentsPage({
     type: d.type,
     moduleName: (d.moduleId && moduleNames.get(d.moduleId)) || "-",
     status: d.status,
+    waitingOn: waitingOnLabel(d.approvalSteps[0]),
     createdAt: ymdKst(d.createdAt),
     // 열어 볼 화면이 있는 모듈만 링크가 된다 — 아직 화면이 없는 모듈은 눌러도 갈 곳이 없다
     href:
