@@ -17,7 +17,6 @@ import { approvalLineFor } from "@/lib/gian/approval";
 import { Role } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
 import { SavedToast } from "@/components/ui/saved-toast";
 import { PaperScale } from "@/components/paper-scale";
 import { AttentionCard } from "@/components/attention-card";
@@ -127,37 +126,63 @@ export default async function GianDocumentPage({
         <PrintStyle margin="0" />
         {/* 기안 갈래와 같은 기둥 — A4 794 + 패널 320. 오른쪽 칸은 "이 문서에 대한 조치" 자리다 */}
         <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
-          <div className="print:hidden">
-            <Link
-              href="/modules/approvals"
-              className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ChevronLeft className="size-4" />
-              목록
-            </Link>
-            <PageHeader
-              title="입주민 공고문"
-              description={doc.docNo ?? undefined}
-            >
-              <PrintButton />
+          {/* 목록은 이 문서에 하는 일이 아니라 뒤로 가기다 — 액션 버튼 무리에서 뺀다 */}
+          <Link
+            href="/modules/approvals"
+            className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground print:hidden"
+          >
+            <ChevronLeft className="size-4" />
+            목록
+          </Link>
+
+          {/* 머리줄은 기안 갈래와 같은 두 칸 — 인쇄 버튼의 왼쪽 시작선이 오른쪽 카드와 맞는다 */}
+          <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_320px]">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
+                입주민 공고문
+              </span>
+              <span className="text-sm text-[var(--gian-ink-soft)]">
+                {doc.docNo}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
+              >
+                {docStatusLabels[doc.status] ?? doc.status}
+              </span>
               {/* 입주민에게 붙는 글이라 오타 하나로 폐기·재생성을 시키지 않는다 */}
               {doc.status !== "void" && (
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" className="ml-auto">
                   <Link href={`/modules/approvals/${doc.id}/edit`}>
                     내용 수정
                   </Link>
                 </Button>
               )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <PrintButton />
               {meta.sourceDocId && (
                 <Button asChild variant="outline">
                   <Link href={`/modules/approvals/${meta.sourceDocId}`}>
-                    원본 결재 문서
+                    원본 품의
                   </Link>
                 </Button>
               )}
-              {doc.status !== "void" && <NoticeVoid docId={doc.id} />}
-            </PageHeader>
+            </div>
           </div>
+
+          {/*
+            "지금 채워야 할 것"은 격자 위 전체 폭 — 기안 갈래의 추진일정 카드와 같은 자리다.
+            오른쪽 칸은 상태·설정(게시 설정·연락처) 자리로 두고 둘을 섞지 않는다:
+            섞으면 해야 할 일이 읽기만 하는 카드 더미에 묻힌다.
+          */}
+          {doc.status !== "void" && scheduleVague && (
+            <NoticeSchedule
+              className="mb-4"
+              docId={doc.id}
+              current={scheduleRow?.v ?? ""}
+              label={scheduleLabel}
+            />
+          )}
           {/*
             2단은 xl(1280px)부터 — 기안 갈래와 같은 기준이다. 그 아래에서는 조치 칸이
             용지 위로 올라간다(좁은 화면에서 용지를 밀어내지 않으려면 아래가 아니라 위).
@@ -175,32 +200,27 @@ export default async function GianDocumentPage({
                 />
               </PaperScale>
             </div>
+            {/* 오른쪽은 상태·설정 자리 — 기안 갈래의 결재선·첨부파일 카드와 같은 성격이다 */}
             <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
-              {/* 폐기본은 열람만 — 게시 설정과 일정 수정칸을 남겨 두면 붙일 수 있는 공고로 읽힌다 */}
+              {/* 폐기본은 열람만 — 게시 설정을 남겨 두면 아직 붙일 수 있는 공고로 읽힌다 */}
               {doc.status === "void" ? (
                 <Card className="p-4 text-sm text-muted-foreground">
-                  폐기된 공고문입니다. 기록으로만 남아 있습니다 — 원본 결재
-                  문서에서 공고문을 다시 만들 수 있습니다.
+                  폐기된 공고문입니다. 기록으로만 남아 있습니다 — 원본 품의에서
+                  공고문을 다시 만들 수 있습니다.
                 </Card>
               ) : (
-                <>
-                  {scheduleVague && (
-                    <NoticeSchedule
-                      docId={doc.id}
-                      current={scheduleRow?.v ?? ""}
-                      label={scheduleLabel}
-                    />
-                  )}
-                  {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
-                  <NoticePosting
-                    docId={doc.id}
-                    place={meta.notice.place}
-                    postTo={meta.notice.postTo}
-                    options={NOTICE_PLACES}
-                    defaultPostTo={DEFAULT_POST_TO}
-                    {...splitPlaces(meta.notice.place)}
-                  />
-                </>
+                /* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */
+                <NoticePosting
+                  docId={doc.id}
+                  place={meta.notice.place}
+                  postTo={meta.notice.postTo}
+                  options={NOTICE_PLACES}
+                  defaultPostTo={DEFAULT_POST_TO}
+                  {...splitPlaces(meta.notice.place)}
+                >
+                  {/* 폐기는 결재 패널 하단과 같은 자리 — 되돌릴 수 없는 일은 버튼 무리에 안 섞는다 */}
+                  <NoticeVoid docId={doc.id} />
+                </NoticePosting>
               )}
               {!tenant.phone && (
                 <Card className="p-4 text-sm text-muted-foreground">

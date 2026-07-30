@@ -14,11 +14,13 @@ export function NoticeSchedule({
   docId,
   current,
   label,
+  className,
 }: {
   docId: string;
   current: string;
   /** "공사일자" 또는 "시행일자" — 문서 종류에 따라 다르다 */
   label: string;
+  className?: string;
 }) {
   const [state, action, pending] = useActionState(
     updateNoticeSchedule,
@@ -28,6 +30,7 @@ export function NoticeSchedule({
 
   return (
     <AttentionCard
+      className={className}
       title={`게시 전에 ${label}를 확정해 주세요`}
       action={
         open ? (

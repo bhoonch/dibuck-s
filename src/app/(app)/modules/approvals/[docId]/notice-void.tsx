@@ -18,7 +18,12 @@ export function NoticeVoid({ docId }: { docId: string }) {
     <>
       <ConfirmDialog
         trigger={
-          <Button variant="ghost" className="text-destructive" disabled={pending}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            disabled={pending}
+          >
             공고문 폐기
           </Button>
         }

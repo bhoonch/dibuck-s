@@ -23,8 +23,11 @@ export function NoticePosting({
   postTo,
   options,
   defaultPostTo,
+  children,
 }: {
   docId: string;
+  /** 카드 바닥에 붙는 것 — 폐기처럼 되돌릴 수 없는 일 (결재 패널 하단과 같은 자리) */
+  children?: React.ReactNode;
   /** 지금 값 — 접힌 상태에서 그대로 보여 준다 */
   place: string;
   checked: string[];
@@ -63,6 +66,11 @@ export function NoticePosting({
         >
           게시 설정
         </Button>
+        {children && (
+          <div className="mt-3 border-t border-[var(--gian-line)] pt-3">
+            {children}
+          </div>
+        )}
       </div>
     );
 
