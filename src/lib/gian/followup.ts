@@ -98,7 +98,7 @@ export function buildReportDraft(s: SourceInfo, input: ReportInput): GianDraft {
 export type ExpenseInput = {
   payDate: string; // 지출일자
   account: string; // 계정과목 [관]/[항]/[목]
-  vendor: string; // 채권자 상호
+  vendor: string; // 지급처(업체) 상호
   ceo: string; // 대표자
   bizNo: string; // 사업자등록번호
   bank: string; // 입금계좌
@@ -124,7 +124,9 @@ export function buildExpenseDraft(
       },
       { heading: "지출내역", lines: [`가. ${s.work} 대금 지급`] },
       {
-        heading: "채권자 정보",
+        // "채권자"는 미납 관리비의 채권자(=아파트)와 헷갈린다. 여기 적히는 건
+        // 상호·대표자·사업자등록번호·입금계좌, 곧 돈을 받을 곳이다.
+        heading: "지급처 정보",
         lines: [
           `가. 상  호: ${input.vendor}`,
           `나. 대표자: ${input.ceo}`,

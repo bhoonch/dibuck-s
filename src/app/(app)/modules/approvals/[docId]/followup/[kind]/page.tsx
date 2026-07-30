@@ -169,7 +169,7 @@ export default async function FollowupFormPage({
             />
             <Field
               name="vendor"
-              label="채권자 상호"
+              label="지급처 상호"
               defaultValue={vendor}
               placeholder="예: A 이엔지(주)"
             />

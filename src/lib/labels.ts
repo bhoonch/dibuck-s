@@ -39,6 +39,8 @@ export const docTypeLabels: Record<string, string> = {
   minutes: "회의록",
   approval: "품의서",
   gian: "기안서",
+  report: "완료보고서",
+  expense: "지출결의서",
   complaint: "민원",
   inspection: "점검",
 };

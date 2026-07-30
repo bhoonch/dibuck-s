@@ -102,7 +102,7 @@ const source: SourceInfo = {
   assert.ok(d.sections[0].lines[0].includes("2026. 08. 10.")); // 발의일자 = 오늘
   assert.ok(d.sections[0].lines[3].includes("금 4,500,000원"));
   assert.ok(d.legalBasis[0].includes("품의-2026-0007")); // 관련품의
-  assert.equal(d.sections[2].heading, "채권자 정보");
+  assert.equal(d.sections[2].heading, "지급처 정보");
   assert.deepEqual(
     d.sections[2].lines.map((l) => l[0]),
     ["가", "나", "다", "라"],
@@ -154,7 +154,7 @@ const source: SourceInfo = {
 {
   const sections = [
     { heading: "지출개요", lines: ["가. 지출일자: 2026년 8월 10일"] },
-    { heading: "채권자 정보", lines: ["가. 상 호: 화성원", "나. 입금계좌: 우리은행 202020-55025 "] },
+    { heading: "지급처 정보", lines: ["가. 상 호: 화성원", "나. 입금계좌: 우리은행 202020-55025 "] },
   ];
   assert.equal(closeInline({ sections, attachments: [] }), true);
   assert.equal(closeInline({ sections, attachments: ["견적서 1부."] }), false);
