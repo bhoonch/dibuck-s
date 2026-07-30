@@ -113,6 +113,17 @@ function ExternalApprovers({
   const patch = (i: number, p: Partial<ExternalApproverInput>) =>
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...p } : r)));
 
+  // 저장 전 입력까지 바로 비치도록 rows에서 뽑는다 — 서버가 준 initialExternal이 아니라
+  const registered = rows
+    .filter((r) => r.name.trim())
+    .map((r) => ({
+      roleLabel:
+        FIXED_ROLES.find((f) => f.role === r.role)?.label ??
+        (r.label?.trim() || "위원"),
+      name: r.name.trim(),
+      contact: [r.phone?.trim(), r.email?.trim()].filter(Boolean).join(" · "),
+    }));
+
   return (
     <div className="space-y-3 border-t border-gray-100 pt-4">
       {/* 저장은 서버 액션 폼 그대로 — 동적 목록이라 JSON 하나로 실어 보낸다 */}
@@ -129,6 +140,35 @@ function ExternalApprovers({
           받습니다.
         </p>
       </div>
+
+      {/*
+        등록된 사람을 입력칸 위에 먼저 — 아래는 빈 칸까지 포함한 편집기라
+        훑어봐서는 누가 등록돼 있는지, 연락처가 비었는지 알 수 없다.
+        연락처 유무를 같이 적는 이유: 서명 링크가 문자·메일로 나가므로 비면 못 보낸다.
+      */}
+      <SummaryBox>
+        <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+          등록된 외부 결재자
+        </span>
+        {registered.length === 0 ? (
+          <p className="mt-1 text-muted-foreground">
+            아직 없습니다 — 지출 품의는 회장 결재가 필요해 등록 전에는 상신할 수
+            없습니다.
+          </p>
+        ) : (
+          <ul className="mt-1.5 space-y-1">
+            {registered.map((r, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-muted-foreground">{r.roleLabel}</span>
+                <b>{r.name}</b>
+                <span className="text-xs text-muted-foreground">
+                  {r.contact || "연락처 미등록 — 서명 링크를 직접 전달해야 합니다"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SummaryBox>
       {rows.map((row, i) => {
         const fixed = FIXED_ROLES.find((f) => f.role === row.role);
         return (

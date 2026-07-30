@@ -24,6 +24,17 @@ export const ymdKst = (d: Date) =>
 export const ymdhmKst = (d: Date) =>
   `${ymdKst(d)} ${new Date(d.getTime() + KST_OFFSET).toISOString().slice(11, 16)}`
 
+/**
+ * KST 기준 "2026년 8월 10일" — **문서 본문**의 날짜 표기.
+ * 본문에서 숫자 표기("2026. 8. 10.")를 쓰면 끝점이 '일'을 대신해 반드시 붙어야 하는데,
+ * 사용자가 손으로 넣는 값("2026년 8월 10일")과 한 문서 안에서 섞여 마침표가 들쭉날쭉해진다.
+ * 숫자 표기는 머릿줄 시행일자처럼 공문 서식이 고정한 자리에만 쓴다(gian-paper의 docDate).
+ */
+export const koreanDateKst = (d: Date) => {
+  const [y, m, day] = ymdKst(d).split("-")
+  return `${y}년 ${Number(m)}월 ${Number(day)}일`
+}
+
 /** KST 기준 "MM-DD" */
 export const mdKst = (d: Date) => ymdKst(d).slice(5)
 

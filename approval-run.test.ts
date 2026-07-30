@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./src/generated/prisma/client";
 import { actOnStep, submitDocument } from "./src/lib/gian/approval";
-import { createNoticeFrom } from "./src/lib/gian/notice";
+import { createNoticeFrom, findNoticeFor } from "./src/lib/gian/notice";
 import { createDocument } from "./src/lib/documents";
 import {
   buildReportDraft,
@@ -177,6 +177,16 @@ async function main() {
     // 중복 생성 방지 — 같은 문서로 다시 호출해도 늘지 않는다
     await createNoticeFrom(await db.document.findUniqueOrThrow({ where: { id: doc.id } }));
     assert.equal(await db.document.count({ where: { tenantId: tenant.id, type: "notice" } }), 1);
+
+    // 폐기한 공고문은 없는 것으로 본다 — 잘못 나온 공고문을 버리고 다시 만드는 유일한 경로다
+    await db.document.update({ where: { id: notices[0].id }, data: { status: "void" } });
+    assert.equal(await findNoticeFor(doc.id), null, "폐기본은 파생 이력으로 치지 않는다");
+    await createNoticeFrom(await db.document.findUniqueOrThrow({ where: { id: doc.id } }));
+    assert.equal(
+      await db.document.count({ where: { tenantId: tenant.id, type: "notice" } }),
+      2,
+      "폐기 후에는 다시 만들어진다(폐기본은 기록으로 남는다)",
+    );
 
     // ── 후속 문서(완료보고) 파생 → 채번·역링크·결재선 ──
     // 공고문과 달리 자동이 아니다 — 공사가 끝난 뒤 사람이 시작한다.

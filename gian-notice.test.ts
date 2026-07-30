@@ -32,7 +32,7 @@ assert.equal(work.postFrom, "2026-07-28");
 assert.equal(work.rows[0].k, "공사일자");
 assert.equal(work.rows[0].v, form.schedule);
 assert.equal(work.rows[0].red, true); // 일자는 적색 강조
-assert.equal(work.rows[3].v, "품의-2026-0007 (2026-07-28 결재 완료)");
+assert.equal(work.rows[3].v, "품의-2026-0007 (2026년 7월 28일 결재 완료)");
 assert.ok(work.notes.some((n) => n.text.includes("추진 사유")));
 assert.ok(work.notes.some((n) => n.text.includes("통행 및 주차")));
 

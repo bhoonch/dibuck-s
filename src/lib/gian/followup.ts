@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ymdKst } from "@/lib/utils";
+import { koreanDateKst } from "@/lib/utils";
 import type { GianDraft } from "./claude";
 import { formatMoney, type Classification } from "./rules";
 
@@ -50,7 +50,7 @@ export type SourceInfo = {
 
 /** 관련근거 = 원 품의 한 줄. 파생 문서의 근거는 법령이 아니라 승인된 품의다 */
 const sourceBasis = (s: SourceInfo) =>
-  `${s.title} (${s.docNo}, ${ymdKst(s.approvedAt).replace(/-/g, ". ")}. 승인)`;
+  `${s.title} (${s.docNo}, ${koreanDateKst(s.approvedAt)} 승인)`;
 
 export type ReportInput = {
   period: string; // 실제 공사기간
@@ -116,7 +116,7 @@ export function buildExpenseDraft(
       {
         heading: "지출개요",
         lines: [
-          `가. 발의일자: ${ymdKst(today).replace(/-/g, ". ")}.`,
+          `가. 발의일자: ${koreanDateKst(today)}`,
           `나. 지출일자: ${input.payDate}`,
           `다. 계정과목: ${input.account}`,
           `라. 지출금액: ${formatMoney(s.amountRaw, s.vatIncluded)}`,

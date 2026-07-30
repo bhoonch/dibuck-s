@@ -20,10 +20,9 @@ export function StatusCell({
       >
         {docStatusLabels[status] ?? status}
       </span>
+      {/* 배지가 이미 "결재 대기"라고 말하니 아래줄은 누구인지만 가리킨다 */}
       {waitingOn && (
-        <span className="mt-0.5 block text-xs text-gray-500">
-          {waitingOn} 차례
-        </span>
+        <span className="mt-0.5 block text-xs text-gray-500">→ {waitingOn}</span>
       )}
     </div>
   );

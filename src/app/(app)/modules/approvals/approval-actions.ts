@@ -330,7 +330,12 @@ export async function voidGian(docId: string): Promise<ActionState> {
   if (!doc) return { error: "문서를 찾을 수 없습니다." };
   if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
     return { error: "작성자 또는 마스터만 폐기할 수 있습니다." };
-  if (doc.status === "final")
+  /*
+   * 결재가 끝난 문서는 폐기하지 않는다 — 정정은 새 문서로 한다.
+   * 예외는 공고문: 결재 문서가 아니라 결재 완료에서 파생된 게시물이고, 본문이 결정적
+   * 코드 산출물이라 손으로 고칠 수 없다. 폐기하고 다시 만드는 것이 유일한 정정 경로다.
+   */
+  if (doc.status === "final" && doc.type !== "notice")
     return {
       error:
         "결재가 끝난 문서는 폐기할 수 없습니다. 정정이 필요하면 새 문서를 올려 주세요.",

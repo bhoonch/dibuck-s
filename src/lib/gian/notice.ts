@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { createDocument } from "@/lib/documents";
-import { ymdKst } from "@/lib/utils";
+import { koreanDateKst, ymdKst } from "@/lib/utils";
 import type { Classification } from "./rules";
 
 /**
@@ -106,7 +106,7 @@ export function buildNotice(input: {
       { k: `${noun}내용`, v: work },
       {
         k: "시행근거",
-        v: `${input.docNo} (${ymdKst(input.approvedAt)} 결재 완료)`,
+        v: `${input.docNo} (${koreanDateKst(input.approvedAt)} 결재 완료)`,
       },
     ],
     notes: [
@@ -156,11 +156,16 @@ export function vagueScheduleLine(
   );
 }
 
-/** 원본 문서에서 파생된 공고문 — 중복 생성 방지와 양방향 링크가 같은 조회를 쓴다 */
+/**
+ * 원본 문서에서 파생된 공고문 — 중복 생성 방지와 양방향 링크가 같은 조회를 쓴다.
+ * **폐기된 공고문은 없는 것으로 본다** — 그래야 잘못 나온 공고문을 버리고 다시 만들 수 있다.
+ * 공고문 본문은 결정적 코드 산출물이라 손으로 고칠 수 없고, 다시 만드는 것이 유일한 복구다.
+ */
 export function findNoticeFor(sourceDocId: string) {
   return db.document.findFirst({
     where: {
       type: "notice",
+      status: { not: "void" },
       meta: { path: ["sourceDocId"], equals: sourceDocId },
     },
     select: { id: true, docNo: true },

@@ -48,6 +48,7 @@ import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { QuoteFiles } from "./quote-files";
 import { NoticePosting } from "./notice-posting";
 import { NoticeSchedule } from "./notice-schedule";
+import { NoticeVoid } from "./notice-void";
 import { PrintButton } from "./print-button";
 
 type Meta = {
@@ -137,13 +138,7 @@ export default async function GianDocumentPage({
               title="입주민 공고문"
               description={doc.docNo ?? undefined}
             >
-              <PrintButton
-                blocked={
-                  scheduleVague
-                    ? `${scheduleLabel}를 확정해야 인쇄할 수 있습니다`
-                    : undefined
-                }
-              />
+              <PrintButton />
               {meta.sourceDocId && (
                 <Button asChild variant="outline">
                   <Link href={`/modules/approvals/${meta.sourceDocId}`}>
@@ -151,24 +146,36 @@ export default async function GianDocumentPage({
                   </Link>
                 </Button>
               )}
+              {/* 공고문 본문은 손으로 못 고친다 — 버리고 다시 만드는 것이 정정 경로 */}
+              {doc.status !== "void" && <NoticeVoid docId={doc.id} />}
             </PageHeader>
           </div>
-          {scheduleVague && (
-            <NoticeSchedule
-              docId={doc.id}
-              current={scheduleRow?.v ?? ""}
-              label={scheduleLabel}
-            />
+          {/* 폐기본은 열람만 — 게시 설정과 일정 수정칸을 남겨 두면 붙일 수 있는 공고로 읽힌다 */}
+          {doc.status === "void" ? (
+            <Card className="mb-4 p-4 text-sm text-muted-foreground print:hidden">
+              폐기된 공고문입니다. 기록으로만 남아 있습니다 — 원본 결재 문서에서
+              공고문을 다시 만들 수 있습니다.
+            </Card>
+          ) : (
+            <>
+              {scheduleVague && (
+                <NoticeSchedule
+                  docId={doc.id}
+                  current={scheduleRow?.v ?? ""}
+                  label={scheduleLabel}
+                />
+              )}
+              {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
+              <NoticePosting
+                docId={doc.id}
+                place={meta.notice.place}
+                postTo={meta.notice.postTo}
+                options={NOTICE_PLACES}
+                defaultPostTo={DEFAULT_POST_TO}
+                {...splitPlaces(meta.notice.place)}
+              />
+            </>
           )}
-          {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
-          <NoticePosting
-            docId={doc.id}
-            place={meta.notice.place}
-            postTo={meta.notice.postTo}
-            options={NOTICE_PLACES}
-            defaultPostTo={DEFAULT_POST_TO}
-            {...splitPlaces(meta.notice.place)}
-          />
           <PaperScale>
             <NoticePaper
               notice={meta.notice}

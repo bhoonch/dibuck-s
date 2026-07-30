@@ -33,7 +33,8 @@ const source: SourceInfo = {
   // 근거는 법령이 아니라 승인된 품의 — 문서번호와 승인일이 함께 박힌다
   assert.equal(d.legalBasis.length, 1);
   assert.ok(d.legalBasis[0].includes("품의-2026-0007"));
-  assert.ok(d.legalBasis[0].includes("2026. 08. 01. 승인"));
+  // 본문 날짜는 한글 표기 — 숫자 표기의 끝점이 사용자 입력값과 섞여 들쭉날쭉했다
+  assert.ok(d.legalBasis[0].includes("2026년 8월 1일 승인"));
 
   const overview = d.sections[0].lines.join("\n");
   assert.ok(overview.includes("금 4,500,000원")); // 금액은 다시 묻지 않고 상속
@@ -99,7 +100,7 @@ const source: SourceInfo = {
     new Date("2026-08-10T03:00:00Z"),
   );
   assert.equal(d.title, "지하주차장 노후 등기구 LED 교체 공사 지출결의의 건");
-  assert.ok(d.sections[0].lines[0].includes("2026. 08. 10.")); // 발의일자 = 오늘
+  assert.ok(d.sections[0].lines[0].includes("2026년 8월 10일")); // 발의일자 = 오늘
   assert.ok(d.sections[0].lines[3].includes("금 4,500,000원"));
   assert.ok(d.legalBasis[0].includes("품의-2026-0007")); // 관련품의
   assert.equal(d.sections[2].heading, "지급처 정보");
