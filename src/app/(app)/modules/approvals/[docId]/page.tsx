@@ -318,8 +318,9 @@ export default async function GianDocumentPage({
             <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
               {docTypeLabel}
             </span>
-            <span className="font-mono text-sm text-[var(--gian-ink-soft)]">
-              {doc.docNo}
+            {/* 채번은 상신 때 — 초안은 아직 번호가 없다(종이 결재란도 "(채번 전)") */}
+            <span className="text-sm text-[var(--gian-ink-soft)]">
+              {doc.docNo ?? "채번 전 — 상신할 때 번호가 부여됩니다"}
             </span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
@@ -460,6 +461,7 @@ export default async function GianDocumentPage({
             <ApprovalPanel
               docId={doc.id}
               docStatus={doc.status}
+              numbered={!!doc.docNo}
               canSubmit={canSubmit}
               steps={panelSteps}
               waiverNote={waiverNote}

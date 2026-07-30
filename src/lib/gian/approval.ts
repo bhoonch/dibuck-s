@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { db } from "@/lib/db";
+import { assignDocNo } from "@/lib/documents";
 import { notifyUser } from "@/lib/notifications";
 import { mailerEnabled, sendApprovalRequest, trySend } from "@/lib/mailer";
 import { createNoticeFrom } from "./notice";
@@ -160,6 +161,10 @@ export async function submitDocument(docId: string, actorUserId: string) {
     return {
       error: `${missing.map((r: ExternalRole) => externalRoleLabels[r]).join("·")}이(가) 등록되지 않았습니다. 설정 > 결재선에서 등록해 주세요.`,
     };
+
+  // 채번은 여기서 — 초안일 때 번호를 주면 올리지 않고 버린 문서가 결번을 남긴다.
+  // 재상신이면 이미 번호가 있고, assignDocNo가 그대로 둔다.
+  await assignDocNo(doc);
 
   // 재상신이면 이전 결재 기록을 지우고 새 스냅샷으로 — 문서 하나에 결재는 한 판
   const now = new Date();

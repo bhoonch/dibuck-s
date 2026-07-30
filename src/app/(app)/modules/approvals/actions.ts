@@ -134,6 +134,8 @@ export async function generateGian(
   const doc = await createDocument({
     tenantId,
     moduleId: MODULE_ID,
+    // 채번은 상신 때 — 올리지 않고 버린 초안이 결번을 남기지 않게
+    numberOnSubmit: true,
     type: cls.docType === "gian" ? "gian" : "approval",
     title: draft.title,
     content: toPlainText(draft),

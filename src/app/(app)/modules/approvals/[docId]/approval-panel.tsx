@@ -52,11 +52,14 @@ export function ApprovalPanel({
   docStatus,
   canSubmit,
   steps,
+  numbered,
   waiverNote,
   evidenceGap,
 }: {
   docId: string;
   docStatus: string;
+  /** 채번됐는가 = 한 번이라도 상신됐는가. 폐기가 기록으로 남는지 진짜 삭제인지를 가른다 */
+  numbered: boolean;
   canSubmit: boolean;
   steps: PanelStep[];
   /** 견적서 없이 상신한 사유 — 결재자가 "증빙 없음"을 알고 승인해야 한다 */
@@ -308,12 +311,16 @@ export function ApprovalPanel({
           <ConfirmDialog
             trigger={
               <Button variant="ghost" size="sm" className="text-destructive">
-                문서 폐기
+                {numbered ? "문서 폐기" : "초안 삭제"}
               </Button>
             }
-            title="이 문서를 폐기할까요?"
-            description="목록에는 '폐기'로 남고 열람만 됩니다. 결재 기록을 지우지 않기 위해 삭제하지 않습니다."
-            confirmLabel="폐기"
+            title={numbered ? "이 문서를 폐기할까요?" : "이 초안을 삭제할까요?"}
+            description={
+              numbered
+                ? "목록에는 '폐기'로 남고 열람만 됩니다. 결재 기록을 지우지 않기 위해 삭제하지 않습니다."
+                : "한 번도 상신하지 않아 문서번호도 결재 기록도 없습니다. 목록에서 완전히 사라지며 되돌릴 수 없습니다."
+            }
+            confirmLabel={numbered ? "폐기" : "삭제"}
             destructive
             onConfirm={() => run(() => voidGian(docId))}
           />

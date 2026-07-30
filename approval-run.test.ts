@@ -133,8 +133,12 @@ async function main() {
     // 이중 처리 방지 — 같은 단계 재승인 불가
     assert.ok((await actOnStep(steps[1].id, "approve", "")).error);
 
-    // ── 재상신: 스텝이 새로 깔린다 ──
+    // ── 재상신: 스텝이 새로 깔린다. 번호는 그대로 — 바뀌면 결재받은 문서와 다른 문서가 된다 ──
     assert.deepEqual(await submitDocument(doc.id, staff.id), {});
+    assert.equal(
+      (await db.document.findUniqueOrThrow({ where: { id: doc.id } })).docNo,
+      doc.docNo,
+    );
     steps = await db.approvalStep.findMany({
       where: { documentId: doc.id },
       orderBy: { order: "asc" },
@@ -193,6 +197,7 @@ async function main() {
     const report = await createDocument({
       tenantId: tenant.id,
       moduleId: "approvals",
+      numberOnSubmit: true, // 운영 코드(makeFollowup)와 같은 조건으로 만든다
       type: followupDocType.report,
       title: reportDraft.title,
       meta: {
@@ -204,7 +209,7 @@ async function main() {
       },
       createdById: staff.id,
     });
-    assert.ok(report.docNo!.startsWith("보고-"), "완료보고 채번 접두사는 보고");
+    assert.equal(report.docNo, null, "초안에는 번호가 없다 — 채번은 상신 때");
     assert.equal(report.status, "draft", "파생 문서는 초안 — 결재는 따로 받는다");
     // 역링크 조회(JSON path 필터)가 실제 DB에서 걸리는지
     const found = await findFollowupFor(doc.id, "report");
@@ -213,6 +218,10 @@ async function main() {
 
     // 완료보고는 3단 — 회장이 붙지 않는다(원 품의는 회장까지 4단이었다)
     assert.deepEqual(await submitDocument(report.id, staff.id), {});
+    assert.ok(
+      (await db.document.findUniqueOrThrow({ where: { id: report.id } })).docNo?.startsWith("보고-"),
+      "상신하면 완료보고 채번 접두사는 보고",
+    );
     const rSteps = await db.approvalStep.findMany({
       where: { documentId: report.id },
       orderBy: { order: "asc" },
@@ -232,7 +241,7 @@ async function main() {
         tenantId: tenant.id,
         moduleId: "approvals",
         type: "gian",
-        docNo: `기안-2026-${String(Date.now()).slice(-4)}`,
+        docNo: null, // 채번은 상신 때 — 초안은 번호가 없다
         title: "혼자 쓰는 단지 기안",
         status: "draft",
         createdById: director.id,
@@ -240,6 +249,9 @@ async function main() {
       },
     });
     assert.deepEqual(await submitDocument(solo.id, director.id), {});
+    // 상신이 채번한다 — 올리지 않고 버린 초안이 결번을 남기지 않게
+    const numbered = await db.document.findUniqueOrThrow({ where: { id: solo.id } });
+    assert.ok(numbered.docNo?.startsWith("기안-"), "상신 시 채번된다");
     const soloSteps = await db.approvalStep.findMany({
       where: { documentId: solo.id },
       orderBy: { order: "asc" },

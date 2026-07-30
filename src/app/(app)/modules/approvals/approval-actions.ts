@@ -263,6 +263,8 @@ export async function createFollowup(formData: FormData) {
   const created = await createDocument({
     tenantId: doc.tenantId,
     moduleId: "approvals",
+    // 완료보고·지출결의도 결재를 받는 문서 — 채번은 상신 때
+    numberOnSubmit: true,
     type: followupDocType[kind],
     title: draft.title,
     content: [
@@ -315,9 +317,13 @@ export async function withdrawGian(docId: string): Promise<ActionState> {
 }
 
 /**
- * 폐기 — 하드 삭제가 아니라 상태만 void로. 관리 서류는 보존 대상이고,
+ * 폐기 — 상신된 적이 있으면 상태만 void로. 관리 서류는 보존 대상이고,
  * 결재 기록만 사라지면 "누가 승인했는데 문서가 없다"가 된다.
  * 결재가 끝난 문서는 폐기하지 않는다 — 정정은 새 문서로 한다.
+ *
+ * **한 번도 상신하지 않은 초안은 진짜로 지운다.** 채번이 상신 시점이라 번호가 없고,
+ * 결재 기록도 없어 남길 것이 없다. 예전엔 생성 즉시 채번해서 초안을 지우면 결번이
+ * 남았고, 그래서 아무도 결재하지 않은 연습 문서까지 목록에 영영 남아 있었다.
  */
 export async function voidGian(docId: string): Promise<ActionState> {
   const { session, doc } = await myDoc(docId);
@@ -330,6 +336,12 @@ export async function voidGian(docId: string): Promise<ActionState> {
         "결재가 끝난 문서는 폐기할 수 없습니다. 정정이 필요하면 새 문서를 올려 주세요.",
     };
   if (doc.status === "void") return undefined;
+
+  if (!doc.docNo) {
+    // 첨부·결재 단계는 onDelete: Cascade
+    await db.document.delete({ where: { id: docId } });
+    redirect("/modules/approvals");
+  }
 
   await db.$transaction([
     // 진행 중이던 결재 차례를 남겨 두면 결재자 화면에 계속 뜬다

@@ -33,6 +33,31 @@ export async function nextDocNo(tenantId: string, type: string) {
   return `${head}${String(last + 1).padStart(4, "0")}`;
 }
 
+const isDuplicate = (e: unknown) =>
+  typeof e === "object" && e !== null && "code" in e && e.code === "P2002";
+
+/**
+ * 아직 번호가 없는 문서에 채번해 붙인다 (상신 시점 채번).
+ * 이미 번호가 있으면 그대로 둔다 — 재상신이 번호를 바꾸면 결재받은 문서와 다른 문서가 된다.
+ */
+export async function assignDocNo(doc: {
+  id: string;
+  tenantId: string;
+  type: string;
+  docNo: string | null;
+}): Promise<string> {
+  if (doc.docNo) return doc.docNo;
+  for (let attempt = 0; ; attempt++) {
+    const docNo = await nextDocNo(doc.tenantId, doc.type);
+    try {
+      await db.document.update({ where: { id: doc.id }, data: { docNo } });
+      return docNo;
+    } catch (e) {
+      if (!isDuplicate(e) || attempt >= 4) throw e;
+    }
+  }
+}
+
 /**
  * 모든 모듈이 재사용하는 "문서 생성 → 공통 문서함 저장 → 알림" 패턴.
  * notify를 넘기면 문서 저장과 함께 단지 직원들에게 인앱 알림을 보낸다.
@@ -48,6 +73,7 @@ export async function createDocument({
   status = "draft",
   createdById,
   notify,
+  numberOnSubmit,
 }: {
   tenantId: string;
   moduleId?: string;
@@ -60,6 +86,12 @@ export async function createDocument({
   status?: string;
   createdById?: string;
   notify?: { type: string; title: string; body?: string };
+  /**
+   * 결재를 받는 문서는 상신할 때 채번한다 — 생성 즉시 번호를 주면 상신 전에 버린 초안이
+   * 영구 결번으로 남는다(nextDocNo는 최대 번호+1이라 번호를 재사용하지 않는다).
+   * 결재 없이 바로 확정되는 문서(공고문 등)는 지금처럼 생성 시 채번.
+   */
+  numberOnSubmit?: boolean;
 }) {
   // 채번과 저장 사이에 다른 요청이 같은 번호를 가져갈 수 있다.
   // 유니크 제약이 걸리면 다시 채번해서 재시도한다 (락보다 싸고, 실패해도 조용하지 않다).
@@ -70,7 +102,7 @@ export async function createDocument({
         data: {
           tenantId,
           moduleId,
-          docNo: await nextDocNo(tenantId, type),
+          docNo: numberOnSubmit ? null : await nextDocNo(tenantId, type),
           type,
           title,
           content,
@@ -82,9 +114,7 @@ export async function createDocument({
       });
       break;
     } catch (e) {
-      const duplicate =
-        typeof e === "object" && e !== null && "code" in e && e.code === "P2002";
-      if (!duplicate || attempt >= 4) throw e;
+      if (!isDuplicate(e) || attempt >= 4) throw e;
     }
   }
   if (notify) {
