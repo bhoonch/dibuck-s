@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/gian/claude";
-import type { ExternalApprover } from "@/lib/gian/rules";
+import { approvalLineFor } from "@/lib/gian/approval";
 import { PageHeader } from "@/components/ui/page-header";
 import { GianSteps } from "@/components/gian-steps";
 import { GianForm } from "./gian-form";
@@ -15,24 +15,15 @@ export default async function NewGianPage() {
   if (!(await isSubscribed(session.tenantId!, "approvals")))
     redirect("/settings/subscriptions");
 
-  // 상신 때 뜰 결재선을 작성 중에 미리 보여준다 — submitDocument와 같은 재료
-  const tenant = await db.tenant.findUniqueOrThrow({
-    where: { id: session.tenantId! },
-    select: {
-      approvalLine: true,
-      externalApprovers: true,
-      directorLimit: true,
-    },
-  });
-  const lineIds = (tenant.approvalLine as string[] | null) ?? [];
-  const users = await db.user.findMany({
-    where: { id: { in: lineIds } },
-    select: { id: true, name: true },
-  });
-  const byId = new Map(users.map((u) => [u.id, u.name]));
-  const internal = lineIds
-    .filter((id) => byId.has(id))
-    .map((id) => ({ userId: id, name: byId.get(id)! }));
+  // 상신 때 뜰 결재선을 작성 중에 미리 보여준다 — submitDocument와 같은 재료.
+  // 지금 이 화면을 쓰는 사람이 곧 기안자라 결재란 첫 칸에 선다.
+  const [{ internal, external }, tenant] = await Promise.all([
+    approvalLineFor(session.tenantId!, session.userId),
+    db.tenant.findUniqueOrThrow({
+      where: { id: session.tenantId! },
+      select: { directorLimit: true },
+    }),
+  ]);
 
   // 제목·단계표시·폼·판정을 문서 화면과 같은 기둥에 세운다 — 794(A4) + 288(패널).
   // 예전엔 여기만 620px 가운데 정렬이라 초안 확인에서 돌아올 때 화면이 옆으로 튀었다.
@@ -58,7 +49,7 @@ export default async function NewGianPage() {
       )}
       <GianForm
         internal={internal}
-        external={(tenant.externalApprovers as ExternalApprover[] | null) ?? []}
+        external={external}
         directorLimit={tenant.directorLimit}
       />
     </div>

@@ -6,6 +6,7 @@ import { createNoticeFrom } from "./notice";
 import {
   buildApprovalSteps,
   externalRoleLabels,
+  orderInternalLine,
   type Classification,
   type ExternalApprover,
   type ExternalRole,
@@ -98,6 +99,38 @@ async function activateStep(
   }
 }
 
+/**
+ * 결재선 재료 — 상신·문서 화면 미리보기·작성 화면 미리보기가 **같은 것**을 보도록 한 곳에서만 만든다.
+ * 세 곳이 각자 조회하던 때는 기안자 칸이 상신 후에야 나타나는 식으로 어긋났다.
+ */
+export async function approvalLineFor(
+  tenantId: string,
+  drafterId?: string | null,
+): Promise<{
+  internal: { userId: string; name: string }[];
+  external: ExternalApprover[];
+}> {
+  const tenant = await db.tenant.findUniqueOrThrow({
+    where: { id: tenantId },
+    select: { approvalLine: true, externalApprovers: true },
+  });
+  const ids = orderInternalLine(
+    (tenant.approvalLine as string[] | null) ?? [],
+    drafterId,
+  );
+  const users = await db.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u.name]));
+  return {
+    internal: ids
+      .filter((id) => byId.has(id))
+      .map((id) => ({ userId: id, name: byId.get(id)! })),
+    external: (tenant.externalApprovers as ExternalApprover[] | null) ?? [],
+  };
+}
+
 /** 상신 (또는 반려 후 재상신) — 현재 결재선 설정으로 스냅샷을 새로 뜬다 */
 export async function submitDocument(docId: string, actorUserId: string) {
   const doc = await db.document.findUnique({ where: { id: docId } });
@@ -108,48 +141,48 @@ export async function submitDocument(docId: string, actorUserId: string) {
   const meta = doc.meta as { cls?: Classification } | null;
   if (!meta?.cls) return { error: "문서 데이터가 올바르지 않습니다." };
 
-  const tenant = await db.tenant.findUniqueOrThrow({
-    where: { id: doc.tenantId },
-    select: { approvalLine: true, externalApprovers: true },
-  });
-  const lineIds = (tenant.approvalLine as string[] | null) ?? [];
-  const users = await db.user.findMany({
-    where: { id: { in: lineIds } },
-    select: { id: true, name: true },
-  });
-  const byId = new Map(users.map((u) => [u.id, u.name]));
-  const internal = lineIds
-    .filter((id) => byId.has(id))
-    .map((id) => ({ userId: id, name: byId.get(id)! }));
-  const external =
-    (tenant.externalApprovers as ExternalApprover[] | null) ?? [];
+  const { internal, external } = await approvalLineFor(
+    doc.tenantId,
+    doc.createdById,
+  );
 
   const { steps, missing } = buildApprovalSteps(meta.cls, internal, external);
   if (steps.length === 0)
     return { error: "결재선이 비어 있습니다. 설정 > 결재선에서 결재자를 지정해 주세요." };
+  // 첫 칸이 기안자면 기안 행위가 곧 그 칸의 서명 — 상신 시각으로 승인 상태를 찍는다.
+  // 단 결재란이 그 한 칸뿐이면(소장 혼자 쓰는 단지) 기안이자 결재라 눌러서 처리해야 한다 —
+  // 자동 서명해 버리면 승인할 사람이 없어 문서가 영영 pending으로 남는다.
+  const drafterSigned =
+    !!doc.createdById &&
+    internal[0]?.userId === doc.createdById &&
+    steps.length > 1;
   if (missing.length > 0)
     return {
       error: `${missing.map((r: ExternalRole) => externalRoleLabels[r]).join("·")}이(가) 등록되지 않았습니다. 설정 > 결재선에서 등록해 주세요.`,
     };
 
   // 재상신이면 이전 결재 기록을 지우고 새 스냅샷으로 — 문서 하나에 결재는 한 판
+  const now = new Date();
   await db.$transaction([
     db.approvalStep.deleteMany({ where: { documentId: doc.id } }),
     db.approvalStep.createMany({
-      data: steps.map((s) => ({
+      data: steps.map((s, i) => ({
         documentId: doc.id,
         order: s.order,
         userId: s.userId,
         externalRole: s.externalRole,
         name: s.name,
-        status: "waiting",
+        status: drafterSigned && i === 0 ? "approved" : "waiting",
+        actedAt: drafterSigned && i === 0 ? now : null,
       })),
     }),
     db.document.update({ where: { id: doc.id }, data: { status: "pending" } }),
   ]);
 
+  // 기안자 칸은 이미 승인이라 결재 차례는 그 다음부터
   const first = await db.approvalStep.findFirstOrThrow({
-    where: { documentId: doc.id, order: 1 },
+    where: { documentId: doc.id, status: "waiting" },
+    orderBy: { order: "asc" },
   });
   await activateStep(doc, first.id);
 

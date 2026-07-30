@@ -242,7 +242,8 @@ export function ApprovalLineEditor({
         <CardHeader className="gap-0.5 border-b border-gray-100 px-4 py-3">
           <CardTitle>결재선</CardTitle>
           <CardDescription>
-            전자결재 문서가 올라오면 아래 순서대로 승인을 받습니다.
+            문서를 올린 사람이 결재란 첫 칸(기안)에 서고, 그 뒤로 아래 순서대로
+            승인을 받습니다. 기안자가 아래 명단에도 있으면 칸은 하나로 합쳐집니다.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 p-4">

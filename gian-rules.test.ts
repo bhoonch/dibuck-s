@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import {
   buildApprovalSteps,
+  orderInternalLine,
   classify,
   formatMoney,
   legalNoticesFor,
@@ -97,6 +98,17 @@ const noChair = buildApprovalSteps(pumui, internal, [
 assert.deepEqual(noChair.missing, ["CHAIR"]);
 // 기안서는 내부 결재선만
 assert.equal(buildApprovalSteps(gian, internal, external).steps.length, 3);
+
+// ── 기안자가 결재란 첫 칸(담당) ──
+const lineIds = ["u1", "u2", "u3"];
+// 명단에 없는 사람이 기안하면 맨 앞에 붙는다
+assert.deepEqual(orderInternalLine(lineIds, "u9"), ["u9", "u1", "u2", "u3"]);
+// 명단에 있으면 앞으로 당기고 원래 자리는 지운다 — 같은 사람이 두 칸 차지하면 안 된다
+assert.deepEqual(orderInternalLine(lineIds, "u2"), ["u2", "u1", "u3"]);
+assert.deepEqual(orderInternalLine(lineIds, "u1"), ["u1", "u2", "u3"]);
+// 기안자를 모르는 문서(파생·시스템 생성)는 설정 결재선 그대로
+assert.deepEqual(orderInternalLine(lineIds, null), lineIds);
+assert.deepEqual(orderInternalLine(lineIds), lineIds);
 
 // ── 재원 선택이 키워드 추측을 이긴다 ──
 // "소방 점검"은 장충금 키워드에 걸리지만, 사용자가 수선유지비를 고르면 품의서다

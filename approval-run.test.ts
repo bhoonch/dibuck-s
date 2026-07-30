@@ -91,36 +91,47 @@ async function main() {
   });
 
   try {
-    // ── 상신: 결재선 스냅샷 2(내부) + 회장 = 3단, 1번만 pending ──
+    // ── 상신: 결재선 스냅샷 2(내부) + 회장 = 3단 ──
+    // 1번은 기안자(담당) 칸이라 상신과 동시에 서명 완료, 결재 차례는 2번부터.
     assert.deepEqual(await submitDocument(doc.id, staff.id), {});
     let steps = await db.approvalStep.findMany({
       where: { documentId: doc.id },
       orderBy: { order: "asc" },
     });
     assert.equal(steps.length, 3);
-    assert.deepEqual(steps.map((s) => s.status), ["pending", "waiting", "waiting"]);
+    assert.deepEqual(steps.map((s) => s.status), ["approved", "pending", "waiting"]);
+    // 기안자가 설정 결재선에도 있었지만 칸은 하나뿐이다
+    assert.equal(steps[0].userId, staff.id);
+    assert.ok(steps[0].actedAt, "기안자 칸에는 서명 시각이 찍힌다");
+    assert.equal(steps[1].userId, director.id);
     assert.equal(steps[2].externalRole, "CHAIR");
     assert.equal((await db.document.findUniqueOrThrow({ where: { id: doc.id } })).status, "pending");
-    // 1번 결재자에게 알림이 갔다
+    // 결재 요청 알림은 기안자가 아니라 다음 결재자에게 간다
+    assert.equal(
+      await db.notification.count({
+        where: { userId: director.id, type: "approval_request" },
+      }),
+      1,
+    );
     assert.equal(
       await db.notification.count({
         where: { userId: staff.id, type: "approval_request" },
       }),
-      1,
+      0,
     );
 
     // ── 이중 상신 방지 ──
     assert.ok((await submitDocument(doc.id, staff.id)).error);
 
-    // ── 1번 반려 → 문서 rejected + 기안자 알림 ──
-    assert.deepEqual(await actOnStep(steps[0].id, "reject", "예산 근거 부족"), { done: true });
+    // ── 첫 결재자(2번) 반려 → 문서 rejected + 기안자 알림 ──
+    assert.deepEqual(await actOnStep(steps[1].id, "reject", "예산 근거 부족"), { done: true });
     assert.equal((await db.document.findUniqueOrThrow({ where: { id: doc.id } })).status, "rejected");
     assert.equal(
       await db.notification.count({ where: { userId: staff.id, type: "approval_rejected" } }),
       1,
     );
     // 이중 처리 방지 — 같은 단계 재승인 불가
-    assert.ok((await actOnStep(steps[0].id, "approve", "")).error);
+    assert.ok((await actOnStep(steps[1].id, "approve", "")).error);
 
     // ── 재상신: 스텝이 새로 깔린다 ──
     assert.deepEqual(await submitDocument(doc.id, staff.id), {});
@@ -129,12 +140,10 @@ async function main() {
       orderBy: { order: "asc" },
     });
     assert.equal(steps.length, 3);
-    assert.deepEqual(steps.map((s) => s.status), ["pending", "waiting", "waiting"]);
+    // 재상신도 기안자 칸은 다시 서명 완료 상태로 깔린다
+    assert.deepEqual(steps.map((s) => s.status), ["approved", "pending", "waiting"]);
 
-    // ── 순차 승인: 1 → 2 → 외부(회장) 토큰 발급 확인 ──
-    assert.deepEqual(await actOnStep(steps[0].id, "approve", ""), {});
-    const s2 = await db.approvalStep.findUniqueOrThrow({ where: { id: steps[1].id } });
-    assert.equal(s2.status, "pending"); // 다음 차례로 넘어갔다
+    // ── 순차 승인: 2 → 외부(회장) 토큰 발급 확인 ──
     assert.deepEqual(await actOnStep(steps[1].id, "approve", "검토 완료"), {});
     const chair = await db.approvalStep.findUniqueOrThrow({ where: { id: steps[2].id } });
     assert.equal(chair.status, "pending");
@@ -210,6 +219,38 @@ async function main() {
     });
     assert.equal(rSteps.length, 2, "내부 결재선 2명만 — 외부 결재자 없음");
     assert.ok(rSteps.every((s) => s.userId), "외부(토큰) 단계가 없어야 한다");
+    assert.deepEqual(rSteps.map((s) => s.status), ["approved", "pending"]);
+
+    // ── 결재선이 기안자 한 명뿐인 단지: 그 칸은 자동 서명하지 않는다 ──
+    // 자동으로 찍어 버리면 승인할 사람이 없어 문서가 영영 pending으로 남는다.
+    await db.tenant.update({
+      where: { id: tenant.id },
+      data: { approvalLine: [director.id] },
+    });
+    const solo = await db.document.create({
+      data: {
+        tenantId: tenant.id,
+        moduleId: "approvals",
+        type: "gian",
+        docNo: `기안-2026-${String(Date.now()).slice(-4)}`,
+        title: "혼자 쓰는 단지 기안",
+        status: "draft",
+        createdById: director.id,
+        meta: { cls: { ...cls, docType: "gian", externalApprovers: [] }, draft, plannedSteps: [], form },
+      },
+    });
+    assert.deepEqual(await submitDocument(solo.id, director.id), {});
+    const soloSteps = await db.approvalStep.findMany({
+      where: { documentId: solo.id },
+      orderBy: { order: "asc" },
+    });
+    assert.equal(soloSteps.length, 1);
+    assert.equal(soloSteps[0].status, "pending", "한 칸뿐이면 눌러서 결재해야 한다");
+    assert.deepEqual(await actOnStep(soloSteps[0].id, "approve", ""), { done: true });
+    assert.equal(
+      (await db.document.findUniqueOrThrow({ where: { id: solo.id } })).status,
+      "final",
+    );
 
     console.log("approval-run OK");
   } finally {

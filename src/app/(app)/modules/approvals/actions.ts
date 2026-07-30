@@ -13,9 +13,9 @@ import {
   classify,
   externalRoleLabels,
   legalNoticesFor,
-  type ExternalApprover,
   type FundSource,
 } from "@/lib/gian/rules";
+import { approvalLineFor } from "@/lib/gian/approval";
 
 // "use server" 파일은 async 함수만 export 가능 — 상수는 로컬로
 const MODULE_ID = "approvals";
@@ -68,8 +68,6 @@ export async function generateGian(
     where: { id: tenantId },
     select: {
       name: true,
-      approvalLine: true,
-      externalApprovers: true,
       directorLimit: true,
       directorLimitClause: true,
     },
@@ -103,17 +101,9 @@ export async function generateGian(
       error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.`,
     };
 
-  // 결재선 미리보기 스냅샷 — 상신(Phase 2)이 아니라 문서에 보여줄 예정 결재선
-  const lineIds = (tenant.approvalLine as string[] | null) ?? [];
-  const users = await db.user.findMany({
-    where: { id: { in: lineIds } },
-    select: { id: true, name: true },
-  });
-  const byId = new Map(users.map((u) => [u.id, u.name]));
-  const internal = lineIds
-    .filter((id) => byId.has(id))
-    .map((id) => ({ userId: id, name: byId.get(id)! }));
-  const external = (tenant.externalApprovers as ExternalApprover[] | null) ?? [];
+  // 결재선 미리보기 스냅샷 — 상신(Phase 2)이 아니라 문서에 보여줄 예정 결재선.
+  // 지금 초안을 만드는 사람이 기안자라 결재란 첫 칸에 선다(상신 때와 같은 재료).
+  const { internal, external } = await approvalLineFor(tenantId, session.userId);
   const { steps, missing } = buildApprovalSteps(cls, internal, external);
 
   let draft: GianDraft;
@@ -132,7 +122,7 @@ export async function generateGian(
   // 결정적 유의사항이 항상 앞 — LLM이 빠뜨려도 법적 경고는 나간다
   const legalNotices = [...new Set([...legalNoticesFor(cls), ...draft.legalNotices])];
   const needsClarification = [...draft.needsClarification];
-  if (internal.length === 0)
+  if (steps.length === 0)
     needsClarification.push(
       "결재선이 비어 있습니다 — 설정 > 결재선에서 결재자를 지정해야 상신할 수 있습니다. (문서의 결재란은 공란으로 인쇄됩니다)",
     );

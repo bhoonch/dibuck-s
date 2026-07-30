@@ -11,9 +11,9 @@ import {
   buildApprovalSteps,
   externalRoleLabels,
   type Classification,
-  type ExternalApprover,
   type ExternalRole,
 } from "@/lib/gian/rules";
+import { approvalLineFor } from "@/lib/gian/approval";
 import { Role } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -69,25 +69,13 @@ type Meta = {
 };
 
 /** 지금 설정 기준의 예정 결재선 — submitDocument와 같은 재료를 쓴다 */
-async function plannedStepsNow(tenantId: string, cls: Classification) {
-  const tenant = await db.tenant.findUniqueOrThrow({
-    where: { id: tenantId },
-    select: { approvalLine: true, externalApprovers: true },
-  });
-  const lineIds = (tenant.approvalLine as string[] | null) ?? [];
-  const users = await db.user.findMany({
-    where: { id: { in: lineIds } },
-    select: { id: true, name: true },
-  });
-  const byId = new Map(users.map((u) => [u.id, u.name]));
-  const internal = lineIds
-    .filter((id) => byId.has(id))
-    .map((id) => ({ userId: id, name: byId.get(id)! }));
-  return buildApprovalSteps(
-    cls,
-    internal,
-    (tenant.externalApprovers as ExternalApprover[] | null) ?? [],
-  ).steps;
+async function plannedStepsNow(
+  tenantId: string,
+  cls: Classification,
+  drafterId?: string | null,
+) {
+  const { internal, external } = await approvalLineFor(tenantId, drafterId);
+  return buildApprovalSteps(cls, internal, external).steps;
 }
 
 export default async function GianDocumentPage({
@@ -219,7 +207,7 @@ export default async function GianDocumentPage({
    * 화면과 실제 결재선이 달랐다. 상신 후에는 진짜 스냅샷(ApprovalStep)이 기준.
    */
   const planned = meta.cls
-    ? await plannedStepsNow(doc.tenantId, meta.cls)
+    ? await plannedStepsNow(doc.tenantId, meta.cls, doc.createdById)
     : meta.plannedSteps;
 
   const paperSteps: PaperStep[] =

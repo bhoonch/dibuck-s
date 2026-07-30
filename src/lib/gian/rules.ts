@@ -210,6 +210,19 @@ export const externalRoleLabels: Record<ExternalRole, string> = {
  * 내부 결재선(Tenant.approvalLine 순서) 뒤에 분류가 요구하는 외부 결재자를 붙인다.
  * 요구되는 외부 결재자가 단지에 등록돼 있지 않으면 missing으로 알려 상신을 막는다.
  */
+/**
+ * 결재란 첫 칸(담당)은 기안자다 — 기안 행위 자체가 그 칸의 서명이라 결재를 다시 받지 않는다.
+ * 설정 결재선(단지 공통 명단)에 기안자가 들어 있어도 첫 칸으로 당기고 뒤 중복은 지운다.
+ * 기안자를 모르는 문서(파생·시스템 생성)는 설정 결재선 그대로.
+ */
+export const orderInternalLine = (
+  lineIds: string[],
+  drafterId?: string | null,
+): string[] =>
+  drafterId
+    ? [drafterId, ...lineIds.filter((id) => id !== drafterId)]
+    : lineIds;
+
 export function buildApprovalSteps(
   cls: Classification,
   internal: { userId: string; name: string }[],
