@@ -12,14 +12,17 @@ export function AttentionCard({
   title,
   children,
   action,
+  className = "",
 }: {
   title: string;
   children: React.ReactNode;
   /** 고치러 가는 버튼·폼 — 안내만 하고 길을 안 내주면 두 번 찾게 된다 */
   action?: React.ReactNode;
+  /** 바깥 여백은 두는 쪽이 정한다 — 세로 목록 안에 놓이면 자기 margin이 간격을 어긋낸다 */
+  className?: string;
 }) {
   return (
-    <div className="mb-4 rounded-lg border bg-card p-4 print:hidden">
+    <div className={`rounded-lg border bg-card p-4 print:hidden ${className}`}>
       <p className="flex items-center gap-2 text-sm font-bold">
         <TriangleAlert className="size-4 shrink-0 text-[var(--gian-warn)]" />
         {title}

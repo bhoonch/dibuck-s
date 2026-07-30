@@ -125,8 +125,8 @@ export default async function GianDocumentPage({
     return (
       <>
         <PrintStyle margin="0" />
-        {/* 머리줄과 용지가 같은 왼쪽 시작선을 쓰도록 A4 폭으로 묶어 가운데 (기안 갈래와 같은 규칙) */}
-        <div className="mx-auto max-w-[794px]">
+        {/* 기안 갈래와 같은 기둥 — A4 794 + 패널 320. 오른쪽 칸은 "이 문서에 대한 조치" 자리다 */}
+        <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
           <div className="print:hidden">
             <Link
               href="/modules/approvals"
@@ -158,48 +158,58 @@ export default async function GianDocumentPage({
               {doc.status !== "void" && <NoticeVoid docId={doc.id} />}
             </PageHeader>
           </div>
-          {/* 폐기본은 열람만 — 게시 설정과 일정 수정칸을 남겨 두면 붙일 수 있는 공고로 읽힌다 */}
-          {doc.status === "void" ? (
-            <Card className="mb-4 p-4 text-sm text-muted-foreground print:hidden">
-              폐기된 공고문입니다. 기록으로만 남아 있습니다 — 원본 결재 문서에서
-              공고문을 다시 만들 수 있습니다.
-            </Card>
-          ) : (
-            <>
-              {scheduleVague && (
-                <NoticeSchedule
-                  docId={doc.id}
-                  current={scheduleRow?.v ?? ""}
-                  label={scheduleLabel}
+          {/*
+            2단은 xl(1280px)부터 — 기안 갈래와 같은 기준이다. 그 아래에서는 조치 칸이
+            용지 위로 올라간다(좁은 화면에서 용지를 밀어내지 않으려면 아래가 아니라 위).
+          */}
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
+            <div className="order-2 min-w-0 xl:order-1">
+              <PaperScale>
+                <NoticePaper
+                  notice={meta.notice}
+                  docNo={doc.docNo ?? ""}
+                  office={`${tenant.name} 관리사무소`}
+                  tel={tel}
+                  sealImage={tenant.sealImage}
+                  logoImage={tenant.logoImage}
                 />
+              </PaperScale>
+            </div>
+            <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
+              {/* 폐기본은 열람만 — 게시 설정과 일정 수정칸을 남겨 두면 붙일 수 있는 공고로 읽힌다 */}
+              {doc.status === "void" ? (
+                <Card className="p-4 text-sm text-muted-foreground">
+                  폐기된 공고문입니다. 기록으로만 남아 있습니다 — 원본 결재
+                  문서에서 공고문을 다시 만들 수 있습니다.
+                </Card>
+              ) : (
+                <>
+                  {scheduleVague && (
+                    <NoticeSchedule
+                      docId={doc.id}
+                      current={scheduleRow?.v ?? ""}
+                      label={scheduleLabel}
+                    />
+                  )}
+                  {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
+                  <NoticePosting
+                    docId={doc.id}
+                    place={meta.notice.place}
+                    postTo={meta.notice.postTo}
+                    options={NOTICE_PLACES}
+                    defaultPostTo={DEFAULT_POST_TO}
+                    {...splitPlaces(meta.notice.place)}
+                  />
+                </>
               )}
-              {/* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */}
-              <NoticePosting
-                docId={doc.id}
-                place={meta.notice.place}
-                postTo={meta.notice.postTo}
-                options={NOTICE_PLACES}
-                defaultPostTo={DEFAULT_POST_TO}
-                {...splitPlaces(meta.notice.place)}
-              />
-            </>
-          )}
-          <PaperScale>
-            <NoticePaper
-              notice={meta.notice}
-              docNo={doc.docNo ?? ""}
-              office={`${tenant.name} 관리사무소`}
-              tel={tel}
-              sealImage={tenant.sealImage}
-              logoImage={tenant.logoImage}
-            />
-          </PaperScale>
-          {!tenant.phone && (
-            <Card className="mt-4 p-4 text-sm text-muted-foreground print:hidden">
-              설정 &gt; 단지 정보에 대표번호를 등록하면 공고문 하단에 연락처가
-              표시됩니다.
-            </Card>
-          )}
+              {!tenant.phone && (
+                <Card className="p-4 text-sm text-muted-foreground">
+                  설정 &gt; 단지 정보에 대표번호를 등록하면 공고문 하단에
+                  연락처가 표시됩니다.
+                </Card>
+              )}
+            </aside>
+          </div>
         </div>
       </>
     );
@@ -386,6 +396,7 @@ export default async function GianDocumentPage({
         */}
         {canEdit && vagueLine && (
           <AttentionCard
+            className="mb-4"
             title="추진일정이 아직 확정되지 않았습니다"
             action={
               <Button asChild variant="outline" className="mt-3">
