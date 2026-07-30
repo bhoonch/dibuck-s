@@ -7,6 +7,8 @@ import {
   isConcreteSchedule,
   josa,
   mergePlaces,
+  parseNoticeRow,
+  readNoticeMark,
   splitPlaces,
   DEFAULT_PLACES,
   DEFAULT_POST_TO,
@@ -110,3 +112,32 @@ assert.deepEqual(splitPlaces(round), {
   custom: "지하주차장 입구",
 });
 console.log("✓ 게시장소 왕복 통과");
+
+// ── 공고문 본문 수정: 편집칸 텍스트 ↔ 공고문 항목 ──
+assert.deepEqual(parseNoticeRow("공 사 일 자: 8월 14일"), {
+  k: "공 사 일 자",
+  v: "8월 14일",
+  red: false,
+});
+// 줄 앞 *는 빨간 글씨 표시 — 떼고 저장한다
+assert.deepEqual(parseNoticeRow("*공 사 일 자: 8월 14일"), {
+  k: "공 사 일 자",
+  v: "8월 14일",
+  red: true,
+});
+// 값 안의 콜론은 값에 남는다(시각 표기 "09:00~18:00")
+assert.deepEqual(parseNoticeRow("작업시간: 09:00~18:00"), {
+  k: "작업시간",
+  v: "09:00~18:00",
+  red: false,
+});
+// 콜론이 없으면 라벨만 있는 줄
+assert.deepEqual(parseNoticeRow("추후 공지"), { k: "추후 공지", v: "", red: false });
+assert.deepEqual(readNoticeMark("* 일정은 변경될 수 있습니다."), {
+  text: "일정은 변경될 수 있습니다.",
+  red: true,
+});
+// 화면에 뿌린 문자열을 그대로 다시 파싱해도 같은 값 — 왕복이 값을 잃지 않는다
+const row = { k: "공 사 일 자", v: "8월 14일", red: true };
+assert.deepEqual(parseNoticeRow(`${row.red ? "*" : ""}${row.k}: ${row.v}`), row);
+console.log("✓ 공고문 본문 수정 왕복 통과");

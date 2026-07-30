@@ -5,6 +5,8 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import type { GianDraft } from "@/lib/gian/claude";
+import type { NoticeDoc } from "@/lib/gian/notice";
+import { NoticeEdit } from "./notice-edit";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { GianSteps } from "@/components/gian-steps";
@@ -29,7 +31,12 @@ export default async function EditGianPage({
   const doc = await db.document.findUnique({ where: { id: docId } });
   if (!doc || doc.tenantId !== session.tenantId || doc.moduleId !== "approvals")
     notFound();
-  const meta = doc.meta as { draft?: GianDraft } | null;
+  const meta = doc.meta as { draft?: GianDraft; notice?: NoticeDoc } | null;
+
+  // 공고문은 결재 문서가 아니라 게시물이라 완료 뒤에도 고친다 — 원 품의는 그대로 남는다
+  if (meta?.notice)
+    return <NoticeEdit docId={doc.id} notice={meta.notice} readOnly={doc.status === "void"} />;
+
   if (!meta?.draft) notFound();
   // 결재가 시작된 문서는 내용이 바뀌면 안 된다 — 결재자가 본 것과 달라진다
   if (doc.status !== "draft" && doc.status !== "rejected")

@@ -172,7 +172,8 @@ function ExternalApprovers({
       {rows.map((row, i) => {
         const fixed = FIXED_ROLES.find((f) => f.role === row.role);
         return (
-          <div key={i} className="space-y-2 rounded-lg border bg-background p-3">
+          /* 바탕은 카드 그대로 — bg-background(회색)를 깔면 흰 카드 안에서 이 상자만 뜬다 */
+          <div key={i} className="space-y-2 rounded-lg border p-3">
             <div className="flex items-center justify-between gap-2">
               {fixed ? (
                 <p className="text-sm font-medium">

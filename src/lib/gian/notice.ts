@@ -139,6 +139,25 @@ export function isConcreteSchedule(v: string) {
 }
 
 /**
+ * 공고문 수정칸 한 줄 → 강조 여부와 글자.
+ * 색을 고르는 UI 대신 줄 앞 `*` 하나로 정한다 — 편집칸이 그냥 텍스트로 남아야
+ * 붙여넣기·되돌리기가 되고, 폼도 커지지 않는다.
+ */
+export const readNoticeMark = (line: string) => ({
+  red: line.startsWith("*"),
+  text: line.replace(/^\*\s*/, "").trim(),
+});
+
+/** "라벨: 값" 한 줄 → 공고문 항목. 콜론이 없으면 라벨만 있는 줄로 본다 */
+export function parseNoticeRow(line: string): NoticeDoc["rows"][number] {
+  const { red, text } = readNoticeMark(line);
+  const at = text.indexOf(":");
+  return at < 0
+    ? { k: text, v: "", red }
+    : { k: text.slice(0, at).trim(), v: text.slice(at + 1).trim(), red };
+}
+
+/**
  * 초안의 일정 절이 "2026년 ○월 ○일"처럼 미정으로 남아 있는가.
  * ○ 표기는 공문에서 미정을 뜻하는 정식 관행이라 틀린 게 아니다 — 다만 계약이 잡힌 뒤에도
  * 그대로 결재에 올라가는 일이 있어, 초안 화면에서 한 번 짚어 준다.

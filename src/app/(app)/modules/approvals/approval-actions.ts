@@ -21,6 +21,8 @@ import {
   createNoticeFrom,
   findNoticeFor,
   mergePlaces,
+  parseNoticeRow,
+  readNoticeMark,
   DEFAULT_POST_TO,
   type NoticeDoc,
 } from "@/lib/gian/notice";
@@ -179,6 +181,55 @@ export async function saveGianDraft(formData: FormData) {
         ...draft.attachments,
       ].join("\n"),
       meta: { ...(doc.meta as object), draft },
+    },
+  });
+  revalidatePath(`/modules/approvals/${doc.id}`);
+  redirect(`/modules/approvals/${doc.id}?saved=1`);
+}
+
+/**
+ * 공고문 본문 수정 — 제목·안내문·항목·유의사항.
+ *
+ * 공고문은 결재받은 내용의 자동 산물이지만 **입주민에게 나가는 게시물**이고, 붙이고 나면
+ * 문의를 받는 쪽은 관리사무소다. 오타 하나 때문에 폐기하고 다시 만들게 하는 건 과하다.
+ * 원 품의(결재 기록)는 건드리지 않으므로 결재의 의미는 그대로다.
+ *
+ * 항목은 줄 단위 "라벨: 값" — 기안 초안 수정과 같은 문법(줄바꿈이 곧 항목 하나).
+ */
+export async function saveNoticeBody(formData: FormData) {
+  const docId = String(formData.get("docId") ?? "");
+  const { doc } = await myDoc(docId);
+  if (!doc) return;
+  const meta = doc.meta as { notice?: NoticeDoc } | null;
+  if (!meta?.notice) return;
+  if (doc.status === "void") return;
+
+  const lines = (key: string) =>
+    String(formData.get(key) ?? "")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+  const title = String(formData.get("title") ?? "").trim() || meta.notice.title;
+  const notice: NoticeDoc = {
+    ...meta.notice,
+    title,
+    intro: String(formData.get("intro") ?? "").trim(),
+    rows: lines("rows").map(parseNoticeRow),
+    notes: lines("notes").map(readNoticeMark),
+  };
+
+  await db.document.update({
+    where: { id: doc.id },
+    data: {
+      title,
+      content: [
+        notice.title,
+        notice.intro,
+        ...notice.rows.map((r) => `${r.k}: ${r.v}`),
+        ...notice.notes.map((n) => n.text),
+      ].join("\n"),
+      meta: { ...(doc.meta as object), notice },
     },
   });
   revalidatePath(`/modules/approvals/${doc.id}`);

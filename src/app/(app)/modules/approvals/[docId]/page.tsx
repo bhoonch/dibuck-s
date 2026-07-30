@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SavedToast } from "@/components/ui/saved-toast";
 import { PaperScale } from "@/components/paper-scale";
+import { AttentionCard } from "@/components/attention-card";
 import { panel, panelItem, panelTitle } from "@/components/gian-ui";
 import { GianPaper, PrintStyle, type PaperStep } from "@/components/gian-paper";
 import { GianSteps } from "@/components/gian-steps";
@@ -139,6 +140,14 @@ export default async function GianDocumentPage({
               description={doc.docNo ?? undefined}
             >
               <PrintButton />
+              {/* 입주민에게 붙는 글이라 오타 하나로 폐기·재생성을 시키지 않는다 */}
+              {doc.status !== "void" && (
+                <Button asChild variant="outline">
+                  <Link href={`/modules/approvals/${doc.id}/edit`}>
+                    내용 수정
+                  </Link>
+                </Button>
+              )}
               {meta.sourceDocId && (
                 <Button asChild variant="outline">
                   <Link href={`/modules/approvals/${meta.sourceDocId}`}>
@@ -146,7 +155,6 @@ export default async function GianDocumentPage({
                   </Link>
                 </Button>
               )}
-              {/* 공고문 본문은 손으로 못 고친다 — 버리고 다시 만드는 것이 정정 경로 */}
               {doc.status !== "void" && <NoticeVoid docId={doc.id} />}
             </PageHeader>
           </div>
@@ -377,20 +385,19 @@ export default async function GianDocumentPage({
           공고문 게시 전 일정 확정과 같은 판단이고, 고치는 곳은 초안 수정 화면이다.
         */}
         {canEdit && vagueLine && (
-          <div className="mb-4 rounded-lg border border-l-4 border-[var(--gian-warn)]/40 border-l-[var(--gian-warn)] bg-[var(--gian-warn-soft)] p-4 print:hidden">
-            <p className="text-sm font-bold text-[var(--gian-warn)]">
-              추진일정이 아직 확정되지 않았습니다
-            </p>
-            <p className="mt-1 text-sm text-[var(--gian-warn)]/90">
-              &ldquo;{vagueLine.trim()}&rdquo; — 날짜가 정해졌다면 결재를 올리기
-              전에 채워 주세요. 미정인 채로 올려도 결재는 진행됩니다.
-            </p>
-            <Button asChild variant="outline" className="mt-3">
-              <Link href={`/modules/approvals/${doc.id}/edit`}>
-                일정 채우기
-              </Link>
-            </Button>
-          </div>
+          <AttentionCard
+            title="추진일정이 아직 확정되지 않았습니다"
+            action={
+              <Button asChild variant="outline" className="mt-3">
+                <Link href={`/modules/approvals/${doc.id}/edit`}>
+                  일정 채우기
+                </Link>
+              </Button>
+            }
+          >
+            &ldquo;{vagueLine.trim()}&rdquo; — 날짜가 정해졌다면 결재를 올리기
+            전에 채워 주세요. 미정인 채로 올려도 결재는 진행됩니다.
+          </AttentionCard>
         )}
 
         {/*
