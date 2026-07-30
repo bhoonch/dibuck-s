@@ -38,7 +38,8 @@ export function NoticePaper({
           <tbody>
             <tr>
               <th className={th}>문서번호</th>
-              <td className={`${td} font-mono`}>{docNo}</td>
+              {/* 채번에 한글이 섞여("공지-2026-0003") mono는 글리프가 없다 — 폰트만 튄다 */}
+              <td className={td}>{docNo}</td>
             </tr>
             <tr>
               <th className={th}>게시장소</th>

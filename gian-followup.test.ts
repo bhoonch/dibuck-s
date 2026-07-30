@@ -10,6 +10,7 @@ import {
   type SourceInfo,
 } from "./src/lib/gian/followup";
 import { classify } from "./src/lib/gian/rules";
+import { closeInline, withClosing } from "./src/components/gian-paper";
 
 const source: SourceInfo = {
   docNo: "품의-2026-0007",
@@ -147,6 +148,22 @@ const source: SourceInfo = {
   });
   assert.deepEqual(ltp.externalApprovers, ["AUDITOR", "CHAIR"]);
   assert.deepEqual(followupCls(ltp, "expense").externalApprovers, ["CHAIR"]);
+}
+
+// "끝." 위치 — 붙임이 없으면 본문 마지막 글자 뒤 두 칸, 있으면 붙임이 닫으므로 본문은 그대로
+{
+  const sections = [
+    { heading: "지출개요", lines: ["가. 지출일자: 2026년 8월 10일"] },
+    { heading: "채권자 정보", lines: ["가. 상 호: 화성원", "나. 입금계좌: 우리은행 202020-55025 "] },
+  ];
+  assert.equal(closeInline({ sections, attachments: [] }), true);
+  assert.equal(closeInline({ sections, attachments: ["견적서 1부."] }), false);
+  assert.equal(closeInline({ sections: [], attachments: [] }), false);
+
+  const closed = withClosing(sections);
+  assert.equal(closed.at(-1)!.lines.at(-1), "나. 입금계좌: 우리은행 202020-55025　　끝.");
+  assert.equal(closed.at(-1)!.lines[0], "가. 상 호: 화성원"); // 앞 줄은 그대로
+  assert.deepEqual(closed[0], sections[0]); // 앞 절도 그대로
 }
 
 console.log("✓ gian-followup: 완료보고·지출결의 파생 통과");

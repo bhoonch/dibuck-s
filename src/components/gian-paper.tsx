@@ -24,6 +24,27 @@ const docDate = (d: Date) => `${ymdKst(d).replace(/-/g, ". ")}.`;
 /** "가. 공 사 명: 값" → [_, "가", "공 사 명", "값"] — 항목 기호까지 살려 개조식을 유지한다 */
 const LABELED = /^\s*([가-힣])\.\s*([^:：]{2,20})\s*[:：]\s*(.+)$/;
 
+/**
+ * 붙임이 없으면 "끝."은 본문 마지막 글자 뒤 두 칸에 붙는다(공문 규칙).
+ * 예전엔 왼쪽 끝 별도 줄로 떨어져 서식이 어긋났고, 그 한 줄이 A4 한 장을 넘기기도 했다.
+ * 붙임이 있으면 붙임 마지막 항목이 ".　　끝."으로 문서를 닫으므로 여기서는 손대지 않는다.
+ */
+export const closeInline = (draft: Pick<GianDraft, "sections" | "attachments">) =>
+  draft.attachments.length === 0 && (draft.sections.at(-1)?.lines.length ?? 0) > 0;
+
+/** 마지막 절의 마지막 줄 뒤에 "　　끝."을 붙인 사본 */
+export const withClosing = (sections: GianDraft["sections"]) =>
+  sections.map((sec, i) =>
+    i < sections.length - 1
+      ? sec
+      : {
+          ...sec,
+          lines: sec.lines.map((l, j) =>
+            j === sec.lines.length - 1 ? `${l.replace(/\s+$/, "")}　　끝.` : l,
+          ),
+        },
+  );
+
 /** 결재선 미설정 문서도 결재란은 있어야 한다 — 공란 3칸(담당·검토·결재)이 기본 */
 const EMPTY_STEPS: PaperStep[] = [
   { order: 1, label: "담당" },
@@ -64,6 +85,9 @@ export function GianPaper({
 }) {
   const boxes = steps.length > 0 ? steps : EMPTY_STEPS;
 
+  const inlineEnd = closeInline(draft);
+  const sections = inlineEnd ? withClosing(draft.sections) : draft.sections;
+
   return (
     <article
       id={id}
@@ -74,11 +98,11 @@ export function GianPaper({
       {/* 문서 머리 — 좌: 문서번호·시행일자·수신 / 우: 결재란 */}
       <div className="flex items-start justify-between gap-4">
         <div className="text-[9.5pt] leading-[1.9] text-[var(--gian-ink-soft)]">
-          {/* 채번이 "기안-2026-0001"이라 한글이 섞인다 — mono는 글리프가 없어 무효고 폰트만 튄다 */}
+          {/* 채번이 "기안-2026-0001"이라 한글이 섞인다 — mono는 글리프가 없어 무효고 폰트만 튄다.
+              시행일자도 같은 이유로 본문 폰트: 머리줄 세 줄 중 하나만 mono면 그 줄만 튄다 */}
           문서번호 : {docNo ?? "(채번 전)"}
           <br />
-          시행일자 :{" "}
-          <span className="font-mono">{docDate(createdAt ?? new Date())}</span>
+          시행일자 : {docDate(createdAt ?? new Date())}
           <br />
           수　　신 : 내부결재
         </div>
@@ -133,23 +157,22 @@ export function GianPaper({
       </div>
 
       {/* 대제목 + 밑줄 */}
-      <h2 className="mt-[12mm] mb-1.5 text-center text-[17pt] font-extrabold tracking-[.02em] text-balance">
+      <h2 className="mt-[9mm] mb-1.5 text-center text-[17pt] font-extrabold tracking-[.02em] text-balance">
         {draft.title}
       </h2>
-      <div className="mx-auto mb-[10mm] h-[2.5px] w-[120px] bg-[var(--gian-ink)]" />
+      <div className="mx-auto mb-[8mm] h-[2.5px] w-[120px] bg-[var(--gian-ink)]" />
 
-      <section className="mb-[6mm]">
+      <section className="mb-[5mm]">
         <h3 className="mb-1 text-[12pt] font-extrabold">1. 관련 근거</h3>
-        <ul className="list-disc pl-[18px]">
+        {/* 항목 기호는 본문이 "가. 나. 다."로 갖고 있다 — 불릿까지 찍으면 마커가 겹친다 */}
+        <div className="pl-4">
           {draft.legalBasis.map((b, i) => (
-            <li key={i} className="mb-0.5">
-              {b}
-            </li>
+            <p key={i}>{b}</p>
           ))}
-        </ul>
+        </div>
       </section>
 
-      {draft.sections.map((sec, i) => (
+      {sections.map((sec, i) => (
         <Section key={i} index={i + 2} heading={sec.heading} lines={sec.lines} />
       ))}
 
@@ -164,30 +187,32 @@ export function GianPaper({
       )}
 
       {/* 붙임 — 번호 시작 위치를 라벨 오른쪽에 맞춰 정렬(한 줄이 길어져도 유지) */}
-      <div className="mt-[8mm]">
-        {draft.attachments.length > 0 ? (
-          <div className="flex gap-3">
-            <span className="shrink-0 tracking-[.5em]">붙임</span>
-            <ol className="flex-1">
-              {draft.attachments.map((a, i) => (
-                <li key={i} className="-indent-5 pl-5">
-                  {draft.attachments.length > 1 ? `${i + 1}. ` : ""}
-                  {/* 마지막 항목은 제 마침표를 떼고 "끝."의 마침표를 쓴다 — "1부..  끝." 방지 */}
-                  {i === draft.attachments.length - 1
-                    ? `${a.replace(/\.+\s*$/, "")}.　　끝.`
-                    : a}
-                </li>
-              ))}
-            </ol>
-          </div>
-        ) : (
-          <p>끝.</p>
-        )}
-      </div>
+      {!inlineEnd && (
+        <div className="mt-[6mm]">
+          {draft.attachments.length > 0 ? (
+            <div className="flex gap-3">
+              <span className="shrink-0 tracking-[.5em]">붙임</span>
+              <ol className="flex-1">
+                {draft.attachments.map((a, i) => (
+                  <li key={i} className="-indent-5 pl-5">
+                    {draft.attachments.length > 1 ? `${i + 1}. ` : ""}
+                    {/* 마지막 항목은 제 마침표를 떼고 "끝."의 마침표를 쓴다 — "1부..  끝." 방지 */}
+                    {i === draft.attachments.length - 1
+                      ? `${a.replace(/\.+\s*$/, "")}.　　끝.`
+                      : a}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : (
+            <p>끝.</p>
+          )}
+        </div>
+      )}
 
       {/* 맺음말·명의는 내용이 짧아도 용지 맨 아래 — 여백이 위가 아니라 가운데로 간다 */}
       <div className="flex-1" />
-      <div className="mt-[12mm] text-center text-[10pt] text-[var(--gian-ink-soft)]">
+      <div className="mt-[10mm] text-center text-[10pt] text-[var(--gian-ink-soft)]">
         {foot ?? footText(docType)}
         <div className="mt-1 text-[13pt] font-extrabold tracking-[.4em] text-[var(--gian-ink)]">
           {office ?? ""}
@@ -255,7 +280,7 @@ function Section({
   if (quoteEntries.length >= 2) {
     const cell = "border border-[var(--gian-doc-line)] px-2 py-[1.4mm]";
     return (
-      <section className="mb-[6mm]">
+      <section className="mb-[5mm]">
         <h3 className="mb-1 text-[12pt] font-extrabold">
           {index}. {heading}
         </h3>
@@ -356,8 +381,9 @@ function Section({
 /** 인쇄 시 지정한 시트만 보이게 — 문서 페이지들이 공유하는 스타일 */
 export function PrintStyle({
   target = "a4-sheet",
-  /** 용지 여백. 공고문처럼 자체 여백(mm)을 가진 문서는 "0"으로 넘긴다 */
-  margin = "18mm 16mm",
+  /** 용지 여백. 공고문처럼 자체 여백(mm)을 가진 문서는 "0"으로 넘긴다.
+   *  기본값은 화면 용지의 안쪽 여백(px-16mm py-14mm)과 같다 — 다르면 인쇄에서만 본문이 넘친다 */
+  margin = "14mm 16mm",
 }: {
   target?: string;
   margin?: string;
@@ -367,8 +393,11 @@ export function PrintStyle({
       @media print {
         body * { visibility: hidden; }
         #${target}, #${target} * { visibility: visible; }
-        /* 위치만 잡는다 — 안쪽 여백은 각 문서가 자기 인쇄 규칙(print:*)으로 정한다 */
-        #${target} { position: absolute; inset: 0; width: 100%; margin: 0; }
+        /* 위치만 잡는다 — 안쪽 여백은 각 문서가 자기 인쇄 규칙(print:*)으로 정한다.
+           bottom을 묶지 않는다(inset:0 금지): 용지 높이가 내용이 아니라 페이지 상자에
+           고정되면 넘친 꼬리가 상자 밖으로 새서 페이지 나눔이 예측 불가가 된다.
+           min-height로 짧은 문서만 한 장을 채운다. */
+        #${target} { position: absolute; top: 0; left: 0; right: 0; min-height: 100%; margin: 0; }
       }
       @page { size: A4; margin: ${margin}; }
     `}</style>
