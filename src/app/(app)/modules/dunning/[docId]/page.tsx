@@ -68,7 +68,9 @@ export default async function DunningDocPage({
         <aside className="w-full shrink-0 lg:w-[340px] print:hidden">
           {hasProof && (
             <p className="mb-2 text-xs text-muted-foreground">
-              내용증명은 같은 문서 3부를 우체국에 제출합니다. [우체국 수신인 목록]은 인터넷우체국 편지병합용입니다.
+              내용증명은 같은 문서 3부를 우체국에 제출합니다. [우체국 수신인 목록]은 인터넷우체국
+              편지병합용 기본 열(성명·우편번호·주소)로 내려받습니다. 실제 양식과 열 순서가 다르면
+              내려받은 파일을 인터넷우체국 양식에 맞게 조정해 주세요.
             </p>
           )}
           <EntriesTable
