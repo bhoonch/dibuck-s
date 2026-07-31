@@ -11,7 +11,8 @@ export async function markAllRead() {
     where: { userId: session.userId, readAt: null },
     data: { readAt: new Date() },
   });
-  revalidatePath("/notifications");
+  // 페이지만이 아니라 레이아웃까지 — 헤더 배지·슬라이드 창 목록이 레이아웃 데이터다
+  revalidatePath("/", "layout");
 }
 
 /**

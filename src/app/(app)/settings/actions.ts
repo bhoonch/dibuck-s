@@ -134,7 +134,7 @@ export async function directorResetStaffPassword(
   const session = await requireRole(Role.DIRECTOR);
   const userId = String(formData.get("userId"));
   if (userId === session.userId)
-    return { error: "본인 비밀번호는 설정 > 내 계정에서 변경해 주세요." };
+    return { error: "본인 비밀번호는 내 계정(왼쪽 아래 프로필)에서 변경해 주세요." };
   const target = await db.user.findUnique({ where: { id: userId } });
   if (target?.tenantId !== session.tenantId)
     return { error: "다른 단지의 직원입니다." };

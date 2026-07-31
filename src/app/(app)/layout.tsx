@@ -26,6 +26,7 @@ export default async function AppLayout({
     tenant,
     modules,
     unread,
+    recentNotifications,
     announcements,
     docCount,
     expiring,
@@ -36,6 +37,13 @@ export default async function AppLayout({
       db.tenant.findUnique({ where: { id: tenantId } }),
       getModulesForTenant(tenantId),
       db.notification.count({ where: { userId: session.userId, readAt: null } }),
+      // 헤더 종의 슬라이드 창에 실을 최근 알림 — 전체 이력은 /notifications
+      db.notification.findMany({
+        where: { userId: session.userId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, title: true, body: true, link: true, readAt: true, createdAt: true },
+      }),
       // 게시 기간 안에 있는 공지만 — 대상(전체/구독/미구독) 필터는 아래에서
       db.announcement.findMany({
         where: {
@@ -208,7 +216,17 @@ export default async function AppLayout({
           }))}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader unread={unread} />
+          <AppHeader
+            unread={unread}
+            notifications={recentNotifications.map((n) => ({
+              id: n.id,
+              title: n.title,
+              body: n.body,
+              link: n.link,
+              read: !!n.readAt,
+              createdAt: n.createdAt.toISOString(),
+            }))}
+          />
           <main className="w-full max-w-[1440px] flex-1 p-6 lg:px-10 lg:py-8">
             {children}
           </main>

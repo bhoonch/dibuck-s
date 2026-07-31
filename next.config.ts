@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
     // 모듈 런처는 구독 화면과 같은 그리드를 버튼만 빼고 그리고 있어 합쳤다.
     // 하위 경로(/modules/approvals 등)는 그대로 — source가 정확히 일치할 때만 탄다.
     { source: "/modules", destination: "/subscriptions", permanent: true },
+    // 내 계정은 단지 서랍에서 나와 프로필 칩의 자리(/account)가 됐다
+    { source: "/settings/account", destination: "/account", permanent: true },
   ],
   experimental: {
     serverActions: {

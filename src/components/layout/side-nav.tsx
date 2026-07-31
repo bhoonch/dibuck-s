@@ -64,9 +64,10 @@ export function SideNav({
       count: docCount,
     },
     // "설정"은 안에 뭐가 들었는지 알려주지 않는다 — 세대 등록이 여기 있을 거라고
-    // 짐작할 방법이 없었다. 이름으로 내용을 밝힌다.
+    // 짐작할 방법이 없었다. 이름으로 내용을 밝힌다. 내 계정은 개인의 것이라
+    // 여기 없다 — 하단 프로필 칩(/account)이 입구다.
     {
-      name: "단지·계정 관리",
+      name: "단지 관리",
       href: "/settings",
       match: "/settings",
       icon: Settings,
@@ -189,7 +190,7 @@ export function SideNav({
         )}
         <div className="flex items-center gap-2.5 p-2.5">
           <Link
-            href="/settings/account"
+            href="/account"
             title="내 계정 설정"
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md transition-colors hover:bg-gray-100"
           >

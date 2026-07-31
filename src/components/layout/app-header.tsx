@@ -1,15 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import {
+  NotificationPanel,
+  type PanelNotification,
+} from "./notification-panel";
 
 // 앞에서부터 첫 일치가 이긴다 — 모듈 경로는 "/modules"보다 위에 둬야 한다
 const titles: [prefix: string, title: string][] = [
   ["/documents", "통합 문서함"],
   ["/notifications", "알림"],
-  ["/settings", "단지·계정 관리"],
+  ["/settings", "단지 관리"],
+  ["/account", "내 계정"],
   ["/subscriptions", "구독·결제"],
   ["/billing", "구독·결제"],
   ["/modules/approvals", "기안·품의"],
@@ -19,7 +23,13 @@ const titles: [prefix: string, title: string][] = [
   ["/home", "홈"],
 ];
 
-export function AppHeader({ unread }: { unread: number }) {
+export function AppHeader({
+  unread,
+  notifications,
+}: {
+  unread: number;
+  notifications: PanelNotification[];
+}) {
   const pathname = usePathname();
   const searchRef = useRef<HTMLInputElement>(null);
   const title = titles.find(([p]) => pathname.startsWith(p))?.[1] ?? "홈";
@@ -59,16 +69,7 @@ export function AppHeader({ unread }: { unread: number }) {
             Ctrl K
           </kbd>
         </form>
-        <Link
-          href="/notifications"
-          aria-label="알림"
-          className="relative flex size-9 items-center justify-center rounded-md border bg-card transition-colors hover:bg-background"
-        >
-          <Bell className="size-5 text-gray-700" />
-          {unread > 0 && (
-            <span className="absolute right-1.5 top-1.5 size-[7px] rounded-full border-[1.5px] border-white bg-red-600" />
-          )}
-        </Link>
+        <NotificationPanel unread={unread} items={notifications} />
       </div>
     </header>
   );

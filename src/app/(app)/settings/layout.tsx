@@ -17,7 +17,7 @@ export default function SettingsLayout({
       {/* 설정 하위 화면의 저장 알림을 한 곳에서 — 각 페이지가 따로 들 필요가 없다 */}
       <SavedToast />
       <PageHeader
-        title="단지·계정 관리"
+        title="단지 관리"
         description="단지 정보와 세대·직원, 결재 규정을 관리합니다."
       />
       <div className="grid items-start gap-6 lg:grid-cols-[11rem_minmax(0,1fr)]">
