@@ -46,6 +46,8 @@ export default async function AdminOverviewPage() {
           updatedAt: true,
           trialEndsAt: true,
           module: { select: { price: true } },
+          // 카드 유무 — 체험이 끝난 구독은 카드가 있어야 매출이다(wasPaidAt)
+          tenant: { select: { billing: { select: { billingKey: true } } } },
         },
       }),
       db.module.findMany({
@@ -62,8 +64,12 @@ export default async function AdminOverviewPage() {
     ]);
 
   const now = new Date();
-  const mrr = mrrAt(allSubs, now);
-  const mrrPrev = mrrAt(allSubs, thisMonth);
+  const subRows = allSubs.map((s) => ({
+    ...s,
+    hasCard: !!s.tenant.billing?.billingKey,
+  }));
+  const mrr = mrrAt(subRows, now);
+  const mrrPrev = mrrAt(subRows, thisMonth);
   const growth = deltaPercent(mrr, mrrPrev);
   const avgModules = tenantCount ? (activeSubs / tenantCount).toFixed(1) : "0";
   const maxSubs = Math.max(1, ...modules.map((m) => m._count.subscriptions));

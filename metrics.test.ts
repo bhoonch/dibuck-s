@@ -21,11 +21,13 @@ const sub = (
   updatedAt: string,
   price: number,
   trialEndsAt: string | null = null,
+  hasCard = true,
 ) => ({
   status,
   subscribedAt: d(subscribedAt),
   updatedAt: d(updatedAt),
   trialEndsAt: trialEndsAt ? d(trialEndsAt) : null,
+  hasCard,
   module: { price },
 });
 
@@ -40,9 +42,9 @@ const canceled = sub("CANCELED", "2026-02-01", "2026-05-20", 20000);
 assert.equal(wasActiveAt(canceled, d("2026-05-01")), true, "해지 전 달에는 매출로 잡힘");
 assert.equal(wasActiveAt(canceled, d("2026-06-01")), false, "해지 후에는 빠짐");
 
-// 3) 무료 체험 — 체험 기간에는 매출 0원, 만료돼도 결제가 없으니 매출 아님(전환 대기).
-//    유료 전환 시 운영자가 trialEndsAt을 null로 지워야 매출로 잡힌다.
-const trial = sub("ACTIVE", "2026-04-01", "2026-04-01", 50000, "2026-05-01");
+// 3) 무료 체험(카드 없음) — 체험 기간에는 매출 0원, 만료돼도 결제 수단이 없으니
+//    매출 아님(전환 대기). 카드를 등록하면 같은 행이 그대로 매출이 된다(4.5).
+const trial = sub("ACTIVE", "2026-04-01", "2026-04-01", 50000, "2026-05-01", false);
 assert.equal(wasActiveAt(trial, d("2026-04-15")), true, "체험도 구독은 활성");
 assert.equal(wasTrialAt(trial, d("2026-04-15")), true, "기간 안이면 체험");
 assert.equal(wasPaidAt(trial, d("2026-04-15")), false, "체험 중에는 매출 없음");
@@ -66,6 +68,18 @@ assert.equal(
   "6월 = 30000, 해지분 20000과 만료 미전환 50000 빠짐",
 );
 assert.equal(mrrAt(subs, d("2026-01-01")), 0, "전부 가입 전");
+
+// 4.5) 셀프 전환 — 카드가 등록된 단지는 체험이 끝나면 자동 청구된다.
+//      trialEndsAt은 "체험 소진 이력"으로 과거에 남으므로 null 판정을 쓰면
+//      전환 단지 전체가 MRR 0원·전환 대기로 잡힌다(실제 났던 버그).
+const converted = sub("ACTIVE", "2026-04-01", "2026-04-01", 50000, "2026-05-01", true);
+assert.equal(wasTrialAt(converted, d("2026-04-15")), true, "체험 중에는 체험");
+assert.equal(wasPaidAt(converted, d("2026-04-15")), false, "체험 중에는 매출 아님");
+assert.equal(wasPaidAt(converted, d("2026-05-15")), true, "체험이 끝나면 카드로 청구 — 매출");
+assert.equal(wasExpiredTrialAt(converted, d("2026-05-15")), false, "카드가 있으면 전환 대기가 아니다");
+// 카드 없는 무체험 구독은 청구할 길이 없다 — 유료로 세면 MRR이 부풀려진다
+const noCardNoTrial = sub("ACTIVE", "2026-04-01", "2026-04-01", 10000, null, false);
+assert.equal(wasPaidAt(noCardNoTrial, d("2026-05-15")), false, "카드 없으면 매출 아님");
 
 // 5) recentMonths — 과거→현재 순서, 마지막이 이번 달, 구간이 빈틈없이 이어짐
 const months = recentMonths(7);

@@ -22,6 +22,8 @@ export default async function AdminRevenuePage() {
         updatedAt: true,
         trialEndsAt: true,
         module: { select: { id: true, name: true, price: true, sortOrder: true } },
+        // 카드 유무 — 체험이 끝난 구독은 카드가 있어야 매출이다(wasPaidAt)
+        tenant: { select: { billing: { select: { billingKey: true } } } },
       },
     }),
     db.tenant.count({ where: { status: "ACTIVE" } }),
@@ -84,17 +86,21 @@ export default async function AdminRevenuePage() {
   }));
 
   const now = new Date();
-  const mrr = mrrAt(subs, now);
-  const paid = subs.filter((s) => wasPaidAt(s, now));
-  const trial = subs.filter((s) => wasTrialAt(s, now));
-  // 체험이 끝났는데 유료 전환을 안 한 구독 — 결제 연동 전까지는 운영자가 수동 전환해야 할 목록
-  const expired = subs.filter((s) => wasExpiredTrialAt(s, now));
+  const subRows = subs.map((s) => ({
+    ...s,
+    hasCard: !!s.tenant.billing?.billingKey,
+  }));
+  const mrr = mrrAt(subRows, now);
+  const paid = subRows.filter((s) => wasPaidAt(s, now));
+  const trial = subRows.filter((s) => wasTrialAt(s, now));
+  // 체험이 끝났는데 카드 미등록 — 잠긴 상태, 카드를 넣으면 매출이 될 목록
+  const expired = subRows.filter((s) => wasExpiredTrialAt(s, now));
   const expiredUpside = expired.reduce((sum, s) => sum + s.module.price, 0);
 
   // 월별 MRR — 각 달 말 기준으로 요금이 발생하던 구독의 합계
   const bars = recentMonths(7).map((m) => ({
     label: m.label,
-    value: mrrAt(subs, m.end > now ? now : m.end),
+    value: mrrAt(subRows, m.end > now ? now : m.end),
   }));
   const maxBar = Math.max(1, ...bars.map((b) => b.value));
 

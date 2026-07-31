@@ -16,8 +16,10 @@ export default async function SubscriptionsPage() {
   const modules = await getModulesForTenant(session.tenantId!);
   const subscribed = modules.filter((m) => m.subscribed);
   const trialing = subscribed.filter((m) => m.trialEndsAt);
+  // 정지 중에도 구독료는 그 모듈들 값이다 — 0원으로 보여주면 "왜 정지지"가 된다
+  const suspendedMods = modules.filter((m) => m.suspended);
   // 체험 중인 모듈은 요금이 발생하지 않는다
-  const monthlyTotal = subscribed.reduce(
+  const monthlyTotal = [...subscribed, ...suspendedMods].reduce(
     (sum, m) => (m.trialEndsAt ? sum : sum + m.price),
     0,
   );
@@ -34,8 +36,19 @@ export default async function SubscriptionsPage() {
           {monthlyTotal.toLocaleString()}원
         </span>
         <span className="text-sm text-muted-foreground">
-          / 모듈 {subscribed.length}개 사용 중
-          {trialing.length > 0 && ` (무료 체험 ${trialing.length}개 제외)`}
+          {suspendedMods.length > 0 ? (
+            <>
+              / 모듈 {suspendedMods.length}개 이용 정지 —{" "}
+              <Link href="/billing" className="font-semibold text-primary underline">
+                결제하면 즉시 다시 사용
+              </Link>
+            </>
+          ) : (
+            <>
+              / 모듈 {subscribed.length}개 사용 중
+              {trialing.length > 0 && ` (무료 체험 ${trialing.length}개 제외)`}
+            </>
+          )}
         </span>
       </Card>
 
@@ -61,7 +74,7 @@ export default async function SubscriptionsPage() {
                 </span>
                 <span
                   className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    m.trialExpired
+                    m.suspended || m.trialExpired
                       ? "bg-red-50 text-red-700"
                       : m.trialEndsAt
                         ? "bg-amber-50 text-amber-700"
@@ -70,15 +83,19 @@ export default async function SubscriptionsPage() {
                           : "bg-gray-100 text-gray-500"
                   }`}
                 >
-                  {m.trialExpired
-                    ? "체험 종료"
-                    : m.trialEndsAt
-                      ? `무료 체험 D-${dday(m.trialEndsAt)}`
-                      : m.retired
-                        ? "판매 중단"
-                        : m.subscribed
-                          ? "사용 중"
-                          : "미구독"}
+                  {/* 정지 단지의 구독 모듈을 "미구독"으로 보여주면 사용자가 구독을
+                      다시 누르는데, 그건 이미 ACTIVE라 아무 일도 안 한다 — 결제가 출구다 */}
+                  {m.suspended
+                    ? "이용 정지"
+                    : m.trialExpired
+                      ? "체험 종료"
+                      : m.trialEndsAt
+                        ? `무료 체험 D-${dday(m.trialEndsAt)}`
+                        : m.retired
+                          ? "판매 중단"
+                          : m.subscribed
+                            ? "사용 중"
+                            : "미구독"}
                 </span>
               </div>
               <p
@@ -105,7 +122,12 @@ export default async function SubscriptionsPage() {
                     /월
                   </span>
                 </span>
-                {m.trialExpired ? (
+                {m.suspended ? (
+                  // 정지는 단지 전체 상태 — 여기서 할 수 있는 건 결제뿐이다
+                  <Button asChild variant="outline" className="ml-auto">
+                    <Link href="/billing">결제 확인</Link>
+                  </Button>
+                ) : m.trialExpired ? (
                   // 체험이 끝났는데 카드가 없다 — 카드를 넣으면 결제로 이어지며 바로 풀린다
                   <Button asChild variant="outline" className="ml-auto">
                     <Link href="/billing">카드 등록</Link>

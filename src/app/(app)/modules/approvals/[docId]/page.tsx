@@ -294,8 +294,12 @@ export default async function GianDocumentPage({
     tokenExpired: !s.tokenExpiresAt || s.tokenExpiresAt <= now,
     signature: s.signature as PanelStep["signature"],
   }));
+  // 서버(submitGian의 canSubmitOthers)와 같은 판정 — 마스터·매니저.
+  // 화면만 마스터로 좁혀 두면 지출 문서를 챙기는 매니저에게 상신 버튼이 안 보인다
   const canSubmit =
-    doc.createdById === session.userId || session.role === Role.DIRECTOR;
+    doc.createdById === session.userId ||
+    session.role === Role.DIRECTOR ||
+    session.role === Role.ACCOUNTANT;
   // 반려도 수정 가능하다 — saveGianDraft·edit 페이지가 draft·rejected 둘 다 받는다.
   // 예전엔 화면 버튼만 draft 조건이라 반려당한 사람이 고칠 길이 안 보였다.
   const canEdit = doc.status === "draft" || doc.status === "rejected";

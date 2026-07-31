@@ -41,6 +41,7 @@ export default async function AdminTenantDetailPage({
         include: {
           users: { orderBy: { createdAt: "asc" } },
           modules: true,
+          billing: { select: { billingKey: true } },
           _count: { select: { units: true } },
         },
       }),
@@ -68,12 +69,17 @@ export default async function AdminTenantDetailPage({
    * 구독 행의 세 상태를 구분한다. "체험 없음(정식 유료)"과 "체험 만료(미결제)"를
    * 둘 다 null로 뭉뚱그리면 만료 건이 유료로 표시되고 매출에 잡히면서
    * 정작 전환 버튼은 사라진다.
+   * 유료 판정에는 카드가 필요하다(metrics.ts wasPaidAt과 같은 기준) — 셀프 전환
+   * 단지는 trialEndsAt이 과거로 남으므로, 체험이 끝났어도 카드가 있으면 유료다.
    */
+  const hasCard = !!tenant.billing?.billingKey;
   const moduleState = (moduleId: string) => {
     const row = subs.get(moduleId);
     if (!row) return { kind: "off" as const };
-    if (!row.trialEndsAt) return { kind: "paid" as const };
-    if (row.trialEndsAt <= now) return { kind: "expired" as const };
+    if (!row.trialEndsAt || row.trialEndsAt <= now)
+      return hasCard
+        ? { kind: "paid" as const }
+        : { kind: "expired" as const };
     return {
       kind: "trial" as const,
       daysLeft: Math.ceil((row.trialEndsAt.getTime() - now.getTime()) / 86400000),

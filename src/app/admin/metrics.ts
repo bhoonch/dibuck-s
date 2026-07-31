@@ -6,6 +6,8 @@ export type SubRow = {
   subscribedAt: Date;
   updatedAt: Date;
   trialEndsAt: Date | null;
+  /** 단지에 결제 카드가 있는가 — 체험이 끝난 구독은 카드가 있어야만 청구된다 */
+  hasCard: boolean;
   module: { price: number };
 };
 
@@ -30,15 +32,22 @@ export function wasTrialAt(s: SubRow, at: Date) {
   return wasActiveAt(s, at) && !!s.trialEndsAt && s.trialEndsAt > at;
 }
 
-/** 그 시점에 요금이 발생하던 구독인가 — 유료 전환된 구독만(trialEndsAt null).
- * 체험 종료 후 미전환은 결제가 없으므로 매출이 아니다(만료 잠금 대상). */
+/** 그 시점에 요금이 발생하던 구독인가 — 체험이 끝났고 카드가 등록된 구독.
+ * "trialEndsAt null만 유료"로 보면 안 된다 — 셀프 전환 단지는 체험 소진 이력으로
+ * trialEndsAt이 과거로 남아, 전환 단지 전체가 MRR 0원·"전환 대기"로 잡힌다.
+ * ponytail: 카드 유무는 현재 상태라 과거 월 막대는 근사치다. 정확히 하려면
+ * Payment 이력으로 집계할 것(월별 매출을 진지하게 보게 되면 그때). */
 export function wasPaidAt(s: SubRow, at: Date) {
-  return wasActiveAt(s, at) && !s.trialEndsAt;
+  return (
+    wasActiveAt(s, at) && (!s.trialEndsAt || s.trialEndsAt <= at) && s.hasCard
+  );
 }
 
-/** 체험이 끝났는데 유료 전환 전 — 결제 연동 전까지 운영자 전환 대기 목록 */
+/** 체험이 끝났는데 카드 미등록 — 잠긴 상태, 카드를 넣으면 매출로 바뀔 목록 */
 export function wasExpiredTrialAt(s: SubRow, at: Date) {
-  return wasActiveAt(s, at) && !!s.trialEndsAt && s.trialEndsAt <= at;
+  return (
+    wasActiveAt(s, at) && !!s.trialEndsAt && s.trialEndsAt <= at && !s.hasCard
+  );
 }
 
 /** 해당 시점의 MRR — 체험 중인 구독은 빼고 센다 */
