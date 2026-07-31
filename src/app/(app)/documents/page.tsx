@@ -73,7 +73,11 @@ export default async function DocumentsPage({
     createdAt: ymdKst(d.createdAt),
     // 열어 볼 화면이 있는 모듈만 링크가 된다 — 아직 화면이 없는 모듈은 눌러도 갈 곳이 없다
     href:
-      d.moduleId === "approvals" ? `/modules/approvals/${d.id}` : null,
+      d.moduleId === "approvals"
+        ? `/modules/approvals/${d.id}`
+        : d.type === "dunning_letter"
+          ? `/modules/dunning/${d.id}`
+          : null,
   }));
 
   return (
