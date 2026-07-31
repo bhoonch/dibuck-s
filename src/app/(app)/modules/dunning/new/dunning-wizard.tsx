@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { PaperScale } from "@/components/paper-scale";
 import { DunningSheets } from "@/components/dunning-paper";
-import { buildLetter, koDate, stageLabels, won, type DunningStage } from "@/lib/dunning";
+import { buildLetter, koDate, parseAmount, stageLabels, won, type DunningStage } from "@/lib/dunning";
 import { ymdKst } from "@/lib/utils";
 import {
   createDunningBatch,
@@ -68,11 +68,11 @@ export function DunningWizard({
   >([{ dong: "", ho: "", amount: "", name: "", period: "" }]);
   const submitManual = () => {
     const cleaned = manual
-      .filter((m) => m.dong.trim() && m.ho.trim() && Number(m.amount.replace(/[^\d]/g, "")))
+      .filter((m) => m.dong.trim() && m.ho.trim() && parseAmount(m.amount))
       .map((m) => ({
         dong: m.dong.trim().replace(/동$/, ""),
         ho: m.ho.trim().replace(/호$/, ""),
-        amount: Number(m.amount.replace(/[^\d]/g, "")),
+        amount: parseAmount(m.amount),
         name: m.name.trim() || null,
         period: m.period.trim() || null,
       }));

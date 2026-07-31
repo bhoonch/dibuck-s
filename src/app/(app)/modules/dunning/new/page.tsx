@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { PageHeader } from "@/components/ui/page-header";
 import { DunningWizard } from "./dunning-wizard";
 
 export default async function NewDunningPage() {
-  const session = await requireSession();
+  // 생성 액션과 같은 권한 — STAFF가 세 걸음 입력하고서야 튕기지 않게 여기서 먼저 막는다
+  const session = await requireRole(Role.DIRECTOR, Role.ACCOUNTANT);
   if (!(await isSubscribed(session.tenantId!, "dunning")))
     redirect("/subscriptions");
   const [tenant, lastDoc] = await Promise.all([

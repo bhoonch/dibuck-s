@@ -29,6 +29,18 @@ export function suggestStage(
 }
 
 /**
+ * 금액 문자열 해석 — "456,000원" → 456000. 소수점 앞까지만 취하고("456,000.00"이
+ * 45,600,000이 되는 것을 막음), 음수 행은 0을 돌려줘 상위에서 건너뛰게 한다
+ * ("-3,000"이 3,000 청구가 되는 것을 막음). 엑셀 파싱·직접 입력 정리가 공유한다.
+ */
+export const parseAmount = (v: string): number => {
+  const trimmed = v.trim();
+  if (!trimmed || trimmed.startsWith("-")) return 0;
+  const digits = trimmed.split(".")[0].replace(/[^\d]/g, "");
+  return digits ? Number(digits) : 0;
+};
+
+/**
  * 엑셀 행 해석. A=동, B=호, C=미납액(필수), D=이름(선택), E=미납 기간(선택).
  * 금액이 없는 행은 합계·명부 줄이므로 조용히 건너뛴다.
  */
@@ -43,7 +55,7 @@ export function parseDunningRows(rows: unknown[][]): {
   for (const r of rows) {
     if (!Array.isArray(r) || !cell(r, 0) || !cell(r, 1)) continue;
     if (isHeader(cell(r, 0))) continue;
-    const amount = Number(cell(r, 2).replace(/[^\d]/g, ""));
+    const amount = parseAmount(cell(r, 2));
     if (!amount) continue;
     out.push({
       dong: cell(r, 0).replace(/동$/, ""),

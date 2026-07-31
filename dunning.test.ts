@@ -5,6 +5,7 @@ import assert from "node:assert";
 import {
   buildLetter,
   koDate,
+  parseAmount,
   parseDunningRows,
   suggestStage,
   won,
@@ -36,6 +37,16 @@ assert.deepEqual(parsed.rows[0], {
 });
 assert.equal(parsed.rows[1].name, null);
 assert.ok(parseDunningRows([]).error);
+
+// 금액 파싱: 소수점은 앞자리만("456,000.00"이 45,600,000이 되면 안 됨), 음수 행은 0(제외)
+assert.equal(parseAmount("456,000.00"), 456000);
+assert.equal(parseAmount("-3,000"), 0);
+const withEdgeAmounts = parseDunningRows([
+  ["105", "101", "456,000.00", "", ""],
+  ["106", "101", "-3,000", "", ""], // 음수 — 청구 대상 아님
+]);
+assert.equal(withEdgeAmounts.rows.length, 1);
+assert.equal(withEdgeAmounts.rows[0].amount, 456000);
 
 // 문안: 1단계는 안내, 3단계만 내용증명 발신·수신 블록
 const base = {

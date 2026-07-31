@@ -145,8 +145,13 @@ export async function toggleEntryPaid(formData: FormData) {
     where: { id, tenantId: session.tenantId! }, // tenantId가 소유권 검사
   });
   if (!entry) return;
-  await db.dunningEntry.update({
-    where: { id },
+  // 조건부 updateMany — 읽은 스냅숏(paidAt)과 지금 DB 값이 다르면(동시 토글) 무동작
+  await db.dunningEntry.updateMany({
+    where: {
+      id,
+      tenantId: session.tenantId!,
+      paidAt: entry.paidAt ? { not: null } : null,
+    },
     data: { paidAt: entry.paidAt ? null : new Date() },
   });
   revalidatePath(`/modules/dunning/${entry.docId}`);
