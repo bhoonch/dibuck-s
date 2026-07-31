@@ -7,6 +7,7 @@ import { tossEnabled } from "@/lib/toss";
 import { ymdKst } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { RegisterCardButton } from "./register-card-button";
+import { RegistrationToast } from "./registration-toast";
 import { CancelButton, PayNowButton } from "./billing-actions";
 
 const won = (n: number) => `${n.toLocaleString()}원`;
@@ -67,6 +68,8 @@ export default async function BillingPage() {
 
   return (
     <div className="space-y-6">
+      {/* 카드 등록 결제창에서 돌아온 결과 안내 — 콜백이 쿼리로 실어 보낸다 */}
+      <RegistrationToast />
       {/* ── 상태 배너 ────────────────────────────────── */}
       {billing?.status === "SUSPENDED" && (
         <Card className="gap-2 border-red-200 bg-red-50 p-4">
