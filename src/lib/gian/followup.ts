@@ -169,6 +169,9 @@ export function findFollowupFor(sourceDocId: string, kind: FollowupKind) {
   return db.document.findFirst({
     where: {
       type: followupDocType[kind],
+      // 폐기본은 없는 것으로 — 이 필터가 빠지면 잘못 만든 보고서를 폐기한 뒤
+      // 다시 만들 길이 없다(findNoticeFor와 같은 규칙)
+      status: { not: "void" },
       meta: { path: ["sourceDocId"], equals: sourceDocId },
     },
     select: { id: true, docNo: true },

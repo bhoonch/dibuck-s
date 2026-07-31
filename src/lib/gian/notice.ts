@@ -260,12 +260,20 @@ export async function createNoticeFrom(doc: SourceDoc) {
   if (!meta?.form || !meta.cls) return null;
   if (await findNoticeFor(doc.id)) return null;
 
+  // 결재일은 결재선 마지막 칸의 서명 시각 — "지금"으로 찍으면 결재 직후 파생에서는
+  // 맞지만, 공고문을 폐기하고 다시 만들 때 결재일이 재생성일로 바뀐다(공문서 왜곡)
+  const lastSigned = await db.approvalStep.findFirst({
+    where: { documentId: doc.id, status: "approved", actedAt: { not: null } },
+    orderBy: { order: "desc" },
+    select: { actedAt: true },
+  });
+
   const notice = buildNotice({
     form: meta.form,
     draft: meta.draft,
     docType: meta.cls.docType,
     docNo: doc.docNo ?? "",
-    approvedAt: new Date(),
+    approvedAt: lastSigned?.actedAt ?? new Date(),
   });
 
   return createDocument({

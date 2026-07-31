@@ -181,11 +181,25 @@ async function main() {
     // 폐기한 공고문은 없는 것으로 본다 — 잘못 나온 공고문을 버리고 다시 만드는 유일한 경로다
     await db.document.update({ where: { id: notices[0].id }, data: { status: "void" } });
     assert.equal(await findNoticeFor(doc.id), null, "폐기본은 파생 이력으로 치지 않는다");
+    // 재생성 공고문의 결재일은 실제 서명 시각이어야 한다 — 마지막 서명을 과거로
+    // 돌려놓고 다시 만들어, "지금"이 아니라 그 날짜가 찍히는지 실측한다
+    const signedPast = new Date("2026-07-01T03:00:00Z"); // KST 2026-07-01 12:00
+    await db.approvalStep.update({
+      where: { id: chair.id },
+      data: { actedAt: signedPast },
+    });
     await createNoticeFrom(await db.document.findUniqueOrThrow({ where: { id: doc.id } }));
     assert.equal(
       await db.document.count({ where: { tenantId: tenant.id, type: "notice" } }),
       2,
       "폐기 후에는 다시 만들어진다(폐기본은 기록으로 남는다)",
+    );
+    const renotice = await findNoticeFor(doc.id);
+    const rmeta = (await db.document.findUniqueOrThrow({ where: { id: renotice!.id } }))
+      .meta as { notice: { rows: { v: string }[] } };
+    assert.ok(
+      rmeta.notice.rows.some((r) => r.v.includes("2026년 7월 1일 결재 완료")),
+      "재생성 공고문의 결재일은 재생성일이 아니라 실제 서명일이다",
     );
 
     // ── 후속 문서(완료보고) 파생 → 채번·역링크·결재선 ──
@@ -225,6 +239,15 @@ async function main() {
     const found = await findFollowupFor(doc.id, "report");
     assert.equal(found?.id, report.id);
     assert.equal(await findFollowupFor(doc.id, "expense"), null); // 종류별로 갈린다
+    // 폐기한 후속 문서는 없는 것으로 — 이 필터가 없으면 잘못 만든 보고서를
+    // 폐기한 뒤 다시 만들 길이 없다(공고문과 같은 규칙)
+    await db.document.update({ where: { id: report.id }, data: { status: "void" } });
+    assert.equal(
+      await findFollowupFor(doc.id, "report"),
+      null,
+      "폐기본은 파생 이력으로 치지 않는다 — 재생성이 열린다",
+    );
+    await db.document.update({ where: { id: report.id }, data: { status: "draft" } });
 
     // 완료보고는 3단 — 회장이 붙지 않는다(원 품의는 회장까지 4단이었다)
     assert.deepEqual(await submitDocument(report.id, staff.id), {});
