@@ -51,18 +51,34 @@ async function send(to: string, subject: string, html: string) {
   }
 }
 
+/**
+ * HTML 본문에 들어가는 사용자 입력은 전부 이걸 통과시킨다.
+ * 문서 제목·이름·단지명은 사용자가 치는 값이고, 이 메일은 외부 결재자(회장·감사)에게
+ * 우리 발신 주소로 나간다 — 이스케이프하지 않으면 제목에 태그를 넣어 가짜 링크를
+ * 우리 이름으로 실어 보낼 수 있다. 제목(subject)은 HTML이 아니므로 여기 안 태운다.
+ */
+export const escapeHtml = (s: string) =>
+  s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
 /** 공통 레이아웃 — 본문 + 버튼 하나. 메일 클라이언트는 CSS를 못 믿으니 인라인 스타일만 */
 function layout(bodyHtml: string, cta: { label: string; url: string; danger?: boolean }) {
   const bg = cta.danger ? "#dc2626" : "#2563eb";
+  // url도 이스케이프 — receiptUrl은 토스가 주는 외부 값이라 href="..." 를 깨고 나올 수 있다
+  const url = escapeHtml(cta.url);
   return `
     <div style="font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:520px;margin:0 auto;color:#0f172a;line-height:1.7;">
       <p style="font-size:18px;font-weight:bold;color:#2563eb;margin:0 0 20px;">디벅</p>
       ${bodyHtml}
-      <a href="${cta.url}" style="display:inline-block;margin:20px 0;padding:12px 24px;background:${bg};color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;">
+      <a href="${url}" style="display:inline-block;margin:20px 0;padding:12px 24px;background:${bg};color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;">
         ${cta.label}
       </a>
       <p style="color:#64748b;font-size:13px;margin-top:8px;">
-        버튼이 눌리지 않으면 아래 주소를 브라우저에 붙여넣어 주세요.<br/>${cta.url}
+        버튼이 눌리지 않으면 아래 주소를 브라우저에 붙여넣어 주세요.<br/>${url}
       </p>
     </div>`;
 }
@@ -92,9 +108,9 @@ export async function sendApprovalRequest(
     to,
     `[디벅] ${tenantName} 결재 요청 — ${docTitle}`,
     layout(
-      `<p>${name}님, 안녕하세요.</p>
-       <p><b>${tenantName}</b> 관리사무소에서 결재를 요청했습니다.</p>
-       <p style="margin:4px 0;"><b>${docTitle}</b></p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(tenantName)}</b> 관리사무소에서 결재를 요청했습니다.</p>
+       <p style="margin:4px 0;"><b>${escapeHtml(docTitle)}</b></p>
        <p>아래 버튼을 눌러 문서를 확인하고 승인 또는 반려해 주세요.<br/>
        링크는 <b>7일</b> 동안 유효하며, 별도 로그인 없이 처리할 수 있습니다.</p>`,
       { label: "문서 확인하고 결재하기", url: `${APP_URL}/approve/${token}` },
@@ -108,7 +124,7 @@ export async function sendPasswordReset(to: string, name: string, token: string)
     to,
     "[디벅] 비밀번호 재설정 안내",
     layout(
-      `<p>${name}님, 안녕하세요.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
        <p>비밀번호 재설정 요청이 접수되었습니다. 아래 버튼을 눌러 새 비밀번호를 설정해 주세요.<br/>
        링크는 <b>1시간</b> 동안만 유효하고, 한 번 사용하면 만료됩니다.</p>
        <p style="color:#64748b;font-size:14px;">본인이 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않습니다.</p>`,
@@ -128,8 +144,8 @@ export async function sendTrialEndingSoon(
     to,
     `[디벅] 무료 체험이 ${daysLeft}일 남았습니다`,
     layout(
-      `<p>${name}님, 안녕하세요.</p>
-       <p><b>${moduleNames}</b> 무료 체험이 <b>${daysLeft}일</b> 뒤 종료됩니다.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(moduleNames)}</b> 무료 체험이 <b>${daysLeft}일</b> 뒤 종료됩니다.</p>
        <p>결제 카드를 등록해 두시면 체험이 끝나는 날 자동으로 이어집니다.
        입력하신 데이터와 설정은 그대로 유지됩니다.</p>`,
       { label: "결제 카드 등록하기", url: `${APP_URL}/billing` },
@@ -142,8 +158,8 @@ export async function sendTrialExpired(to: string, name: string, moduleNames: st
     to,
     "[디벅] 무료 체험이 종료되었습니다",
     layout(
-      `<p>${name}님, 안녕하세요.</p>
-       <p><b>${moduleNames}</b> 무료 체험이 끝나 해당 모듈이 잠겼습니다.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(moduleNames)}</b> 무료 체험이 끝나 해당 모듈이 잠겼습니다.</p>
        <p>결제 카드를 등록하시면 바로 다시 사용하실 수 있고, 그동안 입력하신 데이터도 그대로입니다.</p>`,
       { label: "결제 카드 등록하기", url: `${APP_URL}/billing` },
     ),
@@ -162,7 +178,7 @@ export async function sendRenewalNotice(
     to,
     `[디벅] ${daysLeft}일 뒤 ${won(amount)}이 결제됩니다`,
     layout(
-      `<p>${name}님, 안녕하세요.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
        <p><b>${ymd(billingAt)}</b>에 등록하신 카드로 <b>${won(amount)}</b>이 자동 결제될 예정입니다.</p>
        <p>카드 한도와 유효기간을 미리 확인해 주세요. 구독을 조정하시려면 결제 화면에서 변경하실 수 있습니다.</p>`,
       { label: "결제 정보 확인하기", url: `${APP_URL}/billing` },
@@ -181,7 +197,7 @@ export async function sendPaymentSuccess(
     to,
     `[디벅] ${won(amount)} 결제가 완료되었습니다`,
     layout(
-      `<p>${name}님, 안녕하세요.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
        <p>정기 결제가 정상적으로 처리되었습니다.</p>
        <table style="border-collapse:collapse;margin:12px 0;font-size:14px;">
          <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">결제 금액</td><td style="padding:8px 16px;">${won(amount)}</td></tr>
@@ -202,9 +218,9 @@ export async function sendPaymentFailed(
     to,
     "[디벅] 결제에 실패했습니다 — 카드를 확인해 주세요",
     layout(
-      `<p>${name}님, 안녕하세요.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
        <p>정기 결제가 처리되지 않았습니다.</p>
-       <p style="color:#dc2626;">실패 사유: ${reason}</p>
+       <p style="color:#dc2626;">실패 사유: ${escapeHtml(reason)}</p>
        <p>매일 자동으로 다시 시도합니다. <b>${daysLeft}일</b> 안에 결제되지 않으면 서비스 이용이 일시 정지됩니다.
        카드 한도·유효기간을 확인하시거나 다른 카드로 바꿔 주세요.</p>`,
       { label: "결제 수단 변경하기", url: `${APP_URL}/billing`, danger: true },
@@ -217,7 +233,7 @@ export async function sendSuspended(to: string, name: string) {
     to,
     "[디벅] 서비스 이용이 일시 정지되었습니다",
     layout(
-      `<p>${name}님, 안녕하세요.</p>
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
        <p>결제가 계속 실패해 서비스 이용이 일시 정지되었습니다. 모듈에 들어가실 수 없는 상태입니다.</p>
        <p><b>데이터는 그대로 보관되어 있습니다.</b> 카드를 바꾸고 결제하시면 즉시 다시 사용하실 수 있습니다.</p>`,
       { label: "지금 결제하고 이용 재개", url: `${APP_URL}/billing`, danger: true },
