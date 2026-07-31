@@ -64,19 +64,25 @@ export function NotificationPanel({
         )}
       </button>
 
-      {open && (
-        <>
-          {/* 어둡게 깔되 화면을 막았다는 인상은 주지 않는 정도 — 클릭하면 닫힌다 */}
-          <div
-            className="fixed inset-0 z-40 bg-black/20"
-            onClick={() => setOpen(false)}
-            aria-hidden
-          />
-          <aside
-            role="dialog"
-            aria-label="알림"
-            className="fixed inset-y-0 right-0 z-50 flex w-[380px] max-w-[90vw] flex-col border-l bg-card shadow-xl"
-          >
+      {/* 항상 마운트해 두고 transform만 토글한다 — 조건부 마운트면 밀려 들어오는
+          전환이 불가능하다(나타나는 순간이 곧 첫 렌더라 시작 위치가 없다) */}
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-black/20 transition-opacity duration-200",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        onClick={() => setOpen(false)}
+        aria-hidden
+      />
+      <aside
+        role="dialog"
+        aria-label="알림"
+        aria-hidden={!open}
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex w-[380px] max-w-[90vw] flex-col border-l bg-card shadow-xl transition-transform duration-200",
+          open ? "translate-x-0" : "pointer-events-none translate-x-full",
+        )}
+      >
             <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
               <b className="text-base">알림</b>
               {unread > 0 && (
@@ -144,9 +150,7 @@ export function NotificationPanel({
             >
               전체 알림 보기
             </Link>
-          </aside>
-        </>
-      )}
+      </aside>
     </>
   );
 }
