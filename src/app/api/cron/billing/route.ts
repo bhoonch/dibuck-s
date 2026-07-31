@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { RENEWAL_NOTICE_DAYS, daysBetween, dunningAction } from "@/lib/billing";
-import { chargeTenant, suspendTenant } from "@/lib/billing-run";
+import {
+  chargeTenant,
+  reconcileLastFailure,
+  suspendTenant,
+} from "@/lib/billing-run";
 import {
   sendRenewalNotice,
   sendTrialEndingSoon,
@@ -46,6 +50,13 @@ async function run(req: NextRequest) {
     const action = dunningAction(b, now);
     if (action === "none") continue;
     if (action === "suspend") {
+      // 잠그기 전에 대사 — 마지막 시도가 사실은 승인됐는데 응답만 유실된 것이면
+      // 돈은 받고 서비스는 잠그는 셈이 된다. 재시도 경로는 chargeTenant 입구에서
+      // 이미 보지만, 정지는 chargeTenant를 타지 않아 여기서 따로 본다.
+      if (await reconcileLastFailure(b.tenantId)) {
+        result.charged++;
+        continue;
+      }
       await suspendTenant(b.tenantId);
       result.suspended++;
       continue;

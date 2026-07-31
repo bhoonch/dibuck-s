@@ -24,16 +24,25 @@ export class TossError extends Error {
   }
 }
 
-async function call(path: string, body: unknown) {
+/**
+ * 응답을 기다리는 한도. 승인은 카드사까지 다녀오느라 길다 — 짧게 끊으면 멀쩡한
+ * 결제를 우리가 먼저 포기한다. 여기서 끊겨도 주문번호 대사(settledPayment)로
+ * 복구되므로, 한도가 없어 크론이 영영 매달리는 쪽이 더 나쁘다.
+ */
+const TIMEOUT_MS = 30_000;
+
+/** body가 있으면 POST, 없으면 GET */
+async function call(path: string, body?: unknown) {
   if (!SECRET) throw new TossError("NO_KEY", "결제가 설정되지 않았습니다.");
   const res = await fetch(`${API}${path}`, {
-    method: "POST",
+    method: body ? "POST" : "GET",
     headers: {
       // 시크릿 키 뒤 콜론까지 포함해서 base64 — 콜론을 빼면 401이 난다
       Authorization: `Basic ${Buffer.from(`${SECRET}:`).toString("base64")}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   const json = await res.json();
   if (!res.ok)
@@ -58,8 +67,34 @@ export type TossPayment = {
   paymentKey: string;
   orderId: string;
   totalAmount: number;
+  /** READY·IN_PROGRESS·DONE·CANCELED·ABORTED… — 승인된 건 DONE 하나뿐이다 */
+  status?: string;
   receipt?: { url?: string };
 };
+
+/**
+ * 주문번호로 **승인된** 결제를 찾는다 — 대사(對査)용.
+ *
+ * 결제 요청이 실패로 보여도 승인은 끝나고 응답만 유실된 경우가 있다(타임아웃, 5xx).
+ * 그대로 실패로 적으면 다음 시도가 새 주문번호로 한 번 더 결제해 이중 출금이 된다.
+ *
+ * "모르겠다"(네트워크 실패·키 없음·조회 자체 실패)는 null로 접는다 — 호출자는
+ * 어차피 실패로 처리하고, 다음 시도 입구에서 같은 주문번호를 다시 대사한다.
+ */
+export async function settledPayment(orderId: string): Promise<TossPayment | null> {
+  if (!SECRET) return null;
+  try {
+    const p = (await call(
+      `/payments/orders/${encodeURIComponent(orderId)}`,
+    )) as TossPayment;
+    return p.status === "DONE" ? p : null;
+  } catch (err) {
+    // 애초에 승인이 없었으면 404 — 이건 정상적인 "아니오"다
+    if (err instanceof TossError && err.code === "NOT_FOUND_PAYMENT") return null;
+    console.error("[toss] 결제 대사 조회 실패", orderId, err);
+    return null;
+  }
+}
 
 /** 빌링키로 자동결제 승인. customerKey가 빌링키와 짝이 아니면 토스가 거부한다 */
 export function chargeBilling(

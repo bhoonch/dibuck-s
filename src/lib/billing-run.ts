@@ -13,7 +13,12 @@ import {
   totalAmount,
 } from "@/lib/billing";
 import { ymdKst } from "@/lib/utils";
-import { TossError, chargeBilling } from "@/lib/toss";
+import {
+  TossError,
+  chargeBilling,
+  settledPayment,
+  type TossPayment,
+} from "@/lib/toss";
 import {
   sendPaymentFailed,
   sendPaymentSuccess,
@@ -40,11 +45,74 @@ async function billingContact(tenantId: string) {
 }
 
 /**
+ * 마지막 시도가 사실은 승인됐는지 토스에 물어보고, 그랬으면 기록을 사실에 맞춘다.
+ *
+ * 우리 쪽 FAILED는 "승인 실패"일 수도 있지만 "응답 유실"일 수도 있다. 후자를 그대로
+ * 두면 다음 시도가 새 주문번호로 같은 기간을 한 번 더 결제한다 — 이중 출금이다.
+ * chargeTenant는 실패 직후에도 대사하지만, 그 조회마저 실패할 수 있어서 다음 시도
+ * 입구에서 한 번 더 본다.
+ *
+ * `lookup`은 테스트에서 갈아 끼우는 자리다(네트워크 없이 검증).
+ */
+export async function reconcileLastFailure(
+  tenantId: string,
+  lookup: (orderId: string) => Promise<TossPayment | null> = settledPayment,
+) {
+  const last = await db.payment.findFirst({
+    where: { tenantId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (last?.status !== "FAILED") return null;
+
+  const paid = await lookup(last.orderId);
+  if (!paid) return null;
+
+  const [payment] = await db.$transaction([
+    db.payment.update({
+      where: { id: last.id },
+      data: {
+        status: "PAID",
+        paymentKey: paid.paymentKey,
+        receiptUrl: paid.receipt?.url,
+        paidAt: new Date(),
+        failCode: null,
+        failReason: null,
+      },
+    }),
+    // 낸 기간은 그때 계산한 periodEnd까지다 — 오늘을 기준으로 다시 잡으면 하루씩 밀린다
+    db.billing.update({
+      where: { tenantId },
+      data: {
+        status: "ACTIVE",
+        nextBillingAt: last.periodEnd,
+        pastDueSince: null,
+      },
+    }),
+  ]);
+
+  // 실패 안내를 이미 받은 사람들이다 — 사실은 결제됐다고 정정해 준다
+  const contact = await billingContact(tenantId);
+  if (contact)
+    await trySend(() =>
+      sendPaymentSuccess(
+        contact.email,
+        contact.name,
+        payment.amount,
+        last.periodEnd,
+        paid.receipt?.url,
+      ),
+    );
+  return payment;
+}
+
+/**
  * 한 단지를 청구한다.
  *
  * - 청구할 모듈이 없으면(전부 해지·체험 중) 결제하지 않고 다음 달로 미룬다
  * - 해지 예약이 걸려 있으면 결제 대신 실제 해지를 수행한다
  * - 실패하면 PAST_DUE로 내리고 유예 안에서는 매일 다시 불린다
+ * - 단, 실패로 적기 전에 주문번호로 대사한다 — 승인은 됐는데 응답만 유실된 건을
+ *   실패로 적으면 다음 시도가 같은 기간을 한 번 더 결제한다(reconcileLastFailure)
  */
 export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   const now = new Date();
@@ -66,6 +134,13 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
     kstMidnight(billing.nextBillingAt) > kstMidnight(now)
   )
     return { ok: true, amount: 0 };
+
+  // 재시도 전에 대사부터 — 지난 실패가 사실은 승인됐다면 오늘 결제할 게 아니라
+  // 기록을 고칠 차례다. PAST_DUE일 때만 본다(그때만 FAILED 행이 있다).
+  if (billing.status === "PAST_DUE") {
+    const settled = await reconcileLastFailure(tenantId);
+    if (settled) return { ok: true, amount: settled.amount };
+  }
 
   // 해지 예약 — 이미 낸 기간이 끝났으니 여기서 실제로 끊는다
   if (billing.cancelRequestedAt) {
@@ -130,7 +205,8 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   // 동시 요청(크론과 "지금 결제하기"의 경합, 더블클릭)이 같은 기간을 두 번 결제하지
   // 않도록, 읽어 둔 상태 그대로일 때만 자리를 잡는다 — 밀린 쪽은 결제 없이 빠진다.
   // ponytail: 자리만 잡고 서버가 죽으면 이번 달 청구가 건너뛰어진다(다음 달 자동 복구).
-  // 토스 결제 조회 API로 대사를 붙이게 되면 그때 정리할 것.
+  // 반대로 승인 직후·DB 쓰기 전에 죽으면 그 주문번호를 아무도 모른 채 남아 대사도
+  // 못 한다 — 그때는 호출 전에 PENDING 행을 남기는 방식으로 올릴 것.
   const claimed = await db.billing.updateMany({
     where: {
       tenantId,
@@ -148,8 +224,9 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   const orderName =
     items.length === 1 ? items[0].name : `${items[0].name} 외 ${items.length - 1}건`;
 
+  let paid: TossPayment;
   try {
-    const paid = await chargeBilling(billing.billingKey, {
+    paid = await chargeBilling(billing.billingKey, {
       customerKey: billing.customerKey,
       amount,
       orderId: order,
@@ -157,77 +234,84 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
       customerEmail: contact?.email,
       customerName: contact?.name,
     });
-
-    await db.$transaction([
-      db.payment.create({
-        data: {
-          tenantId,
-          orderId: order,
-          amount,
-          status: "PAID",
-          items,
-          periodStart: now,
-          periodEnd: next,
-          paymentKey: paid.paymentKey,
-          receiptUrl: paid.receipt?.url,
-          paidAt: now,
-        },
-      }),
-      db.billing.update({
-        where: { tenantId },
-        data: {
-          status: "ACTIVE",
-          nextBillingAt: next,
-          pastDueSince: null,
-          billingDay: day, // 첫 유료 결제에서 확정, 이후 같은 값이 다시 들어간다
-        },
-      }),
-    ]);
-
-    if (contact)
-      await trySend(() =>
-        sendPaymentSuccess(contact.email, contact.name, amount, next, paid.receipt?.url),
-      );
-    return { ok: true, amount };
   } catch (err) {
-    const reason =
-      err instanceof TossError ? err.message : "결제 처리 중 오류가 발생했습니다.";
-    const code = err instanceof TossError ? err.code : "UNKNOWN";
-    // 첫 실패에만 유예 시작 시각을 찍는다 — 재시도마다 갱신하면 유예가 영원히 안 끝난다
-    const pastDueSince = billing.pastDueSince ?? now;
+    // 실패로 보이지만 승인은 끝나고 응답만 유실됐을 수 있다(타임아웃·5xx).
+    // 주문번호로 확인하지 않고 FAILED로 적으면 내일 새 주문번호로 또 결제한다.
+    const settled = await settledPayment(order);
+    if (!settled) {
+      const reason =
+        err instanceof TossError ? err.message : "결제 처리 중 오류가 발생했습니다.";
+      const code = err instanceof TossError ? err.code : "UNKNOWN";
+      // 첫 실패에만 유예 시작 시각을 찍는다 — 재시도마다 갱신하면 유예가 영원히 안 끝난다
+      const pastDueSince = billing.pastDueSince ?? now;
 
-    await db.$transaction([
-      db.payment.create({
-        data: {
-          tenantId,
-          orderId: order,
-          amount,
-          status: "FAILED",
-          items,
-          periodStart: now,
-          periodEnd: next,
-          failCode: code,
-          failReason: reason,
-          attempt: daysBetween(pastDueSince, now) + 1,
-        },
-      }),
-      db.billing.update({
-        where: { tenantId },
-        data: { status: "PAST_DUE", pastDueSince },
-      }),
-    ]);
+      await db.$transaction([
+        db.payment.create({
+          data: {
+            tenantId,
+            orderId: order,
+            amount,
+            status: "FAILED",
+            items,
+            periodStart: now,
+            periodEnd: next,
+            failCode: code,
+            failReason: reason,
+            attempt: daysBetween(pastDueSince, now) + 1,
+          },
+        }),
+        db.billing.update({
+          where: { tenantId },
+          data: { status: "PAST_DUE", pastDueSince },
+        }),
+      ]);
 
-    if (contact)
-      await trySend(() =>
-        sendPaymentFailed(
-          contact.email,
-          contact.name,
-          reason,
-          Math.max(0, GRACE_DAYS - daysBetween(pastDueSince, now)),
-        ),
-      );
-    return { ok: false, reason };
+      if (contact)
+        await trySend(() =>
+          sendPaymentFailed(
+            contact.email,
+            contact.name,
+            reason,
+            Math.max(0, GRACE_DAYS - daysBetween(pastDueSince, now)),
+          ),
+        );
+      return { ok: false, reason };
+    }
+    console.warn("[billing] 응답은 실패였지만 승인은 됐다 — 대사로 복구", order);
+    paid = settled;
   }
+
+  await db.$transaction([
+    db.payment.create({
+      data: {
+        tenantId,
+        orderId: order,
+        amount,
+        status: "PAID",
+        items,
+        periodStart: now,
+        periodEnd: next,
+        paymentKey: paid.paymentKey,
+        receiptUrl: paid.receipt?.url,
+        paidAt: now,
+      },
+    }),
+    db.billing.update({
+      where: { tenantId },
+      data: {
+        status: "ACTIVE",
+        nextBillingAt: next,
+        pastDueSince: null,
+        billingDay: day, // 첫 유료 결제에서 확정, 이후 같은 값이 다시 들어간다
+      },
+    }),
+  ]);
+
+  if (contact)
+    await trySend(() =>
+      sendPaymentSuccess(contact.email, contact.name, amount, next, paid.receipt?.url),
+    );
+  return { ok: true, amount };
 }
 
 /** 유예 초과 — 전 모듈 잠금. 데이터는 지우지 않는다(재결제하면 그대로 복구) */

@@ -7,7 +7,11 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { db } from "./src/lib/db";
-import { chargeTenant, suspendTenant } from "./src/lib/billing-run";
+import {
+  chargeTenant,
+  reconcileLastFailure,
+  suspendTenant,
+} from "./src/lib/billing-run";
 import { ymdKst } from "./src/lib/utils";
 
 const T = "test-tenant-billing";
@@ -88,6 +92,44 @@ async function main() {
   );
   assert.equal(await db.payment.count({ where: { tenantId: T } }), 2, "시도마다 이력이 쌓인다");
 
+  // 3.5) 대사 — 실패로 적힌 마지막 시도가 사실은 승인됐던 경우.
+  // 이 복구가 없으면 내일 새 주문번호로 같은 기간을 한 번 더 결제한다(이중 출금).
+  const failed = await db.payment.findFirstOrThrow({
+    where: { tenantId: T },
+    orderBy: { createdAt: "desc" },
+  });
+  // 승인된 적 없다고 답하면 아무것도 건드리지 않는다
+  assert.equal(await reconcileLastFailure(T, async () => null), null);
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "PAST_DUE", "대사에서 못 찾으면 상태는 그대로다");
+
+  const recovered = await reconcileLastFailure(T, async (orderId) => {
+    assert.equal(orderId, failed.orderId, "대사는 마지막 시도의 주문번호로 묻는다");
+    return {
+      paymentKey: "pk-recovered",
+      orderId,
+      totalAmount: 30000,
+      status: "DONE",
+      receipt: { url: "https://receipt.example/1" },
+    };
+  });
+  assert.equal(recovered?.status, "PAID", "승인돼 있었다면 결제로 고쳐 적는다");
+  assert.equal(recovered?.paymentKey, "pk-recovered");
+  assert.equal(recovered?.failReason, null, "실패 사유는 지운다");
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "ACTIVE", "결제된 것이므로 연체가 아니다");
+  assert.equal(b.pastDueSince, null);
+  assert.equal(
+    b.nextBillingAt!.getTime(),
+    failed.periodEnd.getTime(),
+    "다음 청구일은 그때 계산한 기간 끝 — 오늘 기준으로 다시 잡으면 하루씩 밀린다",
+  );
+  assert.equal(
+    await db.payment.count({ where: { tenantId: T } }),
+    2,
+    "대사는 새 결제를 만들지 않는다 — 있던 행을 고친다",
+  );
+
   // 4) 정지
   await suspendTenant(T);
   b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
@@ -114,7 +156,9 @@ async function main() {
   });
   assert.equal(mod.status, "CANCELED", "모듈이 실제로 해지돼야 한다");
 
-  console.log("billing-run 통과 (무청구 / 실패 유예 / 재시도 / 정지 / 해지 예약)");
+  console.log(
+    "billing-run 통과 (무청구 / 실패 유예 / 재시도 / 대사 복구 / 정지 / 해지 예약)",
+  );
 }
 
 main()
