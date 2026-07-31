@@ -35,13 +35,13 @@ export function DunningSheets({
             <span>발송일: {sentDate}</span>
           </div>
 
-          <h1 className="mt-[8mm] mb-[10mm] text-center text-[20pt] font-extrabold tracking-[.4em] indent-[.4em]">
+          <h1 className="mt-[6mm] mb-[5mm] text-center text-[20pt] font-extrabold tracking-[.4em] indent-[.4em]">
             {letter.kind}
           </h1>
 
           {/* 내용증명(3단계)만 — 우체국 요건인 발신·수신 기재 */}
           {letter.proof && (
-            <table className="mb-[8mm] w-full border-collapse text-[10.5pt]">
+            <table className="mb-[4mm] w-full border-collapse text-[10.5pt]">
               <tbody>
                 {(
                   [
@@ -67,14 +67,14 @@ export function DunningSheets({
             </table>
           )}
 
-          <p className="mb-[5mm] font-bold">받는 분: {letter.recipient}</p>
+          <p className="mb-[3mm] font-bold">받는 분: {letter.recipient}</p>
           {letter.paragraphs.map((p, j) => (
-            <p key={j} className="mb-[3.5mm] indent-[2ch]">
+            <p key={j} className="mb-[1mm] indent-[2ch]">
               {p}
             </p>
           ))}
 
-          <table className="my-[5mm] w-full border-collapse text-[11pt]">
+          <table className="my-[3mm] w-full border-collapse text-[11pt]">
             <tbody>
               {letter.table.map((r) => (
                 <tr key={r.k}>
@@ -94,7 +94,7 @@ export function DunningSheets({
           </table>
 
           {letter.notes.length > 0 && (
-            <ul className="mb-[4mm] text-[10pt] text-[#333]">
+            <ul className="mb-[2mm] text-[10pt] text-[#333]">
               {letter.notes.map((n, j) => (
                 <li key={j} className="relative mb-[1.2mm] pl-[4mm] before:absolute before:left-0 before:content-['※']">
                   {n}
