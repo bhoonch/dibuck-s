@@ -18,7 +18,7 @@ export default async function ModulePlaceholderPage({
   const moduleData = await db.module.findUnique({ where: { id } });
   if (!moduleData) notFound();
   if (!(await isSubscribed(session.tenantId!, id)))
-    redirect("/settings/subscriptions");
+    redirect("/subscriptions");
 
   return (
     <div className="mx-auto max-w-lg pt-10">

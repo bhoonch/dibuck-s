@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SubscribeButton } from "./subscribe-button";
 
-/* 모듈 선택만 여기서. 카드·청구·결제 내역은 설정 > 결제(/settings/billing) */
+/*
+ * 모듈 목록은 여기 하나뿐이다 — 모듈 런처가 같은 카드 그리드를 버튼만 빼고
+ * 한 번 더 그리고 있어서 합쳤다. 쓰는 모듈은 [열기], 아닌 모듈은 [구독].
+ * 카드·청구·결제 내역은 옆 탭인 결제(/billing).
+ */
 export default async function SubscriptionsPage() {
   const session = await requireSession();
   const modules = await getModulesForTenant(session.tenantId!);
@@ -94,7 +98,7 @@ export default async function SubscriptionsPage() {
                   </span>
                 )}
               </p>
-              <div className="mt-3 flex items-center border-t border-gray-100 pt-3">
+              <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
                 <span className="font-mono text-sm font-semibold">
                   {m.price.toLocaleString()}원
                   <span className="ml-0.5 font-sans text-xs font-normal text-gray-500">
@@ -104,21 +108,30 @@ export default async function SubscriptionsPage() {
                 {m.trialExpired ? (
                   // 체험이 끝났는데 카드가 없다 — 카드를 넣으면 결제로 이어지며 바로 풀린다
                   <Button asChild variant="outline" className="ml-auto">
-                    <Link href="/settings/billing">카드 등록</Link>
+                    <Link href="/billing">카드 등록</Link>
                   </Button>
                 ) : (
-                  isDirector && (
-                    <span className="ml-auto">
-                      <SubscribeButton
-                        moduleId={m.id}
-                        moduleName={m.name}
-                        price={m.price}
-                        subscribed={m.subscribed}
-                        trialEligible={!m.everSubscribed && m.trialDays > 0}
-                        trialDays={m.trialDays}
-                      />
-                    </span>
-                  )
+                  <>
+                    {/* 쓰고 있는 모듈은 여기서 바로 들어간다 — 이 버튼이 모듈 런처가
+                        하던 일이다. 마스터가 아니어도 열 수는 있어야 한다. */}
+                    {m.subscribed && (
+                      <Button asChild variant="outline" className="ml-auto">
+                        <Link href={m.route}>열기</Link>
+                      </Button>
+                    )}
+                    {isDirector && (
+                      <span className={m.subscribed ? "" : "ml-auto"}>
+                        <SubscribeButton
+                          moduleId={m.id}
+                          moduleName={m.name}
+                          price={m.price}
+                          subscribed={m.subscribed}
+                          trialEligible={!m.everSubscribed && m.trialDays > 0}
+                          trialDays={m.trialDays}
+                        />
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             </div>

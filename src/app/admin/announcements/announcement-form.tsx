@@ -160,11 +160,11 @@ export function AnnouncementForm({
             <Input
               id="linkUrl"
               name="linkUrl"
-              placeholder="/settings/billing"
+              placeholder="/billing"
               pattern="/[^/].*"
             />
             <p className={hint}>
-              배너에 버튼이 붙습니다. 앱 안 주소만 됩니다(예: /settings/subscriptions).
+              배너에 버튼이 붙습니다. 앱 안 주소만 됩니다(예: /subscriptions).
             </p>
           </div>
           <div className="space-y-2">

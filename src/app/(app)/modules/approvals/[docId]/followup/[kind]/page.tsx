@@ -67,7 +67,7 @@ export default async function FollowupFormPage({
 }) {
   const session = await requireSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
-    redirect("/settings/subscriptions");
+    redirect("/subscriptions");
 
   const { docId, kind: rawKind } = await params;
   if (rawKind !== "report" && rawKind !== "expense") notFound();

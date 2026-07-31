@@ -39,7 +39,7 @@ export async function requestCancel() {
     where: { tenantId: session.tenantId! },
     data: { cancelRequestedAt: new Date() },
   });
-  revalidatePath("/settings/billing");
+  revalidatePath("/billing");
 }
 
 /** 해지 예약 철회 */
@@ -49,5 +49,5 @@ export async function undoCancel() {
     where: { tenantId: session.tenantId! },
     data: { cancelRequestedAt: null },
   });
-  revalidatePath("/settings/billing");
+  revalidatePath("/billing");
 }

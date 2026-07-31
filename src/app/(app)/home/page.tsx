@@ -202,7 +202,7 @@ export default async function HomePage() {
           {
             label: "모듈 구독",
             desc: "필요한 모듈부터 무료로 체험하세요",
-            href: "/settings/subscriptions",
+            href: "/subscriptions",
             done: subscribed.length > 0,
           },
         ]
@@ -359,7 +359,7 @@ export default async function HomePage() {
       <div className="mb-3 mt-6 flex items-center">
         <h3 className="text-lg font-semibold tracking-tight">모듈 바로가기</h3>
         <Link
-          href="/modules"
+          href="/subscriptions"
           className="ml-auto text-sm font-semibold text-blue-700 hover:underline"
         >
           모듈 전체 보기

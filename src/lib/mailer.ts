@@ -132,7 +132,7 @@ export async function sendTrialEndingSoon(
        <p><b>${moduleNames}</b> 무료 체험이 <b>${daysLeft}일</b> 뒤 종료됩니다.</p>
        <p>결제 카드를 등록해 두시면 체험이 끝나는 날 자동으로 이어집니다.
        입력하신 데이터와 설정은 그대로 유지됩니다.</p>`,
-      { label: "결제 카드 등록하기", url: `${APP_URL}/settings/billing` },
+      { label: "결제 카드 등록하기", url: `${APP_URL}/billing` },
     ),
   );
 }
@@ -145,7 +145,7 @@ export async function sendTrialExpired(to: string, name: string, moduleNames: st
       `<p>${name}님, 안녕하세요.</p>
        <p><b>${moduleNames}</b> 무료 체험이 끝나 해당 모듈이 잠겼습니다.</p>
        <p>결제 카드를 등록하시면 바로 다시 사용하실 수 있고, 그동안 입력하신 데이터도 그대로입니다.</p>`,
-      { label: "결제 카드 등록하기", url: `${APP_URL}/settings/billing` },
+      { label: "결제 카드 등록하기", url: `${APP_URL}/billing` },
     ),
   );
 }
@@ -165,7 +165,7 @@ export async function sendRenewalNotice(
       `<p>${name}님, 안녕하세요.</p>
        <p><b>${ymd(billingAt)}</b>에 등록하신 카드로 <b>${won(amount)}</b>이 자동 결제될 예정입니다.</p>
        <p>카드 한도와 유효기간을 미리 확인해 주세요. 구독을 조정하시려면 결제 화면에서 변경하실 수 있습니다.</p>`,
-      { label: "결제 정보 확인하기", url: `${APP_URL}/settings/billing` },
+      { label: "결제 정보 확인하기", url: `${APP_URL}/billing` },
     ),
   );
 }
@@ -187,7 +187,7 @@ export async function sendPaymentSuccess(
          <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">결제 금액</td><td style="padding:8px 16px;">${won(amount)}</td></tr>
          <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">다음 결제일</td><td style="padding:8px 16px;">${ymd(nextAt)}</td></tr>
        </table>`,
-      { label: "영수증 보기", url: receiptUrl ?? `${APP_URL}/settings/billing` },
+      { label: "영수증 보기", url: receiptUrl ?? `${APP_URL}/billing` },
     ),
   );
 }
@@ -207,7 +207,7 @@ export async function sendPaymentFailed(
        <p style="color:#dc2626;">실패 사유: ${reason}</p>
        <p>매일 자동으로 다시 시도합니다. <b>${daysLeft}일</b> 안에 결제되지 않으면 서비스 이용이 일시 정지됩니다.
        카드 한도·유효기간을 확인하시거나 다른 카드로 바꿔 주세요.</p>`,
-      { label: "결제 수단 변경하기", url: `${APP_URL}/settings/billing`, danger: true },
+      { label: "결제 수단 변경하기", url: `${APP_URL}/billing`, danger: true },
     ),
   );
 }
@@ -220,7 +220,7 @@ export async function sendSuspended(to: string, name: string) {
       `<p>${name}님, 안녕하세요.</p>
        <p>결제가 계속 실패해 서비스 이용이 일시 정지되었습니다. 모듈에 들어가실 수 없는 상태입니다.</p>
        <p><b>데이터는 그대로 보관되어 있습니다.</b> 카드를 바꾸고 결제하시면 즉시 다시 사용하실 수 있습니다.</p>`,
-      { label: "지금 결제하고 이용 재개", url: `${APP_URL}/settings/billing`, danger: true },
+      { label: "지금 결제하고 이용 재개", url: `${APP_URL}/billing`, danger: true },
     ),
   );
 }

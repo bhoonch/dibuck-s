@@ -33,7 +33,7 @@ export function RegisterCardButton({
       await toss.payment({ customerKey }).requestBillingAuth({
         method: "CARD",
         successUrl: `${window.location.origin}/api/billing/callback`,
-        failUrl: `${window.location.origin}/settings/billing?error=canceled`,
+        failUrl: `${window.location.origin}/billing?error=canceled`,
         customerName,
         customerEmail,
       });

@@ -25,7 +25,7 @@ export default async function EditGianPage({
 }) {
   const session = await requireSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
-    redirect("/settings/subscriptions");
+    redirect("/subscriptions");
 
   const { docId } = await params;
   const doc = await db.document.findUnique({ where: { id: docId } });

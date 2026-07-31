@@ -87,7 +87,7 @@ export default async function GianDocumentPage({
 }) {
   const session = await requireSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
-    redirect("/settings/subscriptions");
+    redirect("/subscriptions");
 
   const doc = await db.document.findUnique({
     where: { id: (await params).docId },

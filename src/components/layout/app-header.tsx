@@ -10,8 +10,11 @@ const titles: [prefix: string, title: string][] = [
   ["/documents", "통합 문서함"],
   ["/notifications", "알림"],
   ["/settings", "단지·계정 관리"],
+  ["/subscriptions", "구독·결제"],
+  ["/billing", "구독·결제"],
   ["/modules/approvals", "기안·품의"],
-  ["/modules", "모듈 런처"],
+  // 런처는 없앴다(구독·결제에 합침) — 남은 /modules/* 는 아직 화면이 없는 모듈의 자리표시
+  ["/modules", "모듈"],
   ["/support", "고객 문의"],
   ["/home", "홈"],
 ];

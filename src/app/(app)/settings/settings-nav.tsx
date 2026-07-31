@@ -6,9 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   CircleUser,
-  CreditCard,
   LayoutGrid,
-  Package,
   Scale,
   Stamp,
   Users,
@@ -19,8 +17,9 @@ import { cn } from "@/lib/utils";
 type Item = { name: string; href: string; icon: LucideIcon };
 
 /**
- * 한 서랍에 성격이 다른 둘이 섞여 있던 게 "뭐가 어디 있는지 모르겠다"의 원인이다.
- * 우리 단지를 어떻게 굴리나(단지 운영)와 디벅을 어떻게 쓰나(서비스 이용)를 나눈다.
+ * 성격이 다른 둘이 한 서랍에 섞여 있던 게 "뭐가 어디 있는지 모르겠다"의 원인이었다.
+ * 디벅을 어떻게 쓰나(구독·결제)는 메인 메뉴로 나갔고, 여기는 우리 단지를
+ * 어떻게 굴리나만 남는다 — 그래서 그룹 라벨도 필요 없어졌다.
  */
 const groups: { label: string; items: Item[] }[] = [
   {
@@ -34,12 +33,8 @@ const groups: { label: string; items: Item[] }[] = [
     ],
   },
   {
-    label: "서비스 이용",
-    items: [
-      { name: "구독 관리", href: "/settings/subscriptions", icon: Package },
-      { name: "결제", href: "/settings/billing", icon: CreditCard },
-      { name: "내 계정", href: "/settings/account", icon: CircleUser },
-    ],
+    label: "계정",
+    items: [{ name: "내 계정", href: "/settings/account", icon: CircleUser }],
   },
 ];
 

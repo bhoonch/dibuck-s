@@ -5,7 +5,7 @@ import { chargeTenant } from "@/lib/billing-run";
 import { TossError, issueBillingKey } from "@/lib/toss";
 
 const back = (req: NextRequest, q: string) =>
-  NextResponse.redirect(new URL(`/settings/billing?${q}`, req.url));
+  NextResponse.redirect(new URL(`/billing?${q}`, req.url));
 
 /**
  * 카드 등록 결제창에서 돌아오는 자리. 여기서 일회성 authKey를 영구 빌링키로 바꾼다.

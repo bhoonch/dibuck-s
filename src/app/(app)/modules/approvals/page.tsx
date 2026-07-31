@@ -14,7 +14,7 @@ import { GianTable } from "./gian-table";
 export default async function GianModulePage() {
   const session = await requireSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
-    redirect("/settings/subscriptions");
+    redirect("/subscriptions");
 
   const docs = await db.document.findMany({
     where: { tenantId: session.tenantId!, moduleId: "approvals" },

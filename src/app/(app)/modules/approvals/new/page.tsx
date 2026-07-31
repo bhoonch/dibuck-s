@@ -13,7 +13,7 @@ import { GianForm } from "./gian-form";
 export default async function NewGianPage() {
   const session = await requireSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
-    redirect("/settings/subscriptions");
+    redirect("/subscriptions");
 
   // 상신 때 뜰 결재선을 작성 중에 미리 보여준다 — submitDocument와 같은 재료.
   // 지금 이 화면을 쓰는 사람이 곧 기안자라 결재란 첫 칸에 선다.

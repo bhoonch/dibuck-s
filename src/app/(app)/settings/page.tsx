@@ -68,7 +68,7 @@ export default async function TenantSettingsPage() {
           note="계정을 가진 사람 수"
         />
         <Tile
-          href="/settings/subscriptions"
+          href="/subscriptions"
           label="구독 모듈"
           value={modules.toLocaleString()}
           note={
@@ -80,7 +80,7 @@ export default async function TenantSettingsPage() {
           }
         />
         <Tile
-          href="/settings/billing"
+          href="/billing"
           label="결제 수단"
           value={
             <span className="text-base">

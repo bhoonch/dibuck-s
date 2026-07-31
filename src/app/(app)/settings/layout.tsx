@@ -3,9 +3,9 @@ import { SavedToast } from "@/components/ui/saved-toast";
 import { SettingsNav } from "./settings-nav";
 
 /**
- * 폭을 여기서 한 번만 정한다 — 예전엔 하위 7개 페이지가 저마다 max-w를 들고 있어
- * (672·768·896·944·무제한) 탭을 옮길 때마다 카드 좌우 끝이 튀었다.
- * 1280 = 구독 카드가 1440 노트북에서 오른쪽에 빈 땅을 남기지 않는 폭.
+ * 폭을 여기서 한 번만 정한다 — 예전엔 하위 페이지가 저마다 max-w를 들고 있어
+ * (672·768·896·944·무제한) 메뉴를 옮길 때마다 카드 좌우 끝이 튀었다.
+ * 1280은 구독·결제 화면과 같은 값 — 두 화면을 오갈 때도 끝선이 안 움직인다.
  */
 export default function SettingsLayout({
   children,
@@ -18,7 +18,7 @@ export default function SettingsLayout({
       <SavedToast />
       <PageHeader
         title="단지·계정 관리"
-        description="단지 정보와 직원, 구독과 결제를 관리합니다."
+        description="단지 정보와 세대·직원, 결재 규정을 관리합니다."
       />
       <div className="grid items-start gap-6 lg:grid-cols-[11rem_minmax(0,1fr)]">
         <SettingsNav />

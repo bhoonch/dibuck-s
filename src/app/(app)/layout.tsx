@@ -153,7 +153,7 @@ export default async function AppLayout({
           <AlertTriangle className="size-4 shrink-0" />
           {billingAlert}
           <Link
-            href="/settings/billing"
+            href="/billing"
             className="font-semibold underline underline-offset-2"
           >
             결제 확인하기
@@ -169,7 +169,7 @@ export default async function AppLayout({
             <>
               {names(expiredTrials)} 무료 체험이 종료되어 잠겼습니다.
               <Link
-                href="/settings/billing"
+                href="/billing"
                 className="font-semibold underline underline-offset-2"
               >
                 카드 등록하고 계속 쓰기
@@ -179,7 +179,7 @@ export default async function AppLayout({
             <>
               {names(endingSoon)} 무료 체험이 {trialDaysLeft}일 뒤 종료됩니다.
               <Link
-                href="/settings/billing"
+                href="/billing"
                 className="font-semibold underline underline-offset-2"
               >
                 {trialDaysLeft <= 3 ? "지금 카드 등록하기" : "카드 등록"}

@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { setSubscription } from "../actions";
+import { setSubscription } from "./actions";
 
 export function SubscribeButton({
   moduleId,

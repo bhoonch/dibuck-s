@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import {
   FolderOpen,
   Home,
-  LayoutGrid,
   Lock,
   LogOut,
   MessageCircleQuestion,
+  Package,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -52,10 +52,10 @@ export function SideNav({
         ? "bg-accent text-accent-foreground"
         : "text-gray-700 hover:bg-gray-100",
     );
-  // href에 쿼리가 붙는 항목이 있어서 활성 판정은 match로 따로 본다
+  // href에 쿼리가 붙는 항목이 있어서 활성 판정은 match로 따로 본다.
+  // 한 메뉴가 두 경로를 품기도 한다(구독·결제) — 그때는 배열.
   const coreItems = [
     { name: "홈", href: "/home", match: "/home", icon: Home },
-    { name: "모듈 런처", href: "/modules", match: "/modules", icon: LayoutGrid },
     {
       name: "문서함",
       href: "/documents",
@@ -70,6 +70,15 @@ export function SideNav({
       href: "/settings",
       match: "/settings",
       icon: Settings,
+    },
+    // 구독·결제는 셀프서비스의 본체라 메인 메뉴에 있어야 하지만, 순서는 설정 다음이다
+    // — 홈의 시작 가이드도 단지 정보 → 세대 → 직원 → 모듈 구독 순으로 안내한다.
+    // 결제까지 같이 나와야 돈 얘기가 한 자리에 모인다.
+    {
+      name: "구독·결제",
+      href: "/subscriptions",
+      match: ["/subscriptions", "/billing"],
+      icon: Package,
     },
     // 어느 화면에서 눌렀는지 실어 보낸다 — 운영자가 상황을 되묻지 않아도 된다
     {
@@ -107,9 +116,11 @@ export function SideNav({
       <nav className="flex-1 overflow-y-auto px-2 pb-2">
         {coreItems.map((item) => (
           <Link
-            key={item.match}
+            key={item.href}
             href={item.href}
-            className={linkClass(pathname.startsWith(item.match))}
+            className={linkClass(
+              [item.match].flat().some((m) => pathname.startsWith(m)),
+            )}
           >
             <item.icon className="size-4" />
             {item.name}
@@ -148,7 +159,7 @@ export function SideNav({
             {locked.map((m) => (
               <Link
                 key={m.id}
-                href="/settings/subscriptions"
+                href="/subscriptions"
                 className="flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-gray-400 transition-colors hover:bg-gray-100"
                 title="구독하면 사용할 수 있어요"
               >

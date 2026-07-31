@@ -249,7 +249,7 @@ export async function postAnnouncement(formData: FormData) {
   const endsAt = parseDate("endsAt", kstDayEnd);
   if (endsAt && endsAt < startsAt)
     throw new Error("게시 종료일이 시작일보다 빠릅니다.");
-  // 링크는 앱 안(/settings/billing 등)만 허용한다 — 외부 주소를 그대로 넣게 두면
+  // 링크는 앱 안(/billing 등)만 허용한다 — 외부 주소를 그대로 넣게 두면
   // 공지 배너가 피싱 링크를 우리 이름으로 실어 나르는 통로가 된다
   const rawLink = String(formData.get("linkUrl") ?? "").trim();
   const linkUrl = rawLink.startsWith("/") && !rawLink.startsWith("//") ? rawLink : null;
