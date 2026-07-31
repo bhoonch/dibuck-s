@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, BellOff, CheckCheck } from "lucide-react";
+import { Bell, BellOff, CheckCheck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { markAllRead, openNotification } from "@/app/(app)/notifications/actions";
 
@@ -100,6 +100,19 @@ export function NotificationPanel({
                   </button>
                 </form>
               )}
+              {/* 바깥 클릭·Esc로도 닫히지만, 그 관례를 모르는 사용자에게는
+                  보이는 닫기가 유일한 출구다 */}
+              <button
+                type="button"
+                aria-label="알림 창 닫기"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-foreground",
+                  unread === 0 && "ml-auto",
+                )}
+              >
+                <X className="size-4" />
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto">
