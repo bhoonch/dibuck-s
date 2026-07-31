@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Bell, BellOff, CheckCheck, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { markAllRead, openNotification } from "@/app/(app)/notifications/actions";
+import {
+  markAllRead,
+  openNotification,
+} from "@/app/(app)/notifications/actions";
 
 export type PanelNotification = {
   id: string;
@@ -32,6 +36,13 @@ export function NotificationPanel({
   items: PanelNotification[];
 }) {
   const [open, setOpen] = useState(false);
+  // 포털은 클라이언트에서만 — 서버 렌더에는 document가 없다.
+  // (서버 스냅샷 false → 클라이언트 true. effect에서 setState하는 것보다 렌더가 한 번 적다)
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   // 열려 있는 동안 Esc로 닫기 — 마우스 없이도 빠져나올 수 있어야 한다
   useEffect(() => {
@@ -65,105 +76,113 @@ export function NotificationPanel({
       </button>
 
       {/* 항상 마운트해 두고 transform만 토글한다 — 조건부 마운트면 밀려 들어오는
-          전환이 불가능하다(나타나는 순간이 곧 첫 렌더라 시작 위치가 없다) */}
-      <div
-        className={cn(
-          "fixed inset-0 z-40 bg-black/20 transition-opacity duration-200",
-          open ? "opacity-100" : "pointer-events-none opacity-0",
-        )}
-        onClick={() => setOpen(false)}
-        aria-hidden
-      />
-      <aside
-        role="dialog"
-        aria-label="알림"
-        aria-hidden={!open}
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-[380px] max-w-[90vw] flex-col border-l bg-card shadow-xl transition-transform duration-200",
-          open ? "translate-x-0" : "pointer-events-none translate-x-full",
-        )}
-      >
-            <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
-              <b className="text-base">알림</b>
-              {unread > 0 && (
-                <span className="rounded-full bg-red-50 px-2 py-0.5 font-mono text-xs font-semibold text-red-700">
-                  {unread}
-                </span>
+          전환이 불가능하다(나타나는 순간이 곧 첫 렌더라 시작 위치가 없다).
+          body 포털로 꺼내는 이유: 헤더의 backdrop-blur가 fixed 자손의 기준을
+          뷰포트가 아니라 헤더로 바꿔, 오버레이가 상단 바 안에만 갇힌다. */}
+      {mounted &&
+        createPortal(
+          <>
+            <div
+              className={cn(
+                "fixed inset-0 z-40 bg-black/20 transition-opacity duration-200",
+                open ? "opacity-100" : "pointer-events-none opacity-0",
               )}
-              {unread > 0 && (
-                <form action={markAllRead} className="ml-auto">
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-foreground"
-                  >
-                    <CheckCheck className="size-3.5" /> 모두 읽음
-                  </button>
-                </form>
+              onClick={() => setOpen(false)}
+              aria-hidden
+            />
+            <aside
+              role="dialog"
+              aria-label="알림"
+              aria-hidden={!open}
+              className={cn(
+                "fixed inset-y-0 right-0 z-50 flex w-[380px] max-w-[90vw] flex-col border-l bg-card shadow-xl transition-transform duration-200",
+                open ? "translate-x-0" : "pointer-events-none translate-x-full",
               )}
-              {/* 바깥 클릭·Esc로도 닫히지만, 그 관례를 모르는 사용자에게는
-                  보이는 닫기가 유일한 출구다 */}
-              <button
-                type="button"
-                aria-label="알림 창 닫기"
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-foreground",
-                  unread === 0 && "ml-auto",
+            >
+              <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
+                <b className="text-base">알림</b>
+                {unread > 0 && (
+                  <span className="rounded-full bg-red-50 px-2 py-0.5 font-mono text-xs font-semibold text-red-700">
+                    {unread}
+                  </span>
                 )}
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              {items.length === 0 ? (
-                <p className="flex flex-col items-center gap-2 py-16 text-sm text-gray-400">
-                  <BellOff className="size-6" />
-                  아직 알림이 없습니다
-                </p>
-              ) : (
-                items.map((n) => (
-                  // 클릭 = 읽음 처리 후 이동 — 그냥 Link면 배지가 영원히 안 줄어든다
-                  <form key={n.id} action={openNotification}>
-                    <input type="hidden" name="id" value={n.id} />
-                    <input type="hidden" name="link" value={n.link ?? ""} />
+                {unread > 0 && (
+                  <form action={markAllRead} className="ml-auto">
                     <button
                       type="submit"
-                      className={cn(
-                        "block w-full border-b border-gray-100 px-4 py-3 text-left transition-colors hover:bg-background",
-                        !n.read && "border-l-2 border-l-primary",
-                      )}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-foreground"
                     >
-                      <span
-                        className={cn(
-                          "block text-sm font-medium",
-                          n.read && "text-muted-foreground",
-                        )}
-                      >
-                        {n.title}
-                      </span>
-                      {n.body && (
-                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {n.body}
-                        </span>
-                      )}
-                      <span className="mt-1 block text-xs text-gray-400">
-                        {date(n.createdAt)}
-                      </span>
+                      <CheckCheck className="size-3.5" /> 모두 읽음
                     </button>
                   </form>
-                ))
-              )}
-            </div>
+                )}
+                {/* 바깥 클릭·Esc로도 닫히지만, 그 관례를 모르는 사용자에게는
+                  보이는 닫기가 유일한 출구다 */}
+                <button
+                  type="button"
+                  aria-label="알림 창 닫기"
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-foreground",
+                    unread === 0 && "ml-auto",
+                  )}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
 
-            <Link
-              href="/notifications"
-              onClick={() => setOpen(false)}
-              className="border-t border-gray-100 px-4 py-3 text-center text-sm font-semibold text-primary hover:bg-background"
-            >
-              전체 알림 보기
-            </Link>
-      </aside>
+              <div className="flex-1 overflow-y-auto">
+                {items.length === 0 ? (
+                  <p className="flex flex-col items-center gap-2 py-16 text-sm text-gray-400">
+                    <BellOff className="size-6" />
+                    아직 알림이 없습니다
+                  </p>
+                ) : (
+                  items.map((n) => (
+                    // 클릭 = 읽음 처리 후 이동 — 그냥 Link면 배지가 영원히 안 줄어든다
+                    <form key={n.id} action={openNotification}>
+                      <input type="hidden" name="id" value={n.id} />
+                      <input type="hidden" name="link" value={n.link ?? ""} />
+                      <button
+                        type="submit"
+                        className={cn(
+                          "block w-full border-b border-gray-100 px-4 py-3 text-left transition-colors hover:bg-background",
+                          !n.read && "border-l-2 border-l-primary",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "block text-sm font-medium",
+                            n.read && "text-muted-foreground",
+                          )}
+                        >
+                          {n.title}
+                        </span>
+                        {n.body && (
+                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                            {n.body}
+                          </span>
+                        )}
+                        <span className="mt-1 block text-xs text-gray-400">
+                          {date(n.createdAt)}
+                        </span>
+                      </button>
+                    </form>
+                  ))
+                )}
+              </div>
+
+              <Link
+                href="/notifications"
+                onClick={() => setOpen(false)}
+                className="border-t border-gray-100 px-4 py-3 text-center text-sm font-semibold text-primary hover:bg-background"
+              >
+                전체 알림 보기
+              </Link>
+            </aside>
+          </>,
+          document.body,
+        )}
     </>
   );
 }
