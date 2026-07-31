@@ -15,43 +15,43 @@ enum TenantStatus {
 }
 
 model Tenant {
-  id           String       @id @default(cuid())
-  name         String // 단지명
-  address      String?
-  phone        String? // 관리사무소 대표번호 — 공고문 하단 TEL
-  fax          String?
-  households   Int? // 세대수
-  buildingInfo String? // 동 구성 설명 (예: "101동~110동")
-  approvalLine Json? // 결재선: 결재 순서대로 userId 배열
+  id                  String       @id @default(cuid())
+  name                String // 단지명
+  address             String?
+  phone               String? // 관리사무소 대표번호 — 공고문 하단 TEL
+  fax                 String?
+  households          Int? // 세대수
+  buildingInfo        String? // 동 구성 설명 (예: "101동~110동")
+  approvalLine        Json? // 결재선: 결재 순서대로 userId 배열
   /// 직원이 아닌 외부 결재자(입주자대표회장·감사): [{ role: "CHAIR"|"AUDITOR", name, phone?, email? }]
   /// User로 만들지 않는 이유 — 회장은 로그인하지 않고, 계정을 만들면 RBAC·직원 관리가 오염된다.
-  externalApprovers Json?
+  externalApprovers   Json?
   /// 관리규약이 정한 관리소장 전결 한도(VAT 제외, 원). 이 금액 이하이고 예산에 반영된
   /// 집행이면 입주자대표회의(회장) 결재 없이 진행한다. null = 규약 확인 전이라 적용 안 함.
   /// 단지마다 다른 유일한 결재선 변수라 값으로 받는다 — 규약 원문 해석은 코드가 하지 않는다.
-  directorLimit     Int?
+  directorLimit       Int?
   /// 전결 근거가 되는 관리규약 조항 (예: "제38조(관리소장의 전결사항)").
   /// 전결로 처리한 문서의 관련근거에 그대로 인용한다 — 사용자가 적은 값이라 조항을 지어낼 일이 없다.
   directorLimitClause String?
   /// 직인 이미지 (data URI). 파일 스토리지가 없어 DB에 직접 저장 — 도장 이미지는 수십 KB라 충분하다
-  sealImage    String?
+  sealImage           String?
   /// 아파트 로고 (data URI, 직인과 같은 방식) — 공고문 하단 단지명 앞에 찍힌다
-  logoImage    String?
+  logoImage           String?
   /// 셀프 탈퇴 요청 시각. 여기서 30일(GRACE) 뒤 크론이 실제로 지운다.
   /// 즉시 지우면 홧김에 누른 한 번으로 법정 보존 대상 문서까지 사라진다.
   /// 유예 동안은 그대로 쓸 수 있고 언제든 취소할 수 있다.
-  deleteRequestedAt DateTime?
-  memo         String? // 관리자 전용 메모 (영업·CS 기록, 사용자에게 노출 안 됨)
-  status       TenantStatus @default(ACTIVE)
-  createdAt    DateTime     @default(now())
+  deleteRequestedAt   DateTime?
+  memo                String? // 관리자 전용 메모 (영업·CS 기록, 사용자에게 노출 안 됨)
+  status              TenantStatus @default(ACTIVE)
+  createdAt           DateTime     @default(now())
 
-  users         User[]
-  modules       TenantModule[]
-  documents     Document[]
-  notifications Notification[]
-  units         Unit[]
-  inquiries     Inquiry[]
-  billing       Billing?
+  users          User[]
+  modules        TenantModule[]
+  documents      Document[]
+  notifications  Notification[]
+  units          Unit[]
+  inquiries      Inquiry[]
+  billing        Billing?
   dunningEntries DunningEntry[]
 }
 
@@ -72,12 +72,12 @@ model Billing {
   status      BillingStatus @default(NONE)
 
   /// 다음 청구일(KST 그날 00:00). null = 청구할 게 없음(카드 미등록 또는 전 모듈 해지)
-  nextBillingAt DateTime?
+  nextBillingAt     DateTime?
   /// 청구 기준일(1~31). 매달 +1개월로 계산하면 1/31 → 2/28 → 3/28처럼 날짜가 앞으로 밀린다.
   /// 기준일을 따로 들고 그 달 말일로 잘라 쓰면 31일 가입자도 계속 말일에 청구된다.
-  billingDay    Int?
+  billingDay        Int?
   /// 결제 실패로 PAST_DUE가 된 시각 — 여기서 유예 7일과 재시도(D+3·D+7)를 센다
-  pastDueSince  DateTime?
+  pastDueSince      DateTime?
   /// 기간 말 해지 예약. 이미 낸 달은 끝까지 쓰게 하고 다음 청구일에 실제로 끊는다
   cancelRequestedAt DateTime?
 
@@ -115,7 +115,7 @@ model Payment {
   failCode   String?
   failReason String?
   /// 같은 청구 주기의 몇 번째 시도인가 (1=최초, 2=D+3 재시도, 3=D+7 재시도)
-  attempt    Int      @default(1)
+  attempt    Int     @default(1)
 
   createdAt DateTime  @default(now())
   paidAt    DateTime?
@@ -151,7 +151,7 @@ model DunningEntry {
   tenantId  String
   tenant    Tenant    @relation(fields: [tenantId], references: [id])
   docId     String // 소속 발송 회차 (type: dunning_letter)
-  document  Document  @relation(fields: [docId], references: [id])
+  document  Document  @relation(fields: [docId], references: [id], onDelete: Cascade)
   dong      String // "101"
   ho        String // "502"
   name      String? // 엑셀에 없으면 세대명부(Unit)에서 채움
@@ -164,6 +164,7 @@ model DunningEntry {
   createdAt DateTime  @default(now())
 
   @@index([tenantId, dong, ho])
+  @@index([docId])
 }
 
 // ── 직원 계정 + 역할 ─────────────────────────────────────────
@@ -176,16 +177,16 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  tenantId     String?
-  tenant       Tenant?  @relation(fields: [tenantId], references: [id])
-  email        String   @unique
-  kakaoId      String?  @unique // 카카오 로그인 연동 (최초 1회 이메일 매칭으로 연결)
-  passwordHash String
-  name         String
-  title        String? // 직책 (표시용 자유 입력: 과장, 전기과장, 경비반장 등)
-  role         Role     @default(STAFF)
-  createdAt    DateTime @default(now())
+  id                String   @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?  @relation(fields: [tenantId], references: [id])
+  email             String   @unique
+  kakaoId           String?  @unique // 카카오 로그인 연동 (최초 1회 이메일 매칭으로 연결)
+  passwordHash      String
+  name              String
+  title             String? // 직책 (표시용 자유 입력: 과장, 전기과장, 경비반장 등)
+  role              Role     @default(STAFF)
+  createdAt         DateTime @default(now())
   // 비밀번호를 바꾼 시각 — 이 시각 이전에 발급된 세션 토큰은 무효(탈취 세션 차단)
   passwordChangedAt DateTime @default(now())
 
@@ -249,18 +250,18 @@ model TenantModule {
 // ── 전 단지 공지 배너 (관리자 발송) ──────────────────────────
 
 model Announcement {
-  id        String    @id @default(cuid())
-  message   String
-  target    String    @default("ALL") // src/lib/announcements.ts 의 AnnouncementTarget
+  id          String    @id @default(cuid())
+  message     String
+  target      String    @default("ALL") // src/lib/announcements.ts 의 AnnouncementTarget
   targetValue String? // MODULE·MODULE_NOT이면 moduleId, TENANTS면 단지 id 목록(쉼표 구분)
   /// 배너에 붙는 "자세히 보기" 링크(선택). 별도 배너 시스템을 만들지 않고
   /// 공지에 컬럼 하나를 더한 이유는 대상 타게팅 규칙을 두 벌 유지하지 않기 위해서다.
-  linkUrl   String?
-  linkLabel String?
-  startsAt  DateTime  @default(now()) // 게시 시작 — 미래면 "예약"
-  endsAt    DateTime? // 게시 종료 (null이면 무기한)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
+  linkUrl     String?
+  linkLabel   String?
+  startsAt    DateTime  @default(now()) // 게시 시작 — 미래면 "예약"
+  endsAt      DateTime? // 게시 종료 (null이면 무기한)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
 }
 
 // ── 운영자 감사 로그 ─────────────────────────────────────────
@@ -285,9 +286,9 @@ model AdminLog {
 // ── 고객 문의 (단지 → 운영자) ────────────────────────────────
 
 model Inquiry {
-  id        String   @id @default(cuid())
-  tenantId  String? // null = 아직 가입 전 (무료 체험 신청)
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  id         String    @id @default(cuid())
+  tenantId   String? // null = 아직 가입 전 (무료 체험 신청)
+  tenant     Tenant?   @relation(fields: [tenantId], references: [id])
   category   String // "기능 문의" | "구독" | "계정" | "결제" | "체험 신청"
   title      String // 문의 본문. 체험 신청이면 단지명(담당자)
   contact    String? // 옛 체험 신청 연락처 — 전화 응대를 없애 새 문의는 쓰지 않는다
@@ -303,24 +304,24 @@ model Inquiry {
 // ── 공통 문서 저장소 ─────────────────────────────────────────
 
 model Document {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   moduleId    String? // 생성한 모듈 slug (코어 생성 문서는 null)
   docNo       String? // 문서번호: "공지-2026-0003" (종류·연도별 순번)
   type        String // "dunning_letter" | "notice" | "contract" | "minutes" | "approval" ...
   title       String
-  content     String   @default("")
+  content     String    @default("")
   attachments Json? // [{ name, url }]
   /// 모듈별 구조화 데이터 — 기안·품의는 폼 입력 + LLM 출력 원본을 보관한다.
   /// 재편집, 공고문 자동 파생, 후속 문서(완료보고·지출결의) 필드 상속의 원천.
   meta        Json?
-  status      String   @default("draft")
+  status      String    @default("draft")
   dueDate     DateTime? // 기한 — 계약 만료일, 점검 예정일 등 (할 일 위젯이 사용)
   createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   approvalSteps   ApprovalStep[]
   attachmentFiles DocumentAttachment[]
@@ -338,24 +339,24 @@ model Document {
 /// 내부 결재자는 userId, 외부(회장·감사)는 이름 스냅샷 + 서명 토큰으로 참여한다.
 /// 스냅샷인 이유: 결재 진행 중 결재선 설정이 바뀌어도 이미 상신된 문서는 영향받지 않아야 한다.
 model ApprovalStep {
-  id         String   @id @default(cuid())
-  documentId String
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  order      Int // 1부터. 같은 문서 안에서 유일
-  userId     String? // 내부 결재자 — 삭제된 직원의 단계는 이름 스냅샷으로 남는다 (FK 안 건다)
+  id             String    @id @default(cuid())
+  documentId     String
+  document       Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  order          Int // 1부터. 같은 문서 안에서 유일
+  userId         String? // 내부 결재자 — 삭제된 직원의 단계는 이름 스냅샷으로 남는다 (FK 안 건다)
   /// 외부 결재자 역할 — "CHAIR"(입주자대표회장) | "AUDITOR"(감사). 내부 결재자는 null
-  externalRole String?
-  name       String // 결재자 이름 스냅샷 (표시·감사 목적 — 계정이 삭제돼도 결재란은 남아야 한다)
+  externalRole   String?
+  name           String // 결재자 이름 스냅샷 (표시·감사 목적 — 계정이 삭제돼도 결재란은 남아야 한다)
   /// 외부 결재자 서명 링크 토큰 — 차례가 됐을 때 발급, 만료·1회용 (PasswordReset과 같은 규칙)
   token          String?   @unique
   tokenExpiresAt DateTime?
-  status     String   @default("waiting") // waiting(차례 전) | pending(결재 차례) | approved | rejected
-  comment    String? // 승인·반려 의견
-  actedAt    DateTime?
+  status         String    @default("waiting") // waiting(차례 전) | pending(결재 차례) | approved | rejected
+  comment        String? // 승인·반려 의견
+  actedAt        DateTime?
   /// 외부(토큰) 서명의 증적: { ip, ua, typedName }. 링크는 카톡으로 전달되므로
   /// "누가 눌렀는가"를 토큰만으로는 증명할 수 없다 — 감사 대응용 기록.
   /// 본인인증이 아니다(SMS OTP는 발송 인프라 도입 후 별건).
-  signature  Json?
+  signature      Json?
 
   @@unique([documentId, order])
   @@index([userId, status])
