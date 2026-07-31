@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isSubscribed } from "@/lib/modules";
 
 /** 내용증명(3차) 세대의 수신인 목록 — 인터넷우체국 편지병합(대량 전자내용증명)용 */
 export async function GET(
@@ -8,6 +9,8 @@ export async function GET(
   { params }: { params: Promise<{ docId: string }> },
 ) {
   const session = await requireSession();
+  if (!(await isSubscribed(session.tenantId!, "dunning")))
+    return new NextResponse("Not Found", { status: 404 });
   const { docId } = await params;
   const doc = await db.document.findFirst({
     where: { id: docId, tenantId: session.tenantId!, type: "dunning_letter" },
