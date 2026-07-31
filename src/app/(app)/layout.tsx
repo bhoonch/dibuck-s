@@ -57,7 +57,7 @@ export default async function AppLayout({
       }),
       db.billing.findUnique({
         where: { tenantId },
-        select: { status: true },
+        select: { status: true, billingKey: true },
       }),
     ]);
   // 이용 중지는 로그인만 막아선 부족하다 — 이미 로그인한 세션도 여기서 끊는다
@@ -123,7 +123,10 @@ export default async function AppLayout({
           <AlertTriangle className="size-4 shrink-0" />
           탈퇴가 신청되었습니다 —{" "}
           <b>{graceDaysLeft(tenant.deleteRequestedAt, now)}일 뒤</b> 단지와 모든
-          데이터가 삭제됩니다. 그때까지는 지금처럼 사용하실 수 있습니다.
+          데이터가 삭제됩니다.{" "}
+          {billing?.billingKey
+            ? "새로 결제되지 않으며, 이미 결제한 기간이 끝나면 구독도 함께 해지됩니다."
+            : "그때까지는 지금처럼 사용하실 수 있습니다."}
           {/* 취소는 마스터만 — 아니면 사실만 알린다 */}
           {session.role === "DIRECTOR" && !session.impersonating && (
             <form action={cancelTenantDeletion}>

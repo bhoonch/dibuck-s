@@ -43,11 +43,21 @@ async function run(req: NextRequest) {
   result.purged = await purgeExpiredTenants(now);
 
   // ── 1. 청구·재시도·정지 ────────────────────────────────────
+  // SUSPENDED도 포함한다 — 해지 예약·탈퇴 신청은 정지 상태에서도 실행돼야 한다.
+  // 빼면 그 단지는 "해지될 예정" 안내만 뜬 채 빌링키를 영원히 쥐고 있게 된다.
   const billings = await db.billing.findMany({
-    where: { status: { in: ["ACTIVE", "PAST_DUE"] }, billingKey: { not: null } },
+    where: {
+      status: { in: ["ACTIVE", "PAST_DUE", "SUSPENDED"] },
+      billingKey: { not: null },
+    },
+    include: { tenant: { select: { deleteRequestedAt: true } } },
   });
   for (const b of billings) {
-    const action = dunningAction(b, now);
+    // 탈퇴 신청도 해지 예약과 같은 신호다 — chargeTenant가 결제 대신 해지한다
+    const action = dunningAction(
+      { ...b, cancelRequestedAt: b.cancelRequestedAt ?? b.tenant.deleteRequestedAt },
+      now,
+    );
     if (action === "none") continue;
     if (action === "suspend") {
       // 잠그기 전에 대사 — 마지막 시도가 사실은 승인됐는데 응답만 유실된 것이면
@@ -68,7 +78,14 @@ async function run(req: NextRequest) {
 
   // ── 2. 갱신 예고 (D-7 / D-1) ───────────────────────────────
   for (const b of billings) {
-    if (b.status !== "ACTIVE" || !b.nextBillingAt || b.cancelRequestedAt) continue;
+    // 탈퇴 신청 단지도 뺀다 — 그날 결제되는 게 아니라 해지되므로 예고가 거짓말이 된다
+    if (
+      b.status !== "ACTIVE" ||
+      !b.nextBillingAt ||
+      b.cancelRequestedAt ||
+      b.tenant.deleteRequestedAt
+    )
+      continue;
     const left = daysBetween(now, b.nextBillingAt);
     if (!RENEWAL_NOTICE_DAYS.includes(left)) continue;
 
@@ -104,12 +121,19 @@ async function run(req: NextRequest) {
     where: { status: "ACTIVE", trialEndsAt: { not: null } },
     include: {
       module: { select: { name: true } },
-      tenant: { select: { id: true, billing: { select: { billingKey: true } } } },
+      tenant: {
+        select: {
+          id: true,
+          deleteRequestedAt: true,
+          billing: { select: { billingKey: true } },
+        },
+      },
     },
   });
   const byTenant = new Map<string, { ending: string[]; expired: string[] }>();
   for (const t of trials) {
     if (t.tenant.billing?.billingKey) continue; // 카드 있음 → 안내 불필요
+    if (t.tenant.deleteRequestedAt) continue; // 떠나는 단지에 카드 등록을 권하지 않는다
     const left = daysBetween(now, t.trialEndsAt!);
     const bucket =
       left === 7 ? "ending" : left === 0 ? "expired" : null;

@@ -73,6 +73,9 @@ export type DunningAction = "charge" | "retry" | "suspend" | "none";
  *
  * PAST_DUE면 유예가 끝날 때까지 **매일** 재시도한다. 카드 한도·잔액은 다음 날 풀리는
  * 일이 흔하고 재시도 비용이 0이라, 며칠 간격으로 띄엄띄엄 거는 것보다 회수가 잘 된다.
+ *
+ * cancelRequestedAt은 해지 예약이거나 탈퇴 신청이다(호출자가 합쳐 넘긴다) —
+ * chargeTenant가 결제 대신 실제 해지를 수행한다.
  */
 export function dunningAction(
   b: {
@@ -80,11 +83,15 @@ export function dunningAction(
     billingKey: string | null;
     nextBillingAt: Date | null;
     pastDueSince: Date | null;
+    cancelRequestedAt: Date | null;
   },
   now = new Date(),
 ): DunningAction {
-  if (!b.billingKey || b.status === "NONE" || b.status === "SUSPENDED")
-    return "none";
+  if (!b.billingKey || b.status === "NONE") return "none";
+  // 정지된 단지도 해지·탈퇴는 실행돼야 한다 — 여기서 영영 none이면 "해지될
+  // 예정입니다" 안내가 거짓이 되고 빌링키를 무기한 쥐고 있게 된다. 낼 것도,
+  // 기다릴 남은 기간도 없으므로 미루지 않고 바로 끊는다.
+  if (b.status === "SUSPENDED") return b.cancelRequestedAt ? "charge" : "none";
   if (b.status === "PAST_DUE")
     return b.pastDueSince && daysBetween(b.pastDueSince, now) >= GRACE_DAYS
       ? "suspend"

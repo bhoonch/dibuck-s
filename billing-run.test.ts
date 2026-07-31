@@ -156,8 +156,97 @@ async function main() {
   });
   assert.equal(mod.status, "CANCELED", "모듈이 실제로 해지돼야 한다");
 
+  // 6) 정지 상태에서도 해지 예약은 실행된다 — 크론이 SUSPENDED를 빼면
+  //    "해지될 예정" 안내만 뜬 채 빌링키가 영원히 남는다
+  await db.billing.update({
+    where: { tenantId: T },
+    data: {
+      status: "SUSPENDED",
+      billingKey: "bk-test",
+      cancelRequestedAt: new Date(),
+      nextBillingAt: null,
+    },
+  });
+  await db.tenantModule.update({
+    where: { tenantId_moduleId: { tenantId: T, moduleId: M } },
+    data: { status: "ACTIVE" },
+  });
+  r = await chargeTenant(T);
+  assert.deepEqual(r, { ok: true, amount: 0 });
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "NONE", "정지 단지의 해지 예약도 실제로 끊긴다");
+  assert.equal(b.billingKey, null);
+
+  // 7) 0원 청구는 연체를 세탁하지 않는다 — 모듈 전부 해지 후 "지금 결제하기"를
+  //    눌러도 PAST_DUE가 ACTIVE로 둔갑하면 안 된다(죽은 카드 무한 무료의 입구)
+  const owedSince = new Date(Date.now() - 2 * 86400000);
+  await db.billing.update({
+    where: { tenantId: T },
+    data: {
+      status: "PAST_DUE",
+      billingKey: "bk-test",
+      cancelRequestedAt: null,
+      pastDueSince: owedSince,
+      nextBillingAt: new Date(Date.now() - 86400000),
+    },
+  });
+  // 모듈은 6)에서 CANCELED — 청구 금액 0원인 연체 단지가 된다
+  r = await chargeTenant(T);
+  assert.deepEqual(r, { ok: true, amount: 0 });
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "PAST_DUE", "0원 청구가 연체를 ACTIVE로 되돌리면 안 된다");
+  assert.equal(
+    b.pastDueSince!.getTime(),
+    owedSince.getTime(),
+    "유예 시작 시각도 그대로여야 한다",
+  );
+
+  // 8) 탈퇴 신청 = 청구 정지. 이미 낸 기간(청구일 전)은 건드리지 않고,
+  //    청구일이 오면 결제 대신 해지한다
+  await db.tenant.update({
+    where: { id: T },
+    data: { deleteRequestedAt: new Date() },
+  });
+  await db.billing.update({
+    where: { tenantId: T },
+    data: {
+      status: "ACTIVE",
+      pastDueSince: null,
+      nextBillingAt: new Date(Date.now() + 10 * 86400000),
+    },
+  });
+  await db.tenantModule.update({
+    where: { tenantId_moduleId: { tenantId: T, moduleId: M } },
+    data: { status: "ACTIVE" },
+  });
+  r = await chargeTenant(T);
+  assert.deepEqual(r, { ok: true, amount: 0 }, "낸 기간이 남았으면 아무 일도 없다");
+  let mod2 = await db.tenantModule.findUniqueOrThrow({
+    where: { tenantId_moduleId: { tenantId: T, moduleId: M } },
+  });
+  assert.equal(mod2.status, "ACTIVE", "이미 결제한 기간은 그대로 쓴다");
+
+  await db.billing.update({
+    where: { tenantId: T },
+    data: { nextBillingAt: new Date(Date.now() - 86400000) },
+  });
+  r = await chargeTenant(T);
+  assert.deepEqual(r, { ok: true, amount: 0 });
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "NONE", "청구일이 오면 결제 대신 해지된다");
+  assert.equal(b.billingKey, null, "지워질 단지의 카드를 쥐고 있지 않는다");
+  mod2 = await db.tenantModule.findUniqueOrThrow({
+    where: { tenantId_moduleId: { tenantId: T, moduleId: M } },
+  });
+  assert.equal(mod2.status, "CANCELED");
+  assert.equal(
+    await db.payment.count({ where: { tenantId: T } }),
+    2,
+    "6~8 어디서도 새 결제가 생기면 안 된다",
+  );
+
   console.log(
-    "billing-run 통과 (무청구 / 실패 유예 / 재시도 / 대사 복구 / 정지 / 해지 예약)",
+    "billing-run 통과 (무청구 / 실패 유예 / 재시도 / 대사 복구 / 정지 / 해지 예약 / 정지 해지 / 0원 비세탁 / 탈퇴 청구 정지)",
   );
 }
 

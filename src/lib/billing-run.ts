@@ -121,7 +121,7 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
-    select: { name: true },
+    select: { name: true, deleteRequestedAt: true },
   });
   if (!tenant) return { ok: false, reason: "단지를 찾을 수 없습니다." };
 
@@ -142,8 +142,12 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
     if (settled) return { ok: true, amount: settled.amount };
   }
 
-  // 해지 예약 — 이미 낸 기간이 끝났으니 여기서 실제로 끊는다
-  if (billing.cancelRequestedAt) {
+  // 해지 예약 — 이미 낸 기간이 끝났으니 여기서 실제로 끊는다.
+  // 탈퇴 신청도 같다: 지워질 단지에 새 결제를 걸면 안 되고, 이 검사가 여기(입구)에
+  // 있어야 크론·"지금 결제하기"·카드 변경 콜백이 전부 걸러진다. 별도 플래그를
+  // 복제하지 않고 tenant.deleteRequestedAt 원본을 읽는다 — 탈퇴를 취소하면
+  // (청구일이 아직 안 지났다면) 아무 일도 없었던 것이 된다.
+  if (billing.cancelRequestedAt || tenant.deleteRequestedAt) {
     await db.$transaction([
       db.tenantModule.updateMany({
         where: { tenantId, status: "ACTIVE" },
@@ -186,6 +190,9 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
 
   // 청구할 게 없다 — 결제를 걸지 않는다. 아직 체험 중인 모듈이 있으면
   // 그중 가장 이른 체험 종료일이 첫 청구일이 된다(체험이 공짜로 길어지지 않게).
+  // 상태(PAST_DUE·SUSPENDED)는 건드리지 않는다 — 상태를 올리는 건 성공한 결제뿐이다.
+  // 여기서 ACTIVE로 되돌리면 "모듈 전부 해지 → 지금 결제하기(0원) → 죽은 카드로
+  // 재구독"으로 연체·정지를 무한히 세탁해 매달 공짜로 쓸 수 있다.
   if (amount === 0) {
     const nextTrialEnd = subs
       .filter((s) => s.status === "ACTIVE" && s.trialEndsAt && s.trialEndsAt > now)
@@ -193,11 +200,7 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
       .sort((a, b) => a.getTime() - b.getTime())[0];
     await db.billing.update({
       where: { tenantId },
-      data: {
-        nextBillingAt: nextTrialEnd ? kstMidnight(nextTrialEnd) : next,
-        status: "ACTIVE",
-        pastDueSince: null,
-      },
+      data: { nextBillingAt: nextTrialEnd ? kstMidnight(nextTrialEnd) : next },
     });
     return { ok: true, amount: 0 };
   }

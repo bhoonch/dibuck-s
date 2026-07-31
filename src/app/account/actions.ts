@@ -66,6 +66,10 @@ export async function changeMyPassword(_prev: State, formData: FormData) {
  * 개인정보보호법상 삭제 요구 대응은 선택이 아니므로 운영자 문의 없이 여기서 끝나야 한다 —
  * 다만 즉시 삭제는 홧김에 누른 한 번으로 법정 보존 문서까지 없앤다. 유예 동안은
  * 평소처럼 쓸 수 있고 상단 배너에서 취소할 수 있다.
+ *
+ * 결제는 여기서 따로 멈추지 않는다 — chargeTenant가 입구에서 deleteRequestedAt을
+ * 읽고 결제 대신 해지를 실행한다(원본 하나, 복제 플래그 없음). 그래서 탈퇴를
+ * 취소하면 청구일이 지나지 않은 한 결제도 원래대로 이어진다.
  */
 export async function deleteMyTenant(_prev: State, formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);

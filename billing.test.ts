@@ -53,13 +53,24 @@ assert.equal(daysBetween(kst("2026-08-01T23:00:00"), kst("2026-08-02T01:00:00"))
 assert.equal(daysBetween(kst("2026-08-01T00:00:00"), kst("2026-08-01T23:59:00")), 0);
 
 // ── 크론 판정 ────────────────────────────────────────────────
-const base = { billingKey: "bk", pastDueSince: null, nextBillingAt: null };
+const base = {
+  billingKey: "bk",
+  pastDueSince: null,
+  nextBillingAt: null,
+  cancelRequestedAt: null,
+};
 
 // 카드 없으면 아무것도 안 한다
 assert.equal(dunningAction({ ...base, billingKey: null, status: "ACTIVE" }, now), "none");
 assert.equal(dunningAction({ ...base, status: "NONE" }, now), "none");
 // 이미 정지된 단지는 크론이 건드리지 않는다 (셀프 재결제로만 풀린다)
 assert.equal(dunningAction({ ...base, status: "SUSPENDED" }, now), "none");
+// 단, 정지 상태여도 해지 예약·탈퇴 신청은 실행돼야 한다 — 아니면 "해지될 예정"
+// 안내가 거짓이 된 채 빌링키를 무기한 쥐고 있게 된다
+assert.equal(
+  dunningAction({ ...base, status: "SUSPENDED", cancelRequestedAt: now }, now),
+  "charge",
+);
 
 // 청구일 전이면 대기, 당일·경과면 청구
 assert.equal(
