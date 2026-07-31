@@ -350,8 +350,15 @@ export async function withdrawGian(docId: string): Promise<ActionState> {
   if (doc.status !== "pending")
     return { error: "결재가 진행 중인 문서만 회수할 수 있습니다." };
 
+  // 기안자 칸은 상신 때 자동 서명된다(submitDocument의 drafterSigned) — 본인 서명은
+  // "다른 사람의 판단"이 아니므로 회수를 막지 않는다. userId != 만 쓰면 SQL 특성상
+  // NULL(외부 결재자)이 빠져 버려 회장 승인 뒤에도 회수가 열리므로 null을 명시한다.
   const acted = await db.approvalStep.count({
-    where: { documentId: docId, status: { in: ["approved", "rejected"] } },
+    where: {
+      documentId: docId,
+      status: { in: ["approved", "rejected"] },
+      OR: [{ userId: null }, { userId: { not: doc.createdById } }],
+    },
   });
   if (acted > 0)
     return {

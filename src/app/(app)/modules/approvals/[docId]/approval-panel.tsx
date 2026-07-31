@@ -23,6 +23,8 @@ export type PanelStep = {
   actedAt?: string | null;
   isMine: boolean;
   isExternal: boolean;
+  /** 기안자 칸 — 상신 때 자동 서명되므로 "이미 결재한 사람"으로 세지 않는다 */
+  isDrafter: boolean;
   token?: string | null;
   tokenExpired?: boolean;
   /** 외부(토큰) 서명 증적 — 감사에서 "누가 눌렀는가"를 묻을 때의 답 */
@@ -85,9 +87,11 @@ export function ApprovalPanel({
 
   const current = steps.find((s) => s.status === "pending");
   const rejected = steps.find((s) => s.status === "rejected");
-  // 한 명이라도 처리했으면 회수는 막힌다(서버도 같은 조건으로 거른다)
+  // 기안자 본인의 자동 서명을 뺀 누군가가 처리했으면 회수는 막힌다(서버도 같은 조건).
+  // 자동 서명까지 세면 결재선이 2칸 이상인 문서는 상신 직후에도 회수 버튼이 안 뜬다.
   const anyActed = steps.some(
-    (s) => s.status === "approved" || s.status === "rejected",
+    (s) =>
+      !s.isDrafter && (s.status === "approved" || s.status === "rejected"),
   );
 
   const run = (fn: () => Promise<{ error?: string } | undefined>) => {

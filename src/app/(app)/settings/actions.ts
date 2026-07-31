@@ -294,15 +294,17 @@ export async function uploadUnits(
       await tx.unit.createMany({ data: unique });
       return;
     }
-    for (const u of unique) {
-      await tx.unit.upsert({
-        where: {
-          tenantId_dong_ho: { tenantId: u.tenantId, dong: u.dong, ho: u.ho },
-        },
-        update: { name: u.name, phone: u.phone },
-        create: u,
-      });
-    }
+    // 병합도 벌크로 — 세대별 upsert를 순차로 돌리면 수천 세대에서 트랜잭션
+    // 타임아웃(기본 5초)이 나 "2만 세대까지"라는 안내가 거짓말이 된다.
+    // 올라온 (동,호)만 지우고 다시 넣으면 결과는 upsert와 같고 왕복은 두 번이다.
+    // Unit을 참조하는 FK가 없어 id가 새로 발급돼도 깨질 곳이 없다.
+    await tx.unit.deleteMany({
+      where: {
+        tenantId: session.tenantId!,
+        OR: unique.map((u) => ({ dong: u.dong, ho: u.ho })),
+      },
+    });
+    await tx.unit.createMany({ data: unique });
   });
   revalidatePath("/settings/units");
   return { success: `${unique.length}세대를 등록했습니다.` };

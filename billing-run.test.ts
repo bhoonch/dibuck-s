@@ -48,10 +48,24 @@ async function main() {
   );
   assert.equal(await db.payment.count({ where: { tenantId: T } }), 0, "0원 청구는 이력을 남기지 않는다");
 
-  // 2) 체험 만료 → 유료 청구 시도. 토스 키가 없으니 실패 경로를 탄다
+  // 1.5) 청구일이 아직 안 왔으면 결제하지 않는다 — 카드 변경 콜백·오래된 탭의
+  // "지금 결제하기"가 이미 결제한 기간을 다시 결제하는 사고를 막는 입구 검사
   await db.tenantModule.update({
     where: { tenantId_moduleId: { tenantId: T, moduleId: M } },
     data: { trialEndsAt: new Date(Date.now() - 86400000) },
+  });
+  r = await chargeTenant(T); // nextBillingAt은 아직 10일 뒤(체험 종료일)
+  assert.deepEqual(r, { ok: true, amount: 0 }, "청구일 전에는 결제하지 않는다");
+  assert.equal(
+    await db.payment.count({ where: { tenantId: T } }),
+    0,
+    "청구일 전 호출은 결제 이력을 남기면 안 된다",
+  );
+
+  // 2) 청구일 도래 → 유료 청구 시도. 토스 키가 없으니 실패 경로를 탄다
+  await db.billing.update({
+    where: { tenantId: T },
+    data: { nextBillingAt: new Date(Date.now() - 86400000) },
   });
   r = await chargeTenant(T);
   assert.equal(r.ok, false, "결제 실패해야 한다(키 없음)");
@@ -79,10 +93,15 @@ async function main() {
   b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
   assert.equal(b.status, "SUSPENDED");
 
-  // 5) 해지 예약 → 청구일에 결제 대신 실제 해지
+  // 5) 해지 예약 → 청구일에 결제 대신 실제 해지 (청구일 전에는 실행되지 않는다)
   await db.billing.update({
     where: { tenantId: T },
-    data: { status: "ACTIVE", cancelRequestedAt: new Date(), pastDueSince: null },
+    data: {
+      status: "ACTIVE",
+      cancelRequestedAt: new Date(),
+      pastDueSince: null,
+      nextBillingAt: new Date(Date.now() - 86400000),
+    },
   });
   r = await chargeTenant(T);
   assert.deepEqual(r, { ok: true, amount: 0 });

@@ -57,6 +57,16 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   });
   if (!tenant) return { ok: false, reason: "단지를 찾을 수 없습니다." };
 
+  // 지금 결제할 차례인가 — 크론은 dunningAction으로 거르지만, 카드 변경 콜백과
+  // 오래된 탭의 "지금 결제하기"도 같은 함수를 타므로 검사는 입구에 있어야 한다.
+  // 이 검사가 없으면 이미 결제한 기간을 그대로 한 번 더 결제한다.
+  if (
+    billing.status === "ACTIVE" &&
+    billing.nextBillingAt &&
+    kstMidnight(billing.nextBillingAt) > kstMidnight(now)
+  )
+    return { ok: true, amount: 0 };
+
   // 해지 예약 — 이미 낸 기간이 끝났으니 여기서 실제로 끊는다
   if (billing.cancelRequestedAt) {
     await db.$transaction([
@@ -116,6 +126,22 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
     });
     return { ok: true, amount: 0 };
   }
+
+  // 동시 요청(크론과 "지금 결제하기"의 경합, 더블클릭)이 같은 기간을 두 번 결제하지
+  // 않도록, 읽어 둔 상태 그대로일 때만 자리를 잡는다 — 밀린 쪽은 결제 없이 빠진다.
+  // ponytail: 자리만 잡고 서버가 죽으면 이번 달 청구가 건너뛰어진다(다음 달 자동 복구).
+  // 토스 결제 조회 API로 대사를 붙이게 되면 그때 정리할 것.
+  const claimed = await db.billing.updateMany({
+    where: {
+      tenantId,
+      status: billing.status,
+      nextBillingAt: billing.nextBillingAt,
+      pastDueSince: billing.pastDueSince,
+    },
+    data: { nextBillingAt: next },
+  });
+  if (claimed.count === 0)
+    return { ok: false, reason: "결제가 이미 진행 중입니다. 잠시 후 새로고침해 확인해 주세요." };
 
   const contact = await billingContact(tenantId);
   const order = orderId(tenantId, now);

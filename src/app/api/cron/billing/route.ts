@@ -22,8 +22,11 @@ import { purgeExpiredTenants } from "@/lib/tenant-deletion";
  *
  * 하루에 두 번 돌아도 안전하다: 결제는 nextBillingAt 도래분만 걸고, 성공하면 다음 달로
  * 밀리므로 같은 날 두 번 청구되지 않는다. 안내 메일만 중복될 수 있다.
+ *
+ * GET·POST 둘 다 받는다 — Vercel Cron과 curl 기본값은 GET이고, POST만 열어 두면
+ * 매일 405만 나며 청구가 조용히 전면 중단된다.
  */
-export async function POST(req: NextRequest) {
+async function run(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -116,6 +119,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(result);
 }
+
+export { run as GET, run as POST };
 
 async function director(tenantId: string) {
   return (

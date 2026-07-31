@@ -289,6 +289,7 @@ export default async function GianDocumentPage({
     actedAt: s.actedAt ? ymdKst(s.actedAt) : null,
     isMine: s.userId === session.userId,
     isExternal: !s.userId,
+    isDrafter: !!s.userId && s.userId === doc.createdById,
     token: s.token,
     tokenExpired: !s.tokenExpiresAt || s.tokenExpiresAt <= now,
     signature: s.signature as PanelStep["signature"],

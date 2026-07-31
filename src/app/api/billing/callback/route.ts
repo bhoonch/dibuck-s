@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
 
   // 등록 즉시 정산한다 — 체험이 끝나 잠긴 모듈이 있으면 여기서 결제되며 바로 풀리고,
   // 아직 전부 체험 중이면 결제 없이 체험 종료일이 첫 청구일로 잡힌다.
+  // 정상 결제 중(다음 청구일이 미래)인 단지의 카드 변경이면 chargeTenant가
+  // 입구에서 걸러 아무것도 결제하지 않는다.
   const result = await chargeTenant(session.tenantId);
   return back(req, result.ok ? "registered=1" : "error=charge");
 }

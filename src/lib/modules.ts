@@ -74,7 +74,12 @@ export async function getModulesForTenant(
       price: m.price,
       trialDays: m.trialDays,
       subscribed: usable,
-      trialEndsAt: usable ? (row?.trialEndsAt ?? null) : null,
+      // 지난 종료일은 내보내지 않는다 — 카드 등록 단지는 체험이 끝나도 값이 남는데,
+      // 그대로 주면 "체험 D-1" 배너·D-음수 배지가 유료 전환 뒤에도 영구히 뜬다
+      trialEndsAt:
+        usable && row?.trialEndsAt && row.trialEndsAt > now
+          ? row.trialEndsAt
+          : null,
       trialExpired: expired,
       everSubscribed: !!row,
       retired: !m.isActive,
