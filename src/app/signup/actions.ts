@@ -1,9 +1,11 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
 import { createSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
 import { normalizeEmail } from "@/lib/utils";
 
 /**
@@ -20,6 +22,17 @@ export async function signup(
   const email = normalizeEmail(formData.get("email"));
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
+
+  // "이미 사용 중인 이메일" 응답은 계정 존재를 알려 준다 — 문구를 흐리면 정상
+  // 가입자가 헤매므로 그대로 두고, 대신 시도 횟수를 IP로 묶는다(이메일 키는
+  // 열거에 무력하다 — 이메일마다 1회면 충분하니까). 진짜 관리사무소가 10분에
+  // 20번 가입을 누를 일은 없다.
+  const h = await headers();
+  const ip =
+    (h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? "").split(",")[0].trim() ||
+    "unknown";
+  if (rateLimit(`signup:${ip}`, 20, 10 * 60_000) === 0)
+    return { error: "시도가 너무 많습니다. 잠시 후 다시 시도해 주세요." };
 
   if (!tenantName || !name || !email || !password)
     return { error: "모든 항목을 입력해 주세요." };

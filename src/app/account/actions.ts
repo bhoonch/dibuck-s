@@ -77,12 +77,17 @@ export async function deleteMyTenant(_prev: State, formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const confirmName = String(formData.get("confirmName") ?? "").trim();
 
+  // 훔친 세션이 이 폼으로 비밀번호를 대입하지 못하게 — 비밀번호 변경과 같은 한도
+  if (rateLimit(`del:${session.userId}`, 10, 10 * 60_000) === 0)
+    return { error: "시도가 너무 많습니다. 10분 후에 다시 시도해 주세요." };
+
   const [user, tenant] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: session.userId } }),
     db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
   ]);
   if (!compareSync(password, user.passwordHash))
     return { error: "비밀번호가 올바르지 않습니다." };
+  rateLimitReset(`del:${session.userId}`);
   // 실수로 지우는 사고를 막는다 — 단지명을 정확히 입력해야 진행
   if (confirmName !== tenant.name)
     return { error: `확인을 위해 단지명 "${tenant.name}"을(를) 정확히 입력해 주세요.` };

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
 import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
-import { ymdKst, dayKst } from "@/lib/utils";
+import { kstDayStart, ymdKst, dayKst } from "@/lib/utils";
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -28,6 +28,8 @@ export default async function HomePage() {
   const days = (n: number) => new Date(now.getTime() + n * 86400000);
   const dday = (d: Date) =>
     Math.max(0, Math.ceil((d.getTime() - now.getTime()) / 86400000));
+  // KST 기준 이번 달 1일 00:00 — "이번 달 처리 현황"의 창
+  const monthStart = kstDayStart(`${ymdKst(now).slice(0, 7)}-01`);
 
   // 목록은 상위 10건만, 숫자는 count로 따로 센다 —
   // take한 배열의 length를 KPI·처리율에 쓰면 37건이 10건으로 보이고 처리율이 부풀려진다
@@ -84,9 +86,19 @@ export default async function HomePage() {
         complaint,
         inspection,
       })),
-      db.document.count({ where: { tenantId, type: "complaint", status: "done" } }),
+      // "이번 달 처리 현황" — 제목대로 이번 달만 센다. 전 기간 누계를 넣으면
+      // 몇 달 뒤엔 무슨 수를 써도 100%에 붙어 아무 정보가 없다.
+      // 처리 시각 컬럼이 따로 없어 updatedAt으로 근사한다(상태 변경이 곧 마지막 수정).
       db.document.count({
-        where: { tenantId, type: { in: ["approval", "gian"] }, status: "final" },
+        where: { tenantId, type: "complaint", status: "done", updatedAt: { gte: monthStart } },
+      }),
+      db.document.count({
+        where: {
+          tenantId,
+          type: { in: ["approval", "gian"] },
+          status: "final",
+          updatedAt: { gte: monthStart },
+        },
       }),
       getModulesForTenant(tenantId),
       db.document.findMany({
@@ -117,7 +129,7 @@ export default async function HomePage() {
       href:
         d.moduleId === "approvals"
           ? `/modules/approvals/${d.id}`
-          : "/documents?type=approval",
+          : "/documents?type=approval,gian",
       sortKey: d.createdAt.getTime(),
     })),
     ...contracts.map((d) => ({
@@ -160,7 +172,7 @@ export default async function HomePage() {
   const total =
     counts.approval + counts.contract + counts.complaint + counts.inspection;
   const tiles = [
-    { label: "결재 대기", count: counts.approval, dot: "bg-blue-600", href: "/documents?type=approval" },
+    { label: "결재 대기", count: counts.approval, dot: "bg-blue-600", href: "/documents?type=approval,gian" },
     { label: "계약 만료 D-30", count: counts.contract, dot: "bg-amber-600", href: "/documents?type=contract" },
     { label: "미처리 민원", count: counts.complaint, dot: "bg-red-600", href: "/documents?type=complaint" },
     { label: "점검 예정", count: counts.inspection, dot: "bg-sky-600", href: "/documents?type=inspection" },
