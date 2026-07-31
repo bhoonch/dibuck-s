@@ -274,6 +274,53 @@ async function main() {
       "final",
     );
 
+    // ── 동시 상신: 한 명만 자리를 잡는다 ──
+    // 가드가 read-then-write면 둘 다 통과해 같은 문서를 두 번 채번하고(결번),
+    // 먼저 깐 결재선을 뒤가 지워 삭제된 스텝을 활성화하다 500이 났다.
+    const race = await db.document.create({
+      data: {
+        tenantId: tenant.id,
+        moduleId: "approvals",
+        type: "gian",
+        docNo: null,
+        title: "동시 상신 경합 기안",
+        status: "draft",
+        createdById: director.id,
+        meta: { cls: { ...cls, docType: "gian", externalApprovers: [] }, draft, plannedSteps: [], form },
+      },
+    });
+    const results = await Promise.all([
+      submitDocument(race.id, director.id),
+      submitDocument(race.id, director.id),
+    ]);
+    assert.equal(
+      results.filter((r) => !r.error).length,
+      1,
+      "동시 상신은 정확히 한 쪽만 성공해야 한다",
+    );
+    assert.equal(
+      await db.approvalStep.count({ where: { documentId: race.id } }),
+      1,
+      "결재선은 한 벌만 깔린다",
+    );
+
+    // ── 폐기된 문서는 승인해도 final로 부활하지 않는다 ──
+    // 입구 검사와 문서 상태 쓰기(조건부 updateMany) 둘 다 pending일 때만 통과한다.
+    // 검사 사이의 진짜 경합 창은 재현이 안 되지만, 쓰기가 조건부인 한 결과는 같다.
+    const raceStep = await db.approvalStep.findFirstOrThrow({
+      where: { documentId: race.id, status: "pending" },
+    });
+    await db.document.update({ where: { id: race.id }, data: { status: "void" } });
+    assert.ok(
+      (await actOnStep(raceStep.id, "approve", "")).error,
+      "폐기된 문서는 승인이 거부된다",
+    );
+    assert.equal(
+      (await db.document.findUniqueOrThrow({ where: { id: race.id } })).status,
+      "void",
+      "폐기 문서가 final로 부활하면 안 된다",
+    );
+
     console.log("approval-run OK");
   } finally {
     // 정리 — ApprovalStep·Notification은 cascade, 문서·유저·단지는 직접

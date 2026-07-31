@@ -162,9 +162,28 @@ export async function submitDocument(docId: string, actorUserId: string) {
       error: `${missing.map((r: ExternalRole) => externalRoleLabels[r]).join("·")}이(가) 등록되지 않았습니다. 설정 > 결재선에서 등록해 주세요.`,
     };
 
+  // 상신 자리를 먼저 잡는다 — 동시 상신(더블클릭·두 탭)이 위의 상태 검사를 나란히
+  // 통과하면 같은 문서를 두 번 채번해 번호가 바뀌고(결번), 먼저 깐 결재선을 뒤가
+  // 지워 삭제된 스텝을 활성화하려다 500이 난다. 읽어 둔 상태 그대로일 때만 진행.
+  const claimed = await db.document.updateMany({
+    where: { id: doc.id, status: doc.status },
+    data: { status: "pending" },
+  });
+  if (claimed.count === 0)
+    return { error: "이미 결재가 진행 중이거나 완료된 문서입니다." };
+
   // 채번은 여기서 — 초안일 때 번호를 주면 올리지 않고 버린 문서가 결번을 남긴다.
   // 재상신이면 이미 번호가 있고, assignDocNo가 그대로 둔다.
-  await assignDocNo(doc);
+  try {
+    await assignDocNo(doc);
+  } catch (e) {
+    // 채번이 무산되면 잡은 자리를 되돌린다 — 아니면 결재선 없는 pending으로 남는다
+    await db.document.updateMany({
+      where: { id: doc.id, status: "pending" },
+      data: { status: doc.status },
+    });
+    throw e;
+  }
 
   // 재상신이면 이전 결재 기록을 지우고 새 스냅샷으로 — 문서 하나에 결재는 한 판
   const now = new Date();
@@ -181,7 +200,6 @@ export async function submitDocument(docId: string, actorUserId: string) {
         actedAt: drafterSigned && i === 0 ? now : null,
       })),
     }),
-    db.document.update({ where: { id: doc.id }, data: { status: "pending" } }),
   ]);
 
   // 기안자 칸은 이미 승인이라 결재 차례는 그 다음부터
@@ -230,10 +248,14 @@ export async function actOnStep(
   const doc = step.document;
 
   if (action === "reject") {
-    await db.document.update({
-      where: { id: doc.id },
+    // 회수·폐기와의 경합 — 그 사이 pending이 아니게 된 문서를 되살리면 안 된다.
+    // 입구 검사는 읽은 시점의 상태라, 쓰는 순간의 상태로 한 번 더 거른다.
+    const rejected = await db.document.updateMany({
+      where: { id: doc.id, status: "pending" },
       data: { status: "rejected" },
     });
+    if (rejected.count === 0)
+      return { error: "문서가 회수되었거나 폐기되어 처리할 수 없습니다." };
     if (doc.createdById)
       await notifyUser({
         tenantId: doc.tenantId,
@@ -254,8 +276,14 @@ export async function actOnStep(
     return {};
   }
 
-  // 마지막 결재자 승인 → 결재 완료.
-  await db.document.update({ where: { id: doc.id }, data: { status: "final" } });
+  // 마지막 결재자 승인 → 결재 완료. 조건부로 쓴다 — 승인 처리 중에 기안자가
+  // 폐기(void)·회수(draft)했다면 그 문서를 final로 부활시키고 공고문까지 파생하게 된다.
+  const finalized = await db.document.updateMany({
+    where: { id: doc.id, status: "pending" },
+    data: { status: "final" },
+  });
+  if (finalized.count === 0)
+    return { error: "문서가 회수되었거나 폐기되어 결재를 완료할 수 없습니다." };
 
   // 공고문 자동 파생 — 승인 전에 만들면 결재도 안 난 공고가 나간다.
   // 실패해도 결재 완료를 되돌리지 않는다: 공고문은 문서 화면에서 언제든 다시 만들 수 있지만,
