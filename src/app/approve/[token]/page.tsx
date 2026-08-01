@@ -56,6 +56,8 @@ export default async function ApproveByTokenPage({
     cls?: { docType: DocType; context: ContractContext };
     quotes?: { vendor: string }[];
     quoteWaiver?: QuoteWaiver;
+    /** 후속 문서(지출결의·완료보고)면 원 품의 — 외부 결재자도 판단 근거를 봐야 한다 */
+    sourceDocId?: string;
   } | null;
   if (!meta?.draft)
     return shell(
@@ -89,15 +91,36 @@ export default async function ApproveByTokenPage({
       )
     : null;
 
-  const paperSteps: PaperStep[] = doc.approvalSteps.map((s) => ({
-    order: s.order,
-    label: s.externalRole
-      ? externalRoleLabels[s.externalRole as ExternalRole]
-      : s.name,
-    status: s.status,
-    name: s.name,
-    actedAt: s.actedAt,
-  }));
+  const toPaperSteps = (
+    steps: (typeof doc.approvalSteps)[number][],
+  ): PaperStep[] =>
+    steps.map((s) => ({
+      order: s.order,
+      label: s.externalRole
+        ? externalRoleLabels[s.externalRole as ExternalRole]
+        : s.name,
+      status: s.status,
+      name: s.name,
+      actedAt: s.actedAt,
+    }));
+  const paperSteps = toPaperSteps(doc.approvalSteps);
+
+  /*
+   * 지출결의·완료보고의 결재라면 원 품의서를 함께 보여준다 — 회장은 로그인이 없어
+   * [원본 품의] 링크를 열 수 없고, "관련근거: 품의-2026-0002" 번호만 보고 서명하게 된다.
+   * 토큰이 가리키는 문서의 원본 하나만 읽으므로 새 권한은 생기지 않는다.
+   */
+  const source = meta.sourceDocId
+    ? await db.document.findFirst({
+        // tenantId 일치까지 검사 — 토큰 문서와 다른 단지의 id가 심겨 있어도 안 보여준다
+        where: { id: meta.sourceDocId, tenantId: doc.tenantId },
+        include: { approvalSteps: { orderBy: { order: "asc" } } },
+      })
+    : null;
+  const sourceMeta = source?.meta as {
+    draft?: GianDraft;
+    cls?: { docType: DocType };
+  } | null;
 
   return shell(
     <>
@@ -162,7 +185,7 @@ export default async function ApproveByTokenPage({
         </aside>
 
         {/* 용지는 210mm 고정이라 좁은 칸에서는 PaperScale이 배율로 줄인다 */}
-        <div className="mt-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:mt-0">
+        <div className="mt-4 min-w-0 space-y-4 lg:col-start-1 lg:row-start-1 lg:mt-0">
           <PaperScale>
             <GianPaper
               // 문서 화면과 같은 규칙 — 회장이 보는 붙임도 실제 첨부파일만이 사실이다
@@ -182,6 +205,27 @@ export default async function ApproveByTokenPage({
               id="sign-sheet"
             />
           </PaperScale>
+
+          {source && sourceMeta?.draft && (
+            <details className="rounded-lg border bg-card">
+              <summary className="cursor-pointer p-4 text-sm font-medium">
+                원본 품의서 펼쳐 보기 — {source.docNo} (결재 완료)
+              </summary>
+              <div className="border-t p-4">
+                <PaperScale>
+                  <GianPaper
+                    draft={sourceMeta.draft}
+                    steps={toPaperSteps(source.approvalSteps)}
+                    docNo={source.docNo}
+                    office={`${tenant?.name ?? ""} 관리사무소`}
+                    docType={sourceMeta.cls?.docType}
+                    createdAt={source.createdAt}
+                    id="source-sheet"
+                  />
+                </PaperScale>
+              </div>
+            </details>
+          )}
         </div>
       </div>
     </>,

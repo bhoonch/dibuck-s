@@ -33,8 +33,8 @@ export default async function DocumentsPage({
     db.document.findMany({
       where: {
         tenantId: session.tenantId!,
-        // 쉼표로 여러 type을 받는다 — 홈의 "결재 대기"는 approval+gian 합계라
-        // 단일 type 필터로는 카운트와 목록이 안 맞는다 (?type=approval,gian)
+        // 쉼표로 여러 type을 받는다 — 홈의 "결재 대기"는 결재 문서 4종 합계라
+        // 단일 type 필터로는 카운트와 목록이 안 맞는다 (?type=approval,gian,report,expense)
         ...(type ? { type: { in: type.split(",") } } : {}),
         ...(status ? { status } : {}),
         ...(since ? { createdAt: { gte: since } } : {}),

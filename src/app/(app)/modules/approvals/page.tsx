@@ -26,6 +26,7 @@ export default async function GianModulePage() {
       type: true,
       title: true,
       status: true,
+      meta: true, // sourceDocId — 파생 관계(품의→공고·보고·지출)를 잇는 유일한 끈
       createdAt: true,
       createdBy: { select: { name: true } },
       // 지금 결재 차례인 사람 — 목록에서 "누구에서 멈춰 있나"가 안 보였다
@@ -36,6 +37,55 @@ export default async function GianModulePage() {
       },
     },
   });
+
+  /*
+   * 원본 중심 목록 — 품의 행에는 파생 문서(공고→완료보고→지출결의) 진행 칩을,
+   * 파생 행에는 원본 문서번호 역링크를 단다. "그 공사 건이 어디까지 갔나"를
+   * 행 하나에서 보게 하기 위한 것으로, 건건이 찾아다니던 불편의 해법이다.
+   */
+  const sourceIdOf = (m: unknown) =>
+    (m as { sourceDocId?: string } | null)?.sourceDocId ?? null;
+  const inList = new Set(docs.map((d) => d.id));
+  // 원본이 100건 창 밖으로 밀려난 파생 문서 — 역링크의 문서번호만 따로 채운다
+  const missingIds = [
+    ...new Set(
+      docs
+        .map((d) => sourceIdOf(d.meta))
+        .filter((id): id is string => !!id && !inList.has(id)),
+    ),
+  ];
+  const extraSources = missingIds.length
+    ? await db.document.findMany({
+        where: { id: { in: missingIds }, tenantId: session.tenantId! },
+        select: { id: true, docNo: true },
+      })
+    : [];
+  const docNoOf = new Map<string, string | null>([
+    ...docs.map((d) => [d.id, d.docNo] as const),
+    ...extraSources.map((d) => [d.id, d.docNo] as const),
+  ]);
+
+  const CHAIN: Record<string, string> = {
+    notice: "공고문",
+    report: "완료보고",
+    expense: "지출결의",
+  };
+  const CHAIN_ORDER = Object.values(CHAIN);
+  const linksOf = new Map<
+    string,
+    { id: string; label: string; status: string }[]
+  >();
+  for (const d of docs) {
+    const sid = sourceIdOf(d.meta);
+    if (!sid || d.status === "void" || !CHAIN[d.type]) continue;
+    const list = linksOf.get(sid) ?? [];
+    list.push({ id: d.id, label: CHAIN[d.type], status: d.status });
+    linksOf.set(sid, list);
+  }
+  for (const list of linksOf.values())
+    list.sort(
+      (a, b) => CHAIN_ORDER.indexOf(a.label) - CHAIN_ORDER.indexOf(b.label),
+    );
 
   return (
     <>
@@ -64,16 +114,21 @@ export default async function GianModulePage() {
         </div>
       ) : (
         <GianTable
-          rows={docs.map((d) => ({
-            id: d.id,
-            docNo: d.docNo ?? "",
-            title: d.title,
-            type: d.type,
-            status: d.status,
-            waitingOn: waitingOnLabel(d.approvalSteps[0]),
-            author: d.createdBy?.name ?? "-",
-            createdAt: ymdKst(d.createdAt),
-          }))}
+          rows={docs.map((d) => {
+            const sid = sourceIdOf(d.meta);
+            return {
+              id: d.id,
+              docNo: d.docNo ?? "",
+              title: d.title,
+              type: d.type,
+              status: d.status,
+              waitingOn: waitingOnLabel(d.approvalSteps[0]),
+              author: d.createdBy?.name ?? "-",
+              createdAt: ymdKst(d.createdAt),
+              source: sid ? { id: sid, docNo: docNoOf.get(sid) ?? "" } : null,
+              links: linksOf.get(d.id) ?? [],
+            };
+          })}
         />
       )}
       {docs.length > 0 && (

@@ -33,9 +33,12 @@ export default async function HomePage() {
 
   // 목록은 상위 10건만, 숫자는 count로 따로 센다 —
   // take한 배열의 length를 KPI·처리율에 쓰면 37건이 10건으로 보이고 처리율이 부풀려진다
+  // 결재를 받는 문서 4종 — 대기·처리율·문서함 링크가 전부 이 목록을 본다.
+  // 나열이 셋으로 갈라져 있던 탓에 지출결의서가 "결재 대기"에서 빠진 적이 있다(2026-08-01).
+  // moduleId로 못 세는 이유: 공고문도 approvals 모듈인데 결재 없이 자동 완료라 처리율을 부풀린다.
+  const APPROVAL_TYPES = ["approval", "gian", "report", "expense"];
   const where = {
-    // 기안·품의 모듈은 gian(기안서)·approval(품의서) 두 type을 쓴다 — 결재 대기는 둘 다
-    approval: { tenantId, type: { in: ["approval", "gian"] }, status: "pending" },
+    approval: { tenantId, type: { in: APPROVAL_TYPES }, status: "pending" },
     contract: { tenantId, type: "contract", dueDate: { gte: now, lte: days(30) } },
     complaint: { tenantId, type: "complaint", status: "open" },
     inspection: { tenantId, type: "inspection", dueDate: { gte: now, lte: days(7) } },
@@ -95,7 +98,7 @@ export default async function HomePage() {
       db.document.count({
         where: {
           tenantId,
-          type: { in: ["approval", "gian"] },
+          type: { in: APPROVAL_TYPES },
           status: "final",
           updatedAt: { gte: monthStart },
         },
@@ -172,7 +175,7 @@ export default async function HomePage() {
   const total =
     counts.approval + counts.contract + counts.complaint + counts.inspection;
   const tiles = [
-    { label: "결재 대기", count: counts.approval, dot: "bg-blue-600", href: "/documents?type=approval,gian" },
+    { label: "결재 대기", count: counts.approval, dot: "bg-blue-600", href: `/documents?type=${APPROVAL_TYPES.join(",")}` },
     { label: "계약 만료 D-30", count: counts.contract, dot: "bg-amber-600", href: "/documents?type=contract" },
     { label: "미처리 민원", count: counts.complaint, dot: "bg-red-600", href: "/documents?type=complaint" },
     { label: "점검 예정", count: counts.inspection, dot: "bg-sky-600", href: "/documents?type=inspection" },
