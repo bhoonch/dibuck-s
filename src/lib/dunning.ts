@@ -29,6 +29,22 @@ export function suggestStage(
 }
 
 /**
+ * (동,호)별 최신 발송 하나만 남긴다 — 그 세대의 현재 상태.
+ * createdAt 내림차순으로 정렬된 입력을 전제한다(처음 만난 것이 최신).
+ * 홈 집계·단계 제안·미납 세대 불러오기가 전부 이 판정을 공유한다.
+ */
+export function latestPerUnit<T extends { dong: string; ho: string }>(
+  entriesDesc: T[],
+): T[] {
+  const seen = new Map<string, T>();
+  for (const e of entriesDesc) {
+    const k = `${e.dong}/${e.ho}`;
+    if (!seen.has(k)) seen.set(k, e);
+  }
+  return [...seen.values()];
+}
+
+/**
  * 금액 문자열 해석 — "456,000원" → 456000. 소수점 앞까지만 취하고("456,000.00"이
  * 45,600,000이 되는 것을 막음), 음수 행은 0을 돌려줘 상위에서 건너뛰게 한다
  * ("-3,000"이 3,000 청구가 되는 것을 막음). 엑셀 파싱·직접 입력 정리가 공유한다.

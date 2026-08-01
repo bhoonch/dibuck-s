@@ -5,6 +5,7 @@ import assert from "node:assert";
 import {
   buildLetter,
   koDate,
+  latestPerUnit,
   parseAmount,
   parseDunningRows,
   suggestStage,
@@ -78,5 +79,14 @@ assert.equal(third.proof!.sender, "행복아파트 관리사무소");
 assert.equal(third.proof!.receiver, "홍길동 (101동 502호)");
 assert.equal(third.proof!.receiverAddr, "서울시 행복구 행복로 123 101동 502호");
 assert.ok(third.paragraphs.some((p) => p.includes("지급명령")));
+
+// (동,호)별 최신 하나만 — desc 정렬 전제, 처음 만난 것이 남는다
+const dedup = latestPerUnit([
+  { dong: "101", ho: "502", stage: 2 }, // 최신
+  { dong: "103", ho: "1201", stage: 1 },
+  { dong: "101", ho: "502", stage: 1 }, // 과거 — 버려진다
+]);
+assert.equal(dedup.length, 2);
+assert.equal(dedup.find((e) => e.dong === "101")!.stage, 2);
 
 console.log("dunning.test.ts 통과");

@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createDocument } from "@/lib/documents";
 import {
+  latestPerUnit,
   parseDunningRows,
   suggestStage,
   type DunningRow,
@@ -43,12 +44,9 @@ async function prepareRows(
     }),
   ]);
   const nameOf = new Map(units.map((u) => [`${u.dong}/${u.ho}`, u.name]));
-  // (동,호)별 최신 발송 하나 — desc 정렬이라 처음 만난 것이 최신
-  const last = new Map<string, { stage: number; paidAt: Date | null }>();
-  for (const e of entries) {
-    const k = `${e.dong}/${e.ho}`;
-    if (!last.has(k)) last.set(k, e);
-  }
+  const last = new Map(
+    latestPerUnit(entries).map((e) => [`${e.dong}/${e.ho}`, e]),
+  );
   return rows.map((r) => ({
     ...r,
     name: r.name ?? nameOf.get(`${r.dong}/${r.ho}`) ?? null,

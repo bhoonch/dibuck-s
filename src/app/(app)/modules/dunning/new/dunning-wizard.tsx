@@ -33,8 +33,17 @@ const STAGES = [1, 2, 3] as const;
 const selectClass =
   "h-8 rounded-md border border-input bg-transparent px-2 text-sm";
 
+type ManualRow = {
+  dong: string;
+  ho: string;
+  amount: string;
+  name: string;
+  period: string;
+};
+
 export function DunningWizard({
   office, address, tel, sealImage, logoImage, defaultAccount,
+  initialManual = [],
 }: {
   office: string;
   address: string | null;
@@ -42,6 +51,8 @@ export function DunningWizard({
   sealImage: string | null;
   logoImage: string | null;
   defaultAccount: string;
+  /** 홈의 "다음 단계 발송"이 미납 중 세대를 채워서 보낸다 — 빈 배열이면 보통 시작 */
+  initialManual?: ManualRow[];
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [rows, setRows] = useState<Row[]>([]);
@@ -63,9 +74,11 @@ export function DunningWizard({
   }
 
   // ① 직접 입력 경로 — 표에 쌓은 행을 같은 준비 함수에 통과시킨다
-  const [manual, setManual] = useState<
-    { dong: string; ho: string; amount: string; name: string; period: string }[]
-  >([{ dong: "", ho: "", amount: "", name: "", period: "" }]);
+  const [manual, setManual] = useState<ManualRow[]>(
+    initialManual.length > 0
+      ? initialManual
+      : [{ dong: "", ho: "", amount: "", name: "", period: "" }],
+  );
   const submitManual = () => {
     const cleaned = manual
       .filter((m) => m.dong.trim() && m.ho.trim() && parseAmount(m.amount))
@@ -138,6 +151,14 @@ export function DunningWizard({
 
       {step === 1 && (
         <div className="space-y-6">
+          {/* 미납 세대를 채워서 들어온 경우 — 표가 먼저 보이도록 엑셀 절보다 위에 안내 */}
+          {initialManual.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              현재 미납 중인 세대 {initialManual.length}곳을 지난 발송 내용으로
+              채웠습니다. 아래 표에서 금액·기간을 이번 회차 기준으로 고친 뒤
+              [다음]을 누르세요 — 단계는 다음 걸음에서 자동 제안됩니다.
+            </p>
+          )}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">엑셀로 올리기</h2>
             <form action={excelAction} className="space-y-3">
@@ -260,6 +281,12 @@ export function DunningWizard({
 
       {step === 2 && (
         <div className="space-y-5">
+          {/* 단계 규칙은 이 화면에서 처음 마주친다 — 제안 근거를 여기서 설명한다 */}
+          <p className="text-xs text-muted-foreground">
+            단계는 발송 이력으로 자동 제안됩니다 — 처음 보내는 세대는 1차 납부
+            안내, 발송 후에도 납부가 없으면 2차 납부 최고, 마지막이 3차
+            내용증명입니다. 세대별로 직접 바꿀 수 있습니다.
+          </p>
           <div className="overflow-x-auto rounded-lg border bg-card">
             <Table>
               <TableHeader>
