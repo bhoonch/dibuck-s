@@ -112,8 +112,11 @@ async function seedDemo() {
     where: { email: "test1@test.com" },
   });
   const days = (n: number) => new Date(Date.now() + n * 86400000);
-  await db.document.deleteMany({ where: { tenantId: tenant.id } }); // 데모 문서는 매번 새로
+  // ⚠️ 문서는 절대 지우지 않는다 — 예전의 deleteMany("데모 문서는 매번 새로")가
+  // dev DB에서 실제로 작성한 기안·품의 문서(결재 기록·첨부 포함)를 전부
+  // 날렸다(2026-08-01 사고). 데모 문서는 문서가 하나도 없을 때만 한 번 심는다.
   const year = new Date().getFullYear();
+  if ((await db.document.count({ where: { tenantId: tenant.id } })) === 0)
   await db.document.createMany({
     data: [
       { tenantId: tenant.id, moduleId: "notice", docNo: `공지-${year}-0001`, type: "notice", title: "단수 안내문 (7/28 오전)", content: "수도 배관 공사로 인한 단수 안내입니다.", status: "final", createdById: director.id },

@@ -39,13 +39,14 @@ export default async function NewDunningPage({
           // 폐기된 회차의 발송은 없던 일
           where: { tenantId: session.tenantId!, document: { status: "final" } },
           orderBy: { createdAt: "desc" },
-          select: { dong: true, ho: true, name: true, amount: true, period: true, paidAt: true, createdAt: true },
+          select: { dong: true, ho: true, name: true, amount: true, period: true, paidAt: true, legalAt: true, createdAt: true },
         })
       : Promise.resolve([]),
   ]);
   const last = (lastDoc?.meta ?? {}) as { account?: string };
   const prefill = latestPerUnit(entries)
-    .filter((e) => !e.paidAt)
+    // 법적 절차 세대는 발송 대상이 아니다
+    .filter((e) => !e.paidAt && !e.legalAt)
     .filter((e) => !wanted || wanted.has(`${e.dong}_${e.ho}`))
     .map((e) => ({
       dong: e.dong,

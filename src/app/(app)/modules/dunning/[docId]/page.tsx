@@ -56,17 +56,8 @@ export default async function DunningDocPage({
   return (
     <>
       <PrintStyle target="dunning-sheets" margin="18mm 20mm" />
-      <BackToTop />
       {/* 기안·공고문과 같은 기둥 — A4 794 + 패널 320, 간격도 같은 gap-6 */}
       <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
-        {/* 텍스트 링크는 사용자에 따라 안 보인다 — 버튼 모양의 [목록] (사용자 피드백) */}
-        <Button asChild variant="outline" size="sm" className="mb-3 print:hidden">
-          <Link href="/modules/dunning">
-            <ChevronLeft className="size-4" />
-            목록
-          </Link>
-        </Button>
-
         {/* 머리줄은 아래 격자와 같은 두 칸 — 인쇄 버튼의 왼쪽 시작선이 오른쪽 목록과 맞는다 */}
         <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_320px]">
           <div className="flex flex-wrap items-center gap-3">
@@ -86,6 +77,13 @@ export default async function DunningDocPage({
             <span className="truncate text-sm text-muted-foreground">
               {doc.title}
             </span>
+            {/* 용지 우측 끝단 자리 — 배지 라인 오른쪽 끝, 기안 갈래의 [내용 수정]과 같은 위치 */}
+            <Button asChild variant="outline" size="sm" className="ml-auto">
+              <Link href="/modules/dunning">
+                <ChevronLeft className="size-4" />
+                목록
+              </Link>
+            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {!voided && <PrintButton />}
@@ -110,6 +108,7 @@ export default async function DunningDocPage({
             </PaperScale>
           </div>
           <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
+            <BackToTop />
             {hasProof && (
               <p className="text-xs text-muted-foreground">
                 내용증명은 같은 문서 3부를 우체국에 제출합니다. [우체국 수신인 목록]은 인터넷우체국

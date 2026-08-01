@@ -189,6 +189,20 @@ export async function markEntryPaid(entryId: string) {
 }
 
 /**
+ * 법적 절차(지급명령 등) 진행 표시 — 3차 이후를 구분만 한다(별도 모듈 없음).
+ * 켜면 미납 목록에서 따로 묶이고 발송 대상 선택에서 빠진다. 해제 가능.
+ */
+export async function markEntryLegal(entryId: string, on: boolean) {
+  const session = await requireDunning();
+  await db.dunningEntry.updateMany({
+    where: { id: entryId, tenantId: session.tenantId! },
+    data: { legalAt: on ? new Date() : null },
+  });
+  revalidatePath("/modules/dunning");
+  return { ok: true };
+}
+
+/**
  * 회차 폐기 — 잘못 만든 회차의 유일한 정정 경로(문서는 수정 불가 확정본).
  * 하드 삭제가 아니라 status: void — 문서함에 "폐기"로 남고,
  * 단계 제안·홈 집계에서는 빠진다(entries 조회가 document.status: final만 본다).

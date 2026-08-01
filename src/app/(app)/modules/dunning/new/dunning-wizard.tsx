@@ -397,48 +397,54 @@ export function DunningWizard({
       )}
 
       {step === 3 && (
-        /* 용지(794px)와 같은 폭의 기둥에 버튼·문구를 맞춘다 — 넓은 화면에서
-           버튼은 양 끝, 용지는 가운데로 흩어지면 정렬이 깨져 보인다 */
-        <div className="mx-auto w-full max-w-[794px] space-y-5">
-          {/* 해야 할 일은 위 — 대량이면 용지 수십 장 아래로 버튼을 찾으러 내려가게 하지 않는다 */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={() => setStep(2)}
-                disabled={pending}
-              >
-                이전
-              </Button>
-              <span className="text-sm text-muted-foreground">{summary}</span>
+        /* 상세 화면과 같은 기둥(용지 794 + 조치 320) — 미리보기만 가운데 정렬이면
+           다른 문서 화면과 자리가 어긋난다(사용자 피드백). 조치는 오른쪽 칸,
+           xl 미만에서는 조치 칸이 용지 위로 올라와 버튼이 먼저 보인다. */
+        <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
+            <div className="order-2 min-w-0 xl:order-1">
+              <PaperScale>
+                <DunningSheets
+                  letters={letters.slice(0, 5)}
+                  docNo="(생성 시 채번)"
+                  sentDate={koDate(ymdKst(new Date()))}
+                  office={office}
+                  tel={tel}
+                  sealImage={sealImage}
+                  logoImage={logoImage}
+                />
+              </PaperScale>
+              {rows.length > 5 && (
+                <p className="mt-3 text-center text-sm text-muted-foreground">
+                  외 {rows.length - 5}세대 (전체는 생성 후 상세에서 확인할 수
+                  있습니다)
+                </p>
+              )}
             </div>
-            <Button
-              type="button"
-              size="lg"
-              onClick={create}
-              disabled={pending || !dueDate || !account.trim()}
-            >
-              {pending ? "생성 중..." : `${rows.length}세대 독촉장 만들기`}
-            </Button>
+            <aside className="order-1 flex flex-col gap-3 xl:order-2 xl:sticky xl:top-5">
+              <div className="space-y-3 rounded-xl border bg-card p-4">
+                <p className="text-sm font-medium">{summary}</p>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={create}
+                  disabled={pending || !dueDate || !account.trim()}
+                >
+                  {pending ? "생성 중..." : `${rows.length}세대 독촉장 만들기`}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStep(2)}
+                  disabled={pending}
+                >
+                  이전
+                </Button>
+              </div>
+            </aside>
           </div>
-          <PaperScale>
-            <DunningSheets
-              letters={letters.slice(0, 5)}
-              docNo="(생성 시 채번)"
-              sentDate={koDate(ymdKst(new Date()))}
-              office={office}
-              tel={tel}
-              sealImage={sealImage}
-              logoImage={logoImage}
-            />
-          </PaperScale>
-          {rows.length > 5 && (
-            <p className="text-center text-sm text-muted-foreground">
-              외 {rows.length - 5}세대 (전체는 생성 후 상세에서 확인할 수 있습니다)
-            </p>
-          )}
         </div>
       )}
     </div>

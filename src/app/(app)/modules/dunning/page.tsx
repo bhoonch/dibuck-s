@@ -43,7 +43,8 @@ export default async function DunningHomePage() {
 
   const open = latestPerUnit(entries).filter((e) => !e.paidAt);
   const total = open.reduce((s, e) => s + e.amount, 0);
-  const stale = open.filter((e) => e.createdAt <= monthAgo());
+  // 법적 절차 세대는 재발송 검토 대상이 아니다 — 문서가 아니라 법원 절차의 시간
+  const stale = open.filter((e) => !e.legalAt && e.createdAt <= monthAgo());
   // 회차별 세대수·단계 구성·검색용 세대 나열
   const perDoc = new Map<
     string,
@@ -111,6 +112,7 @@ export default async function DunningHomePage() {
             next: suggestStage(e),
             lastSent: ymdKst(e.createdAt),
             stale: e.createdAt <= monthAgo(),
+            legalSince: e.legalAt ? ymdKst(e.legalAt) : null,
           }))}
         />
       )}

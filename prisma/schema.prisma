@@ -162,6 +162,9 @@ model DunningEntry {
   period    String?
   stage     Int // 1 납부 안내 · 2 납부 최고 · 3 내용증명
   paidAt    DateTime? // 납부 확인 시각 — 다음 회차 단계 제안이 이 값을 본다
+  /// 법적 절차(지급명령 등) 진행 표시 — 3차 이후를 구분만 한다(별도 모듈 없음).
+  /// 미납 목록에서 따로 묶이고 발송 대상 선택에서 빠진다.
+  legalAt   DateTime?
   createdAt DateTime  @default(now())
 
   @@index([tenantId, dong, ho])
