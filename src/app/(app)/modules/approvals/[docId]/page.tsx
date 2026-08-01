@@ -433,7 +433,10 @@ export default async function GianDocumentPage({
           >
             &ldquo;{vagueLine.trim()}&rdquo; — 날짜가 이미 잡혔다면 결재 전에
             채워 주세요(결재 후에는 본문을 고칠 수 없습니다). 미정이면 그대로
-            진행해도 됩니다 — 확정 일정은 결재 후 공고문에서 적습니다.
+            진행해도 됩니다.
+            <span className="mt-1 block">
+              확정 일정은 결재 후 공고문에서 적습니다.
+            </span>
           </AttentionCard>
         )}
 
