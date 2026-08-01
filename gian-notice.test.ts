@@ -5,6 +5,7 @@ import assert from "node:assert";
 import {
   vagueScheduleLine,
   buildNotice,
+  draftWorkName,
   isConcreteSchedule,
   josa,
   mergePlaces,
@@ -215,6 +216,12 @@ const noDraft = buildNotice({ form: kw, ...base });
 assert.equal(vOf(noDraft, "공사내용"), "LED 교체");
 assert.equal(vOf(noDraft, "공사위치"), "지하주차장");
 console.log("✓ 공고문이 결재된 본문을 싣는다");
+
+// 후속 문서(지출결의·완료보고)의 공사명도 같은 규칙 — 결재된 본문 먼저, 없으면 원 입력
+// "주차장 led 공ㅇ사" 오타 입력이 지출결의서 제목으로 번진 사고(품의-2026-0002)
+assert.equal(draftWorkName(draft), "지하주차장 노후 등기구 LED 교체 공사");
+assert.equal(draftWorkName(undefined), ""); // 옛 문서 — 호출부가 form.work로 떨어진다
+console.log("✓ 후속 문서 공사명도 결재된 본문을 쓴다");
 
 // 초안 경고 카드는 진짜 빈칸(○)만 잡는다 — 미확정 표현은 정상 기록이라 경고 안 함
 const sched = (lines: string[]) => [{ heading: "추진일정", lines }];

@@ -19,6 +19,7 @@ import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
 import type { GianDraft } from "@/lib/gian/claude";
 import {
   createNoticeFrom,
+  draftWorkName,
   findNoticeFor,
   mergePlaces,
   parseNoticeRow,
@@ -270,6 +271,7 @@ export async function createFollowup(formData: FormData) {
   const meta = doc.meta as {
     cls?: Classification;
     form?: { work: string };
+    draft?: GianDraft;
     quotes?: { vendor: string; amount: number }[];
   } | null;
   if (!meta?.cls || !meta.form) return;
@@ -283,7 +285,8 @@ export async function createFollowup(formData: FormData) {
     docNo: doc.docNo ?? "",
     title: doc.title,
     approvedAt: doc.updatedAt,
-    work: meta.form.work,
+    // 공고문과 같은 규칙 — 결재된 본문의 공사명 먼저, 없으면 원 입력
+    work: draftWorkName(meta.draft) || meta.form.work,
     vendor: meta.quotes?.[0]?.vendor ?? "",
     amountRaw: meta.cls.amountRaw,
     vatIncluded: meta.cls.vatIncluded,

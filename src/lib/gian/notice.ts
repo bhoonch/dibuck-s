@@ -108,6 +108,14 @@ function labelValue(draft: GianDraft | undefined, label: RegExp) {
   return "";
 }
 
+/**
+ * 결재된 본문의 공사명 — 공고문뿐 아니라 후속 문서(지출결의·완료보고)도 이걸 먼저 쓴다.
+ * 원 입력(meta.form.work)은 "주차장 led 공ㅇ사" 같은 날 것의 키워드라, 결재까지 끝난
+ * 문서가 있는데 그걸 다시 실으면 오타·비문이 후속 문서로 번진다(품의-2026-0002).
+ */
+export const draftWorkName = (draft?: GianDraft) =>
+  labelValue(draft, /공사명|사업명|용역명|점검명|안건명/);
+
 /** 목적·배경 절의 개조식 항목들 → 공고문 유의사항 한 줄 ("가." 기호는 뗀다) */
 function purposeOf(draft: GianDraft | undefined) {
   const sec = draft?.sections.find((s) => /목적|배경|사유/.test(s.heading));
@@ -130,10 +138,7 @@ export function buildNotice(input: {
   // 일정만은 초안을 안 본다 — 초안의 일정은 "○월 ○일"인 경우가 흔하고,
   // 이 값은 게시 전 확정 카드(isConcreteSchedule)가 잡아서 고치게 돼 있다
   const schedule = form.schedule;
-  const work =
-    labelValue(draft, /공사명|사업명|용역명|점검명|안건명/) ||
-    form.work.trim() ||
-    "안건";
+  const work = draftWorkName(draft) || form.work.trim() || "안건";
   const location =
     labelValue(draft, /공사위치|작업위치|대상범위|점검대상|위치|대상/) ||
     form.location.trim();

@@ -5,6 +5,8 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { formatMoney, type Classification } from "@/lib/gian/rules";
+import type { GianDraft } from "@/lib/gian/claude";
+import { draftWorkName } from "@/lib/gian/notice";
 import {
   findFollowupFor,
   followupMeta,
@@ -82,6 +84,7 @@ export default async function FollowupFormPage({
   const meta = doc.meta as {
     cls?: Classification;
     form?: { work: string };
+    draft?: GianDraft;
     quotes?: { vendor: string; amount: number }[];
   } | null;
   if (!meta?.cls || !meta.form) notFound();
@@ -115,7 +118,9 @@ export default async function FollowupFormPage({
       <div className="max-w-[794px] space-y-4 rounded-lg border border-[var(--gian-line)] bg-[var(--gian-card)] p-6 shadow-[var(--gian-shadow)]">
         {/* 상속되는 값 — 입력칸이 아니라 사실 확인용 요약이다 */}
         <div className="rounded-md border border-[var(--gian-line)] bg-[var(--gian-paper)] px-4 py-3 text-sm">
-          <p className="font-semibold">{meta.form.work}</p>
+          <p className="font-semibold">
+            {draftWorkName(meta.draft) || meta.form.work}
+          </p>
           <p className="mt-1 text-[var(--gian-ink-soft)]">
             {doc.docNo} · {formatMoney(meta.cls.amountRaw, meta.cls.vatIncluded)}
             {vendor && ` · ${vendor}`}
