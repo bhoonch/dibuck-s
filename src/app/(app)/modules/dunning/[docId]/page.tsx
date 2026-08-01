@@ -4,12 +4,14 @@ import { ChevronLeft } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
+import { Role } from "@/generated/prisma/enums";
 import { buildLetter, koDate, type DunningStage } from "@/lib/dunning";
+import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { PaperScale } from "@/components/paper-scale";
 import { PrintStyle } from "@/components/gian-paper";
 import { DunningSheets } from "@/components/dunning-paper";
-import { EntriesTable } from "./entries-table";
+import { EntriesPanel } from "./entries-panel";
 import { PrintButton } from "./print-button";
 
 export default async function DunningDocPage({
@@ -45,6 +47,10 @@ export default async function DunningDocPage({
     }),
   );
   const hasProof = entries.some((e) => e.stage === 3);
+  const voided = doc.status === "void";
+  // 폐기는 작성자 본인 또는 마스터 — 문서 수정·폐기의 공통 경계
+  const canVoid =
+    doc.createdById === session.userId || session.role === Role.DIRECTOR;
 
   return (
     <>
@@ -68,13 +74,20 @@ export default async function DunningDocPage({
             <span className="text-sm text-[var(--gian-ink-soft)]">
               {doc.docNo}
             </span>
+            {voided && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles.void}`}
+              >
+                {docStatusLabels.void}
+              </span>
+            )}
             <span className="truncate text-sm text-muted-foreground">
               {doc.title}
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            <PrintButton />
-            {hasProof && (
+            {!voided && <PrintButton />}
+            {!voided && hasProof && (
               <Button asChild variant="outline">
                 {/* 내용증명은 우체국 발송이 마지막 걸음 — 인터넷우체국 편지병합에 올릴 수신인 목록 */}
                 <a href={`/modules/dunning/${doc.id}/postal`} download>우체국 수신인 목록</a>
@@ -102,10 +115,14 @@ export default async function DunningDocPage({
                 내려받은 파일을 인터넷우체국 양식에 맞게 조정해 주세요.
               </p>
             )}
-            <EntriesTable
-              rows={entries.map((e) => ({
+            <EntriesPanel
+              docId={doc.id}
+              voided={voided}
+              canVoid={canVoid}
+              rows={entries.map((e, i) => ({
                 id: e.id, unit: `${e.dong}동 ${e.ho}호`, name: e.name ?? "",
-                amount: e.amount, stage: e.stage, paid: !!e.paidAt,
+                amount: e.amount, stage: e.stage as DunningStage, paid: !!e.paidAt,
+                sheetId: `dunning-sheet-${i}`,
               }))}
             />
           </aside>

@@ -33,6 +33,12 @@ const STAGES = [1, 2, 3] as const;
 const selectClass =
   "h-8 rounded-md border border-input bg-transparent px-2 text-sm";
 
+/** 금액 입력 표기 — 치는 대로 천 단위 콤마를 넣는다("456000" → "456,000") */
+const fmtAmount = (v: string) => {
+  const digits = v.replace(/[^\d]/g, "");
+  return digits ? Number(digits).toLocaleString("ko-KR") : "";
+};
+
 type ManualRow = {
   dong: string;
   ho: string;
@@ -223,9 +229,12 @@ export function DunningWizard({
                       </TableCell>
                       <TableCell>
                         <Input
+                          inputMode="numeric"
                           value={m.amount}
-                          onChange={(e) => updateManual(i, { amount: e.target.value })}
-                          placeholder="250000"
+                          onChange={(e) =>
+                            updateManual(i, { amount: fmtAmount(e.target.value) })
+                          }
+                          placeholder="250,000"
                           className="w-28"
                         />
                       </TableCell>
@@ -389,7 +398,29 @@ export function DunningWizard({
 
       {step === 3 && (
         <div className="space-y-5">
-          <p className="text-sm text-muted-foreground">{summary}</p>
+          {/* 해야 할 일은 위 — 대량이면 용지 수십 장 아래로 버튼을 찾으러 내려가게 하지 않는다 */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => setStep(2)}
+                disabled={pending}
+              >
+                이전
+              </Button>
+              <span className="text-sm text-muted-foreground">{summary}</span>
+            </div>
+            <Button
+              type="button"
+              size="lg"
+              onClick={create}
+              disabled={pending || !dueDate || !account.trim()}
+            >
+              {pending ? "생성 중..." : `${rows.length}세대 독촉장 만들기`}
+            </Button>
+          </div>
           <PaperScale>
             <DunningSheets
               letters={letters.slice(0, 5)}
@@ -406,25 +437,6 @@ export function DunningWizard({
               외 {rows.length - 5}세대 (전체는 생성 후 상세에서 확인할 수 있습니다)
             </p>
           )}
-          <div className="flex items-center justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => setStep(2)}
-              disabled={pending}
-            >
-              이전
-            </Button>
-            <Button
-              type="button"
-              size="lg"
-              onClick={create}
-              disabled={pending || !dueDate || !account.trim()}
-            >
-              {pending ? "생성 중..." : `${rows.length}세대 독촉장 만들기`}
-            </Button>
-          </div>
         </div>
       )}
     </div>

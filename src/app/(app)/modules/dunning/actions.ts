@@ -38,7 +38,8 @@ async function prepareRows(
       select: { dong: true, ho: true, name: true },
     }),
     db.dunningEntry.findMany({
-      where: { tenantId, OR: or },
+      // 폐기된 회차는 없던 발송 — 단계 제안에 세지 않는다
+      where: { tenantId, OR: or, document: { status: "final" } },
       orderBy: { createdAt: "desc" },
       select: { dong: true, ho: true, stage: true, paidAt: true },
     }),
@@ -104,11 +105,18 @@ export async function createDunningBatch(payload: {
   if (!account) return { error: "납부 계좌를 입력해 주세요." };
 
   const now = new Date();
+  // 제목은 동호수로 시작한다 — 목록·문서함에서 "몇 동 몇 호 건"으로 찾기 때문.
+  // content에 세대 나열을 실어 문서함 검색(제목·내용·번호)이 동호·이름으로도 걸리게 한다.
+  const first = `${rows[0].dong}동 ${rows[0].ho}호`;
+  const unitList = rows.map((r) => `${r.dong}동 ${r.ho}호${r.name ? ` ${r.name}` : ""}`);
   const doc = await createDocument({
     tenantId,
     moduleId: "dunning",
     type: "dunning_letter",
-    title: `미납 관리비 독촉 — ${now.getFullYear()}년 ${now.getMonth() + 1}월 (${rows.length}세대)`,
+    title: `미납 관리비 독촉 — ${first}${rows.length > 1 ? ` 외 ${rows.length - 1}세대` : ""}`,
+    content:
+      unitList.slice(0, 100).join(", ") +
+      (unitList.length > 100 ? ` 외 ${unitList.length - 100}세대` : ""),
     status: "final", // 관리사무소장 명의 즉시 확정 — 공고문과 같은 취급
     createdById: session.userId,
     meta: { dueDate: payload.dueDate, account, sentDate: ymdKst(now) },
@@ -136,22 +144,54 @@ export async function createDunningBatch(payload: {
   redirect(`/modules/dunning/${doc.id}`);
 }
 
-export async function toggleEntryPaid(formData: FormData) {
+/**
+ * 납부 확인 일괄 저장 — 화면에서 체크한 상태(paidIds)를 그대로 반영한다.
+ * 체크마다 바로 쓰는 방식은 "저장이 안 된 것 같다"는 불안을 만들어
+ * [저장] 버튼이 있는 명시적 저장으로 바꿨다(사용자 피드백).
+ */
+export async function savePaidEntries(docId: string, paidIds: string[]) {
   const session = await requireDunning();
-  const id = String(formData.get("id"));
-  const entry = await db.dunningEntry.findFirst({
-    where: { id, tenantId: session.tenantId! }, // tenantId가 소유권 검사
+  const tenantId = session.tenantId!;
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: "dunning_letter" }, // tenantId가 소유권 검사
+    select: { id: true },
   });
-  if (!entry) return;
-  // 조건부 updateMany — 읽은 스냅숏(paidAt)과 지금 DB 값이 다르면(동시 토글) 무동작
-  await db.dunningEntry.updateMany({
-    where: {
-      id,
-      tenantId: session.tenantId!,
-      paidAt: entry.paidAt ? { not: null } : null,
-    },
-    data: { paidAt: entry.paidAt ? null : new Date() },
-  });
-  revalidatePath(`/modules/dunning/${entry.docId}`);
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  await db.$transaction([
+    db.dunningEntry.updateMany({
+      where: { docId, tenantId, id: { in: paidIds }, paidAt: null },
+      data: { paidAt: new Date() },
+    }),
+    db.dunningEntry.updateMany({
+      // not: null = "값이 있는 행" — 체크 해제된 세대의 납부 표시를 되돌린다
+      where: { docId, tenantId, id: { notIn: paidIds }, paidAt: { not: null } },
+      data: { paidAt: null },
+    }),
+  ]);
+  revalidatePath(`/modules/dunning/${docId}`);
   revalidatePath("/modules/dunning");
+  return { ok: true };
+}
+
+/**
+ * 회차 폐기 — 잘못 만든 회차의 유일한 정정 경로(문서는 수정 불가 확정본).
+ * 하드 삭제가 아니라 status: void — 문서함에 "폐기"로 남고,
+ * 단계 제안·홈 집계에서는 빠진다(entries 조회가 document.status: final만 본다).
+ */
+export async function voidDunningBatch(docId: string) {
+  const session = await requireDunning();
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId: session.tenantId!, type: "dunning_letter" },
+    select: { id: true, createdById: true },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  // 폐기는 작성자 본인 또는 마스터 — 문서 수정·폐기의 공통 경계
+  if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
+    return { error: "폐기는 작성자 또는 마스터만 할 수 있습니다." };
+  await db.document.updateMany({
+    where: { id: docId, status: "final" },
+    data: { status: "void" },
+  });
+  revalidatePath("/modules/dunning");
+  redirect("/modules/dunning");
 }

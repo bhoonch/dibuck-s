@@ -6,7 +6,6 @@ import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import {
   latestPerUnit,
-  stageLabels,
   suggestStage,
   won,
   type DunningStage,
@@ -15,16 +14,9 @@ import { ymdKst } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { SummaryBox, SummaryStat } from "@/components/ui/summary-box";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { AttentionCard } from "@/components/attention-card";
 import { DunningDocsTable } from "./dunning-docs-table";
+import { UnpaidTable } from "./unpaid-table";
 
 /** 재발송 검토 기준 — 마지막 발송 후 30일 */
 const monthAgo = () => new Date(Date.now() - 30 * 86400000);
@@ -41,9 +33,10 @@ export default async function DunningHomePage() {
       take: 100,
       select: { id: true, docNo: true, title: true, createdAt: true },
     }),
-    // ponytail: 전량 로드 후 JS 집계 — 회차가 월 1~2회라 수년치도 수천 행이다
+    // ponytail: 전량 로드 후 JS 집계 — 회차가 월 1~2회라 수년치도 수천 행이다.
+    // 폐기된 회차의 발송은 없던 일 — 집계·단계 판정에 세지 않는다.
     db.dunningEntry.findMany({
-      where: { tenantId },
+      where: { tenantId, document: { status: "final" } },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -51,11 +44,25 @@ export default async function DunningHomePage() {
   const open = latestPerUnit(entries).filter((e) => !e.paidAt);
   const total = open.reduce((s, e) => s + e.amount, 0);
   const stale = open.filter((e) => e.createdAt <= monthAgo());
-  const perDoc = new Map<string, number>();
-  for (const e of entries) perDoc.set(e.docId, (perDoc.get(e.docId) ?? 0) + 1);
+  // 회차별 세대수·단계 구성·검색용 세대 나열
+  const perDoc = new Map<
+    string,
+    { count: number; stages: Map<number, number>; units: string[] }
+  >();
+  for (const e of entries) {
+    const d = perDoc.get(e.docId) ?? {
+      count: 0,
+      stages: new Map<number, number>(),
+      units: [] as string[],
+    };
+    d.count++;
+    d.stages.set(e.stage, (d.stages.get(e.stage) ?? 0) + 1);
+    d.units.push(`${e.dong}동 ${e.ho}호${e.name ? ` ${e.name}` : ""}`);
+    perDoc.set(e.docId, d);
+  }
 
   return (
-    <>
+    <div className="space-y-6">
       <PageHeader
         title="미납 독촉장"
         description="1차 납부 안내 → 2차 납부 최고 → 3차 내용증명 순으로 문서를 만들어 보냅니다. 발송 후에도 미납이면 다음 단계가 자동 제안됩니다."
@@ -92,66 +99,38 @@ export default async function DunningHomePage() {
           {stale.length > 8 && ` 외 ${stale.length - 8}세대`}
         </AttentionCard>
       )}
-      {/* 1차를 보낸 다음 걸음이 이 화면에 보여야 한다 — 세대별 현재 단계와
-          다음에 나갈 문서를 표로 보여 주고, 그대로 채워진 마법사로 잇는다 */}
       {open.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">미납 중 세대 {open.length}</h2>
-            <Button asChild variant="outline">
-              <Link href="/modules/dunning/new?from=unpaid">
-                다음 단계 독촉장 만들기
-              </Link>
-            </Button>
-          </div>
-          <div className="overflow-x-auto rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>세대</TableHead>
-                  <TableHead>이름</TableHead>
-                  <TableHead>미납액</TableHead>
-                  <TableHead>마지막 발송</TableHead>
-                  <TableHead>다음 발송 시</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {open.map((e) => {
-                  const next = suggestStage(e);
-                  return (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-medium">
-                        {e.dong}동 {e.ho}호
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {e.name ?? "-"}
-                      </TableCell>
-                      <TableCell>{won(e.amount)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {e.stage}차 {stageLabels[e.stage as DunningStage]} ·{" "}
-                        {ymdKst(e.createdAt)}
-                        {e.createdAt <= monthAgo() && " (30일 지남)"}
-                      </TableCell>
-                      <TableCell>
-                        {next}차 {stageLabels[next]}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
+        <UnpaidTable
+          rows={open.map((e) => ({
+            id: e.id,
+            dong: e.dong,
+            ho: e.ho,
+            name: e.name,
+            amount: e.amount,
+            stage: e.stage as DunningStage,
+            next: suggestStage(e),
+            lastSent: ymdKst(e.createdAt),
+            stale: e.createdAt <= monthAgo(),
+          }))}
+        />
       )}
       <DunningDocsTable
-        rows={docs.map((d) => ({
-          id: d.id,
-          docNo: d.docNo ?? "",
-          title: d.title,
-          count: perDoc.get(d.id) ?? 0,
-          date: ymdKst(d.createdAt),
-        }))}
+        rows={docs.map((d) => {
+          const info = perDoc.get(d.id);
+          return {
+            id: d.id,
+            docNo: d.docNo ?? "",
+            title: d.title,
+            units: info?.units.join(", ") ?? "",
+            stages: [1, 2, 3]
+              .filter((s) => info?.stages.get(s))
+              .map((s) => `${s}차 ${info!.stages.get(s)}`)
+              .join(" · "),
+            count: info?.count ?? 0,
+            date: ymdKst(d.createdAt),
+          };
+        })}
       />
-    </>
+    </div>
   );
 }

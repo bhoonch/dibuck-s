@@ -27,7 +27,9 @@ export function DunningSheets({
       {letters.map((letter, i) => (
         <div
           key={i}
-          className="flex w-full max-w-[210mm] shrink-0 break-after-page flex-col border bg-white px-[20mm] py-[18mm] text-[11.5pt] leading-[1.8] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
+          // id = 우측 세대 목록에서 이 장으로 바로 오는 앵커. scroll-mt는 상단 바 높이만큼
+          id={`dunning-sheet-${i}`}
+          className="flex w-full max-w-[210mm] shrink-0 scroll-mt-20 break-after-page flex-col border bg-white px-[20mm] py-[18mm] text-[11.5pt] leading-[1.8] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
         >
           {/* 문서번호·발송일 — 우편물이라 게시표(3분할 헤더)가 아니라 소자 한 줄 */}
           <div className="flex justify-between text-[9pt] text-[#555]">
