@@ -265,8 +265,8 @@ export function GianForm({
             autoComplete="off"
           />
           <Hint>
-            날짜를 확정하지 않았으면 &ldquo;8월 중&rdquo;처럼 대략만 적어도
-            됩니다.
+            몇 월인지라도 알면 &ldquo;8월 중&rdquo;처럼 대략만 적어 주세요.
+            비워 두면 문서에 &ldquo;결재 후 확정&rdquo;으로 적힙니다.
           </Hint>
         </div>
 

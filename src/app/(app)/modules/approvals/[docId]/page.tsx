@@ -422,7 +422,7 @@ export default async function GianDocumentPage({
         {canEdit && vagueLine && (
           <AttentionCard
             className="mb-4"
-            title="추진일정이 아직 확정되지 않았습니다"
+            title="추진일정이 미정으로 적혀 있습니다"
             action={
               <Button asChild variant="outline" className="mt-3">
                 <Link href={`/modules/approvals/${doc.id}/edit`}>
@@ -431,8 +431,9 @@ export default async function GianDocumentPage({
               </Button>
             }
           >
-            &ldquo;{vagueLine.trim()}&rdquo; — 날짜가 정해졌다면 결재를 올리기
-            전에 채워 주세요. 미정인 채로 올려도 결재는 진행됩니다.
+            &ldquo;{vagueLine.trim()}&rdquo; — 날짜가 이미 잡혔다면 결재 전에
+            채워 주세요(결재 후에는 본문을 고칠 수 없습니다). 미정이면 그대로
+            진행해도 됩니다 — 확정 일정은 결재 후 공고문에서 적습니다.
           </AttentionCard>
         )}
 
