@@ -209,21 +209,18 @@ export function parseNoticeRow(line: string): NoticeDoc["rows"][number] {
 }
 
 /**
- * 초안의 일정 절이 "2026년 ○월 ○일"처럼 미정으로 남아 있는가.
- * ○ 표기는 공문에서 미정을 뜻하는 정식 관행이라 틀린 게 아니다 — 다만 계약이 잡힌 뒤에도
- * 그대로 결재에 올라가는 일이 있어, 초안 화면에서 한 번 짚어 준다.
- * 결재를 막지는 않는다(공고문 게시 때와 같은 판단).
+ * 초안의 일정 절에 "○월 ○일" 같은 **빈칸(○)**이 남아 있는가.
+ * 예전엔 미확정 표현("8월 중") 전부를 잡았지만, 이제 초안 생성이 빈칸을 쓰지 않고
+ * 미정을 완결된 문장("8월 중", "결재 후 계약 체결 시 확정")으로 적으므로 미확정은
+ * 정상 기록이다 — 경고가 상시 노출되면 정작 필요한 경고까지 무시된다(사용자 확정
+ * 2026-08-01). 남은 위험은 규칙 변경 전에 만든 옛 초안의 진짜 빈칸뿐이라 ○만 잡는다.
+ * 결재를 막지는 않는다.
  */
 export function vagueScheduleLine(
   sections: { heading: string; lines: string[] }[],
 ): string | null {
   const sec = sections.find((s) => /일정/.test(s.heading));
-  return (
-    sec?.lines.find((l) => {
-      const value = l.split(/[:：]/).slice(1).join(":");
-      return value.trim() ? !isConcreteSchedule(value) : false;
-    }) ?? null
-  );
+  return sec?.lines.find((l) => l.includes("○")) ?? null;
 }
 
 /**

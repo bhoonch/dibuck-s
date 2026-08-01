@@ -3,6 +3,7 @@
  */
 import assert from "node:assert";
 import {
+  vagueScheduleLine,
   buildNotice,
   isConcreteSchedule,
   josa,
@@ -214,3 +215,14 @@ const noDraft = buildNotice({ form: kw, ...base });
 assert.equal(vOf(noDraft, "공사내용"), "LED 교체");
 assert.equal(vOf(noDraft, "공사위치"), "지하주차장");
 console.log("✓ 공고문이 결재된 본문을 싣는다");
+
+// 초안 경고 카드는 진짜 빈칸(○)만 잡는다 — 미확정 표현은 정상 기록이라 경고 안 함
+const sched = (lines: string[]) => [{ heading: "추진일정", lines }];
+assert.equal(
+  vagueScheduleLine(sched(["가. 계약체결: 2026년 8월 ○일"])),
+  "가. 계약체결: 2026년 8월 ○일",
+);
+assert.equal(vagueScheduleLine(sched(["가. 계약체결: 2026년 8월 중"])), null);
+assert.equal(vagueScheduleLine(sched(["결재 후 계약 체결 시 확정"])), null);
+assert.equal(vagueScheduleLine([{ heading: "소요예산", lines: ["○○원"] }]), null);
+console.log("✓ 일정 경고는 빈칸(○)만 잡는다");
