@@ -18,6 +18,7 @@ model Tenant {
   id                  String       @id @default(cuid())
   name                String // 단지명
   address             String?
+  zipcode             String? // 우편번호 — 내용증명 우체국 수신인 목록에 쓴다
   phone               String? // 관리사무소 대표번호 — 공고문 하단 TEL
   fax                 String?
   households          Int? // 세대수

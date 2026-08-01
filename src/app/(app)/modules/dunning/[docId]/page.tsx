@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { PaperScale } from "@/components/paper-scale";
 import { PrintStyle } from "@/components/gian-paper";
 import { DunningSheets } from "@/components/dunning-paper";
+import { BackToTop } from "./back-to-top";
 import { EntriesPanel } from "./entries-panel";
 import { PrintButton } from "./print-button";
 
@@ -55,15 +56,16 @@ export default async function DunningDocPage({
   return (
     <>
       <PrintStyle target="dunning-sheets" margin="18mm 20mm" />
+      <BackToTop />
       {/* 기안·공고문과 같은 기둥 — A4 794 + 패널 320, 간격도 같은 gap-6 */}
       <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
-        <Link
-          href="/modules/dunning"
-          className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground print:hidden"
-        >
-          <ChevronLeft className="size-4" />
-          목록
-        </Link>
+        {/* 텍스트 링크는 사용자에 따라 안 보인다 — 버튼 모양의 [목록] (사용자 피드백) */}
+        <Button asChild variant="outline" size="sm" className="mb-3 print:hidden">
+          <Link href="/modules/dunning">
+            <ChevronLeft className="size-4" />
+            목록
+          </Link>
+        </Button>
 
         {/* 머리줄은 아래 격자와 같은 두 칸 — 인쇄 버튼의 왼쪽 시작선이 오른쪽 목록과 맞는다 */}
         <div className="mb-3.5 grid gap-x-6 gap-y-3 print:hidden xl:grid-cols-[minmax(0,794px)_320px]">

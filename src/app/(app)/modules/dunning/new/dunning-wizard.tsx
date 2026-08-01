@@ -18,7 +18,7 @@ import {
 import { PaperScale } from "@/components/paper-scale";
 import { DunningSheets } from "@/components/dunning-paper";
 import { buildLetter, koDate, parseAmount, stageLabels, won, type DunningStage } from "@/lib/dunning";
-import { ymdKst } from "@/lib/utils";
+import { cn, ymdKst } from "@/lib/utils";
 import {
   createDunningBatch,
   parseDunningExcel,
@@ -156,15 +156,15 @@ export function DunningWizard({
       </div>
 
       {step === 1 && (
-        <div className="space-y-6">
-          {/* 미납 세대를 채워서 들어온 경우 — 표가 먼저 보이도록 엑셀 절보다 위에 안내 */}
-          {initialManual.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              현재 미납 중인 세대 {initialManual.length}곳을 지난 발송 내용으로
-              채웠습니다. 아래 표에서 금액·기간을 이번 회차 기준으로 고친 뒤
-              [다음]을 누르세요 — 단계는 다음 걸음에서 자동 제안됩니다.
-            </p>
+        /* 미납 세대를 채워 들어온 경우(다음 단계 흐름)는 채워진 표가 먼저 보여야 한다 —
+           엑셀 업로더가 먼저 보이면 "처음부터 다시"로 읽힌다(사용자 피드백).
+           페이지 머리글이 흐름을 설명하므로 별도 안내문은 두지 않는다. */
+        <div
+          className={cn(
+            "flex flex-col gap-6",
+            initialManual.length > 0 && "flex-col-reverse",
           )}
+        >
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">엑셀로 올리기</h2>
             <form action={excelAction} className="space-y-3">
@@ -191,7 +191,7 @@ export function DunningWizard({
 
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
-            또는 직접 입력
+            {initialManual.length > 0 ? "또는 엑셀로 올리기" : "또는 직접 입력"}
             <div className="h-px flex-1 bg-border" />
           </div>
 
@@ -397,7 +397,9 @@ export function DunningWizard({
       )}
 
       {step === 3 && (
-        <div className="space-y-5">
+        /* 용지(794px)와 같은 폭의 기둥에 버튼·문구를 맞춘다 — 넓은 화면에서
+           버튼은 양 끝, 용지는 가운데로 흩어지면 정렬이 깨져 보인다 */
+        <div className="mx-auto w-full max-w-[794px] space-y-5">
           {/* 해야 할 일은 위 — 대량이면 용지 수십 장 아래로 버튼을 찾으러 내려가게 하지 않는다 */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">

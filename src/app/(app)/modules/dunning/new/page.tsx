@@ -55,11 +55,18 @@ export default async function NewDunningPage({
       name: e.name ?? "",
       period: e.period ?? "",
     }));
+  // 홈에서 세대를 담아 온 경우 — "새 독촉장"과 같은 화면이지만 처음부터가 아니라
+  // 이어서 하는 걸음이라는 걸 머리글이 말해 줘야 한다(사용자 피드백)
+  const nextMode = prefill.length > 0;
   return (
     <>
       <PageHeader
-        title="새 독촉장"
-        description="미납 세대를 넣으면 단계에 맞는 문서가 세대별로 완성됩니다."
+        title={nextMode ? "다음 단계 독촉장" : "새 독촉장"}
+        description={
+          nextMode
+            ? `미납 중 세대 ${prefill.length}곳을 지난 발송 내용으로 불러왔습니다. 금액·기간만 확인하면 다음 단계 문서가 완성됩니다.`
+            : "미납 세대를 넣으면 단계에 맞는 문서가 세대별로 완성됩니다."
+        }
       />
       <DunningWizard
         office={`${tenant.name} 관리사무소`}

@@ -20,7 +20,7 @@ export async function GET(
   const [tenant, entries] = await Promise.all([
     db.tenant.findUniqueOrThrow({
       where: { id: session.tenantId! },
-      select: { address: true },
+      select: { address: true, zipcode: true },
     }),
     db.dunningEntry.findMany({
       where: { docId, stage: 3 },
@@ -35,7 +35,7 @@ export async function GET(
     ["성명", "우편번호", "주소"],
     ...entries.map((e) => [
       e.name ?? "입주자",
-      "", // 우편번호는 단지가 하나뿐 — 사용자가 한 번 채워 넣는다
+      tenant.zipcode ?? "", // 설정 > 단지 정보의 우편번호 — 단지가 하나라 전 세대 동일
       [tenant.address, `${e.dong}동 ${e.ho}호`].filter(Boolean).join(" "),
     ]),
   ]);

@@ -205,13 +205,28 @@ export default async function TenantSettingsPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="address">주소</Label>
-                <Input
-                  id="address"
-                  name="address"
-                  placeholder="예: 서울시 행복구 행복로 123"
-                  defaultValue={tenant.address ?? ""}
-                  disabled={!isDirector}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="zipcode"
+                    name="zipcode"
+                    placeholder="우편번호"
+                    className="w-28"
+                    defaultValue={tenant.zipcode ?? ""}
+                    disabled={!isDirector}
+                  />
+                  <Input
+                    id="address"
+                    name="address"
+                    placeholder="예: 서울시 행복구 행복로 123"
+                    className="flex-1"
+                    defaultValue={tenant.address ?? ""}
+                    disabled={!isDirector}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  우편번호는 미납 독촉장 모듈의 우체국 수신인 목록에 함께
+                  내려받아집니다.
+                </p>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="buildingInfo">동 구성</Label>

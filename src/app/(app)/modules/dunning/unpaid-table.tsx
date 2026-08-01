@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -12,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { stageLabels, won, type DunningStage } from "@/lib/dunning";
+import { markEntryPaid } from "./actions";
 
 export type UnpaidRow = {
   id: string;
@@ -28,14 +31,14 @@ export type UnpaidRow = {
 
 /**
  * 미납 중 세대 표 — 1차를 보낸 다음 걸음이 이 화면에 보여야 한다.
- * 체크한 세대만 골라 다음 단계 마법사로 넘긴다(전체가 아니라 일부만
- * 올리고 싶은 게 실무 기본값이라 체크박스가 필요하다 — 사용자 피드백).
+ * 체크한 세대만 골라 다음 단계 마법사로 넘기고(기본은 아무것도 안 고른 상태 —
+ * 자동 전체 선택은 실수 발송의 씨앗이라는 사용자 피드백), 수납 확인도
+ * 문서를 찾아 들어가지 않고 여기서 바로 처리한다.
  */
 export function UnpaidTable({ rows }: { rows: UnpaidRow[] }) {
-  const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(rows.map((r) => r.id)), // 기본 전체 선택 — 보통은 전부 보낸다
-  );
-  const allChecked = checked.size === rows.length;
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [pending, startTransition] = useTransition();
+  const allChecked = rows.length > 0 && checked.size === rows.length;
   const toggle = (id: string) =>
     setChecked((prev) => {
       const next = new Set(prev);
@@ -49,6 +52,15 @@ export function UnpaidTable({ rows }: { rows: UnpaidRow[] }) {
     picked.map((r) => `${r.dong}_${r.ho}`).join(","),
   )}`;
 
+  const pay = (row: UnpaidRow) =>
+    startTransition(async () => {
+      const result = await markEntryPaid(row.id);
+      if (result?.ok)
+        toast.success(
+          `${row.dong}동 ${row.ho}호를 납부 처리했습니다 — 발송 문서는 기록으로 남습니다.`,
+        );
+    });
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -59,7 +71,7 @@ export function UnpaidTable({ rows }: { rows: UnpaidRow[] }) {
           </Button>
         ) : (
           <Button variant="outline" disabled>
-            세대를 선택하세요
+            보낼 세대를 선택하세요
           </Button>
         )}
       </div>
@@ -85,6 +97,7 @@ export function UnpaidTable({ rows }: { rows: UnpaidRow[] }) {
               <TableHead>미납액</TableHead>
               <TableHead>마지막 발송</TableHead>
               <TableHead>다음 발송 시</TableHead>
+              <TableHead className="w-24 text-center">수납</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -111,7 +124,27 @@ export function UnpaidTable({ rows }: { rows: UnpaidRow[] }) {
                   {r.stale && " (30일 지남)"}
                 </TableCell>
                 <TableCell>
-                  {r.next}차 {stageLabels[r.next]}
+                  {r.stage === 3 ? (
+                    // 3차(내용증명)가 끝이다 — 그 뒤는 문서가 아니라 법적 절차
+                    <span className="text-muted-foreground">
+                      지급명령 검토 (3차 재발송 가능)
+                    </span>
+                  ) : (
+                    `${r.next}차 ${stageLabels[r.next]}`
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  <ConfirmDialog
+                    trigger={
+                      <Button variant="outline" size="sm" disabled={pending}>
+                        납부 확인
+                      </Button>
+                    }
+                    title={`${r.dong}동 ${r.ho}호 납부를 확인했나요?`}
+                    description={`미납액 ${won(r.amount)}이 수납된 것으로 표시하고 미납 목록에서 뺍니다. 발송한 독촉장 문서는 기록으로 남습니다. 되돌리려면 해당 문서에서 체크를 해제하세요.`}
+                    confirmLabel="납부 확인"
+                    onConfirm={() => pay(r)}
+                  />
                 </TableCell>
               </TableRow>
             ))}

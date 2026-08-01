@@ -132,11 +132,11 @@ export function EntriesPanel({
                 className="text-destructive hover:text-destructive"
                 disabled={pending}
               >
-                회차 폐기
+                독촉장 폐기
               </Button>
             }
-            title="이 독촉장 회차를 폐기할까요?"
-            description="문서함에는 '폐기'로 남고 열람만 됩니다. 이 회차의 발송 이력은 단계 제안에서 빠집니다."
+            title="이 독촉장을 폐기할까요?"
+            description="세대·금액을 잘못 넣고 만들었을 때 취소하는 기능입니다. 문서는 삭제되지 않고 문서함에 '폐기'로 남아 열람만 되며, 이 발송 건은 미납 집계와 다음 단계 제안에서 빠집니다."
             confirmLabel="폐기"
             destructive
             onConfirm={() =>

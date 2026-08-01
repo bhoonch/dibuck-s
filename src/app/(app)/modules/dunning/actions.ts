@@ -174,6 +174,21 @@ export async function savePaidEntries(docId: string, paidIds: string[]) {
 }
 
 /**
+ * 홈 미납 목록에서 바로 수납 처리 — 문서를 찾아 들어가지 않아도 된다(사용자 피드백).
+ * 문서 쪽 일괄 저장(savePaidEntries)과 같은 값(paidAt)을 쓰므로 두 화면이 항상 일치한다.
+ */
+export async function markEntryPaid(entryId: string) {
+  const session = await requireDunning();
+  // paidAt: null 조건 — 이미 처리된 건 무동작(중복 클릭·동시 요청 안전)
+  await db.dunningEntry.updateMany({
+    where: { id: entryId, tenantId: session.tenantId!, paidAt: null },
+    data: { paidAt: new Date() },
+  });
+  revalidatePath("/modules/dunning");
+  return { ok: true };
+}
+
+/**
  * 회차 폐기 — 잘못 만든 회차의 유일한 정정 경로(문서는 수정 불가 확정본).
  * 하드 삭제가 아니라 status: void — 문서함에 "폐기"로 남고,
  * 단계 제안·홈 집계에서는 빠진다(entries 조회가 document.status: final만 본다).

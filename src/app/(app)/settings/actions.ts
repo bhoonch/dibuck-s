@@ -43,6 +43,7 @@ export async function updateTenantInfo(formData: FormData) {
     data: {
       name: String(formData.get("name") ?? "").trim() || undefined,
       address: String(formData.get("address") ?? "").trim() || null,
+      zipcode: String(formData.get("zipcode") ?? "").trim().slice(0, 10) || null,
       phone: String(formData.get("phone") ?? "").trim() || null,
       fax: String(formData.get("fax") ?? "").trim() || null,
       buildingInfo: String(formData.get("buildingInfo") ?? "").trim() || null,
