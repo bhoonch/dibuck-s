@@ -15,7 +15,8 @@ export function BackToTop() {
         type="button"
         aria-label="맨 위로"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className="pointer-events-auto absolute left-full ml-2 inline-flex size-9 items-center justify-center rounded-full border bg-card text-gray-600 shadow-md transition-colors hover:bg-background hover:text-foreground"
+        // ml-6 = 격자 gap-6 — 우측 카드 기둥의 왼쪽 시작선과 같은 라인에 선다
+        className="pointer-events-auto absolute left-full ml-6 inline-flex size-9 items-center justify-center rounded-full border bg-card text-gray-600 shadow-md transition-colors hover:bg-background hover:text-foreground"
       >
         <ArrowUp className="size-5" />
       </button>
