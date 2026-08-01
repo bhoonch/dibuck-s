@@ -1,23 +1,23 @@
 "use client";
 
 import { ArrowUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 /**
- * 세대당 1장씩 쌓이는 긴 문서라 아래로 내려가면 돌아올 길이 멀다.
- * 화면 끝의 떠 있는 버튼은 안 보인다는 지적이 있어(사용자 피드백),
- * 문서 옆에 따라다니는 오른쪽 칸(sticky) 안에 넣는다.
+ * 용지 더미를 따라다니는 맨 위로 버튼. 브라우저 끝(fixed)은 문서와 떨어져
+ * 안 보인다는 피드백이라, 용지 기둥 안 sticky로 넣어 어느 스크롤 위치에서든
+ * 문서 오른쪽 어깨에 붙어 있게 한다. h-0이라 용지 자리는 차지하지 않는다.
  */
 export function BackToTop() {
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="self-start"
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-    >
-      <ArrowUp className="size-4" /> 맨 위로
-    </Button>
+    <div className="pointer-events-none sticky top-[82vh] z-10 h-0 text-right print:hidden">
+      <button
+        type="button"
+        aria-label="맨 위로"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className="pointer-events-auto inline-flex size-10 items-center justify-center rounded-full border bg-card text-gray-600 shadow-md transition-colors hover:bg-background hover:text-foreground"
+      >
+        <ArrowUp className="size-5" />
+      </button>
+    </div>
   );
 }

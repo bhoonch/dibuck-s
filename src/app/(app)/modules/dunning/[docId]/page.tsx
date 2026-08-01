@@ -99,6 +99,7 @@ export default async function DunningDocPage({
         {/* 2단은 xl부터 — 그 아래에서는 조치 칸(세대 목록)이 용지 위로 올라간다 */}
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
           <div className="order-2 min-w-0 xl:order-1">
+            <BackToTop />
             <PaperScale>
               <DunningSheets
                 letters={letters} docNo={doc.docNo ?? ""} sentDate={koDate(meta.sentDate)}
@@ -108,7 +109,6 @@ export default async function DunningDocPage({
             </PaperScale>
           </div>
           <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
-            <BackToTop />
             {hasProof && (
               <p className="text-xs text-muted-foreground">
                 내용증명은 같은 문서 3부를 우체국에 제출합니다. [우체국 수신인 목록]은 인터넷우체국
