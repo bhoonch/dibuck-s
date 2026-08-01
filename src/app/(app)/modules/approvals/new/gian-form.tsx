@@ -266,7 +266,9 @@ export function GianForm({
           />
           <Hint>
             몇 월인지라도 알면 &ldquo;8월 중&rdquo;처럼 대략만 적어 주세요.
-            비워 두면 문서에 &ldquo;결재 후 확정&rdquo;으로 적힙니다.
+            비워 두면 문서에 &ldquo;결재 후 확정&rdquo;으로 적힙니다. 계약일까지
+            잡혔다면 &ldquo;8월 5일 계약, 9월 초 공사&rdquo;처럼 함께 적으면
+            그대로 실립니다.
           </Hint>
         </div>
 
