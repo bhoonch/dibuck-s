@@ -164,16 +164,14 @@ export function followupCls(
   };
 }
 
-/** 이미 파생됐는가 — 중복 생성 방지와 역링크가 같은 조회를 쓴다(Phase 3 findNoticeFor와 동형) */
+/**
+ * 이미 파생됐는가 — 중복 생성 방지와 역링크가 같은 조회를 쓴다(Phase 3 findNoticeFor와 동형).
+ * 유니크 칸(sourceDocId)으로 조회한다 — 폐기가 칸을 비우므로(voidGian) 폐기본은 자연히
+ * 빠지고(잘못 만든 보고서를 폐기한 뒤 다시 만들 수 있다), @@unique가 동시 생성도 막는다.
+ */
 export function findFollowupFor(sourceDocId: string, kind: FollowupKind) {
-  return db.document.findFirst({
-    where: {
-      type: followupDocType[kind],
-      // 폐기본은 없는 것으로 — 이 필터가 빠지면 잘못 만든 보고서를 폐기한 뒤
-      // 다시 만들 길이 없다(findNoticeFor와 같은 규칙)
-      status: { not: "void" },
-      meta: { path: ["sourceDocId"], equals: sourceDocId },
-    },
+  return db.document.findUnique({
+    where: { type_sourceDocId: { type: followupDocType[kind], sourceDocId } },
     select: { id: true, docNo: true },
   });
 }

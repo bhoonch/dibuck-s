@@ -4,13 +4,22 @@
  * 위계: 본인(내 계정) → **메일 셀프 재설정(여기)** → 마스터(직원 관리) → 운영자(단지 상세).
  * 마스터·운영자 수동 재설정은 남겨 둔다 — 메일을 못 받는 경우의 백업이다.
  */
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 /** 1시간 — 재설정 링크는 계정 탈취 수단이므로 인증 링크(24h)보다 짧게 */
 export const RESET_TTL_MS = 60 * 60_000;
 
 export function resetToken() {
   return randomBytes(32).toString("hex");
+}
+
+/**
+ * DB에는 이 해시만 저장한다 — 평문을 두면 DB 유출이 곧 계정 탈취다.
+ * 토큰이 256비트 랜덤이라 무차별 대입이 불가능하므로 salt 없는 sha256이면 충분하다
+ * (bcrypt는 사용자가 고른 약한 비밀번호를 위한 것).
+ */
+export function hashResetToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 /**

@@ -3,7 +3,11 @@
 import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
 import { db } from "@/lib/db";
-import { RESET_STATE_MESSAGE, resetTokenState } from "@/lib/password-reset";
+import {
+  RESET_STATE_MESSAGE,
+  hashResetToken,
+  resetTokenState,
+} from "@/lib/password-reset";
 
 /** 조건부 UPDATE가 아무 행도 못 잡았을 때(이미 사용·만료된 토큰) */
 class TokenUnavailable extends Error {}
@@ -22,7 +26,11 @@ export async function resetPassword(
     return { error: "비밀번호 확인이 일치하지 않습니다." };
 
   const now = new Date();
-  const record = await db.passwordReset.findUnique({ where: { token } });
+  // URL의 평문 토큰을 해시해 조회 — DB에는 해시만 있다
+  const tokenHash = hashResetToken(token);
+  const record = await db.passwordReset.findUnique({
+    where: { token: tokenHash },
+  });
   const state = resetTokenState(record, now);
   if (state !== "valid") return { error: RESET_STATE_MESSAGE[state] };
 
@@ -34,7 +42,7 @@ export async function resetPassword(
       // 미사용·미만료를 UPDATE 조건으로 걸어 1회용을 보장한다 —
       // 링크를 두 번 눌러도(동시에 눌러도) 비밀번호가 두 번 바뀌지 않는다
       const { count } = await tx.passwordReset.updateMany({
-        where: { token, usedAt: null, expiresAt: { gt: now } },
+        where: { token: tokenHash, usedAt: null, expiresAt: { gt: now } },
         data: { usedAt: now },
       });
       if (count === 0) throw new TokenUnavailable();

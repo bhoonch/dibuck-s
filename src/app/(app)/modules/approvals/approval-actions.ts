@@ -314,27 +314,38 @@ export async function createFollowup(formData: FormData) {
           new Date(),
         );
 
-  const created = await createDocument({
-    tenantId: doc.tenantId,
-    moduleId: "approvals",
-    // 완료보고·지출결의도 결재를 받는 문서 — 채번은 상신 때
-    numberOnSubmit: true,
-    type: followupDocType[kind],
-    title: draft.title,
-    content: [
-      draft.title,
-      ...draft.legalBasis,
-      ...draft.sections.flatMap((s) => [s.heading, ...s.lines]),
-    ].join("\n"),
-    meta: {
-      sourceDocId: doc.id,
-      kind,
-      draft,
-      cls: followupCls(meta.cls, kind),
-      plannedSteps: [],
-    },
-    createdById: session.userId,
-  });
+  let created;
+  try {
+    created = await createDocument({
+      tenantId: doc.tenantId,
+      moduleId: "approvals",
+      // 완료보고·지출결의도 결재를 받는 문서 — 채번은 상신 때
+      numberOnSubmit: true,
+      type: followupDocType[kind],
+      title: draft.title,
+      content: [
+        draft.title,
+        ...draft.legalBasis,
+        ...draft.sections.flatMap((s) => [s.heading, ...s.lines]),
+      ].join("\n"),
+      meta: {
+        sourceDocId: doc.id,
+        kind,
+        draft,
+        cls: followupCls(meta.cls, kind),
+        plannedSteps: [],
+      },
+      createdById: session.userId,
+      sourceDocId: doc.id, // @@unique가 더블클릭 중복 생성을 막는다 — 위의 find는 경합에 진다
+    });
+  } catch (e) {
+    // 동시 생성의 진 쪽 — 이긴 쪽 문서로 보낸다(위의 "이미 만들었으면"과 같은 결말)
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "P2002") {
+      const winner = await findFollowupFor(doc.id, kind);
+      if (winner) redirect(`/modules/approvals/${winner.id}`);
+    }
+    throw e;
+  }
 
   revalidatePath(`/modules/approvals/${doc.id}`);
   redirect(`/modules/approvals/${created.id}`);
@@ -420,7 +431,12 @@ export async function voidGian(docId: string): Promise<ActionState> {
       where: { documentId: docId },
       data: { data: null },
     }),
-    db.document.update({ where: { id: docId }, data: { status: "void" } }),
+    // 유니크 칸(sourceDocId)은 비운다 — 폐기본이 자리를 쥐고 있으면 재생성이 막힌다.
+    // 역링크·이력 표시는 meta.sourceDocId가 계속 담당하므로 잃는 것이 없다.
+    db.document.update({
+      where: { id: docId },
+      data: { status: "void", sourceDocId: null },
+    }),
   ]);
   revalidatePath(`/modules/approvals/${docId}`);
   return undefined;

@@ -30,21 +30,20 @@ export default async function AdminRevenuePage() {
     // 미수금 — 결제가 실패해 유예 중이거나 정지된 단지의 마지막 실패 청구액
     db.billing.findMany({
       where: { status: { in: ["PAST_DUE", "SUSPENDED"] } },
-      select: {
-        tenantId: true,
-        payments: {
-          where: { status: "FAILED" },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { amount: true },
-        },
-      },
+      select: { tenantId: true },
     }),
   ]);
-  const overdueAmount = overdue.reduce(
-    (sum, b) => sum + (b.payments[0]?.amount ?? 0),
-    0,
-  );
+  // Payment는 Billing과 관계가 없다(증빙 보존 — 스키마 주석) — 단지별 최신 실패 1건씩
+  const lastFails = await db.payment.findMany({
+    where: {
+      tenantId: { in: overdue.map((b) => b.tenantId) },
+      status: "FAILED",
+    },
+    orderBy: [{ tenantId: "asc" }, { createdAt: "desc" }],
+    distinct: ["tenantId"],
+    select: { amount: true },
+  });
+  const overdueAmount = lastFails.reduce((sum, p) => sum + p.amount, 0);
 
   // 이탈 위험: 7일 안에 체험이 끝나는데 카드가 없는 단지. 단지 단위로 묶는다
   const asOf = new Date();

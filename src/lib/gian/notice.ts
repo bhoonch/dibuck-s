@@ -232,14 +232,13 @@ export function vagueScheduleLine(
  * 원본 문서에서 파생된 공고문 — 중복 생성 방지와 양방향 링크가 같은 조회를 쓴다.
  * **폐기된 공고문은 없는 것으로 본다** — 그래야 잘못 나온 공고문을 버리고 다시 만들 수 있다.
  * 공고문 본문은 결정적 코드 산출물이라 손으로 고칠 수 없고, 다시 만드는 것이 유일한 복구다.
+ *
+ * 조회는 유니크 칸(sourceDocId)으로 — 폐기가 이 칸을 비우므로(voidGian) 상태 필터가
+ * 따로 필요 없고, 같은 칸의 @@unique가 동시 파생의 중복까지 DB에서 막는다.
  */
 export function findNoticeFor(sourceDocId: string) {
-  return db.document.findFirst({
-    where: {
-      type: "notice",
-      status: { not: "void" },
-      meta: { path: ["sourceDocId"], equals: sourceDocId },
-    },
+  return db.document.findUnique({
+    where: { type_sourceDocId: { type: "notice", sourceDocId } },
     select: { id: true, docNo: true },
   });
 }
@@ -278,19 +277,27 @@ export async function createNoticeFrom(doc: SourceDoc) {
     approvedAt: lastSigned?.actedAt ?? new Date(),
   });
 
-  return createDocument({
-    tenantId: doc.tenantId,
-    moduleId: "approvals",
-    type: "notice",
-    title: notice.title,
-    // 문서함 검색용 평문 — 화면 렌더는 meta.notice가 담당한다
-    content: [
-      notice.intro,
-      ...notice.rows.map((r) => `${r.k}: ${r.v}`),
-      ...notice.notes.map((n) => n.text),
-    ].join("\n"),
-    meta: { sourceDocId: doc.id, notice },
-    status: "final",
-    createdById: doc.createdById ?? undefined,
-  });
+  try {
+    return await createDocument({
+      tenantId: doc.tenantId,
+      moduleId: "approvals",
+      type: "notice",
+      title: notice.title,
+      // 문서함 검색용 평문 — 화면 렌더는 meta.notice가 담당한다
+      content: [
+        notice.intro,
+        ...notice.rows.map((r) => `${r.k}: ${r.v}`),
+        ...notice.notes.map((n) => n.text),
+      ].join("\n"),
+      meta: { sourceDocId: doc.id, notice },
+      status: "final",
+      createdById: doc.createdById ?? undefined,
+      sourceDocId: doc.id, // @@unique가 동시 파생을 막는다 — 위의 find는 경합에 진다
+    });
+  } catch (e) {
+    // 동시 파생의 진 쪽 — 이긴 쪽이 이미 만들었으니 "이미 파생됨"과 같은 결과다
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "P2002")
+      return null;
+    throw e;
+  }
 }

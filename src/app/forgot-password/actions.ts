@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { mailerEnabled, sendPasswordReset } from "@/lib/mailer";
-import { RESET_TTL_MS, resetToken } from "@/lib/password-reset";
+import { RESET_TTL_MS, hashResetToken, resetToken } from "@/lib/password-reset";
 import { rateLimit } from "@/lib/rate-limit";
 import { normalizeEmail } from "@/lib/utils";
 
@@ -34,7 +34,8 @@ export async function requestPasswordReset(
       }),
       db.passwordReset.create({
         data: {
-          token,
+          // DB에는 해시만 — 평문 토큰은 메일 링크로만 나간다
+          token: hashResetToken(token),
           userId: user.id,
           expiresAt: new Date(Date.now() + RESET_TTL_MS),
         },

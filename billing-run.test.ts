@@ -130,6 +130,38 @@ async function main() {
     "대사는 새 결제를 만들지 않는다 — 있던 행을 고친다",
   );
 
+  // 3.7) 승인 직후·DB 기록 전에 프로세스가 죽은 경우 — 호출 전에 적어 둔 PENDING 행이
+  // 주문번호를 아는 유일한 단서다. 대사가 이 행을 실제 결과로 닫아야 한다.
+  await db.payment.create({
+    data: {
+      tenantId: T, orderId: "order-pending-done", amount: 30000, status: "PENDING",
+      items: [{ moduleId: M, name: "테스트모듈", price: 30000 }],
+      periodStart: new Date(), periodEnd: new Date(Date.now() + 30 * 86400000),
+    },
+  });
+  const fromPending = await reconcileLastFailure(T, async (orderId) => ({
+    paymentKey: "pk-pending",
+    orderId,
+    totalAmount: 30000,
+    status: "DONE",
+    receipt: { url: "https://receipt.example/2" },
+  }));
+  assert.equal(fromPending?.status, "PAID", "PENDING도 대사 대상 — 승인돼 있으면 PAID로 닫는다");
+
+  // 승인 내역이 없는 PENDING은 실패로 닫는다 — 영원히 "진행 중"으로 남으면
+  // 이력이 거짓말이 되고, 다음 시도 판단(마지막 행 조회)도 계속 여기 걸린다
+  await db.payment.create({
+    data: {
+      tenantId: T, orderId: "order-pending-lost", amount: 30000, status: "PENDING",
+      items: [], periodStart: new Date(), periodEnd: new Date(Date.now() + 30 * 86400000),
+    },
+  });
+  assert.equal(await reconcileLastFailure(T, async () => null), null);
+  const closed = await db.payment.findUniqueOrThrow({
+    where: { orderId: "order-pending-lost" },
+  });
+  assert.equal(closed.status, "FAILED", "승인 내역 없는 PENDING은 실패로 닫는다");
+
   // 4) 정지
   await suspendTenant(T);
   b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
@@ -241,7 +273,7 @@ async function main() {
   assert.equal(mod2.status, "CANCELED");
   assert.equal(
     await db.payment.count({ where: { tenantId: T } }),
-    2,
+    4, // 2)~3)의 실패 2건 + 3.7)의 PENDING 대사 2건
     "6~8 어디서도 새 결제가 생기면 안 된다",
   );
 

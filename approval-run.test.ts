@@ -147,6 +147,24 @@ async function main() {
     // 재상신도 기안자 칸은 다시 서명 완료 상태로 깔린다
     assert.deepEqual(steps.map((s) => s.status), ["approved", "pending", "waiting"]);
 
+    // ── 재상신이 이전 판의 증적을 지우면 안 된다 ──
+    // 반려 사유·서명 시각은 문서의 역사다 — 지워지면 "누가 왜 반려했는데 기록이 없다".
+    const resub = await db.document.findUniqueOrThrow({ where: { id: doc.id } });
+    const history = (
+      resub.meta as {
+        approvalHistory?: {
+          steps: { status: string; comment: string | null; name: string }[];
+        }[];
+      }
+    ).approvalHistory;
+    assert.equal(history?.length, 1, "반려된 1판이 meta.approvalHistory에 남는다");
+    assert.ok(
+      history![0].steps.some(
+        (s) => s.status === "rejected" && s.comment === "예산 근거 부족",
+      ),
+      "반려 사유가 증적으로 보존된다",
+    );
+
     // ── 순차 승인: 2 → 외부(회장) 토큰 발급 확인 ──
     assert.deepEqual(await actOnStep(steps[1].id, "approve", "검토 완료"), {});
     const chair = await db.approvalStep.findUniqueOrThrow({ where: { id: steps[2].id } });
@@ -179,7 +197,11 @@ async function main() {
     assert.equal(await db.document.count({ where: { tenantId: tenant.id, type: "notice" } }), 1);
 
     // 폐기한 공고문은 없는 것으로 본다 — 잘못 나온 공고문을 버리고 다시 만드는 유일한 경로다
-    await db.document.update({ where: { id: notices[0].id }, data: { status: "void" } });
+    // (폐기는 유니크 칸도 비운다 — voidGian과 같은 규칙)
+    await db.document.update({
+      where: { id: notices[0].id },
+      data: { status: "void", sourceDocId: null },
+    });
     assert.equal(await findNoticeFor(doc.id), null, "폐기본은 파생 이력으로 치지 않는다");
     // 재생성 공고문의 결재일은 실제 서명 시각이어야 한다 — 마지막 서명을 과거로
     // 돌려놓고 다시 만들어, "지금"이 아니라 그 날짜가 찍히는지 실측한다
@@ -200,6 +222,34 @@ async function main() {
     assert.ok(
       rmeta.notice.rows.some((r) => r.v.includes("2026년 7월 1일 결재 완료")),
       "재생성 공고문의 결재일은 재생성일이 아니라 실제 서명일이다",
+    );
+
+    // ── 동시 파생(더블클릭·자동+수동 경합): 살아 있는 공고문은 한 장만 ──
+    // 읽고-검사하고-쓰기는 동시 요청 둘 다 "없음"을 보고 두 장을 만든다 —
+    // DB 유니크(type, sourceDocId)가 마지막 벽이어야 한다.
+    await db.document.update({
+      where: { id: renotice!.id },
+      // 폐기는 유니크 칸을 비운다(voidGian과 같은 규칙) — 재생성이 열린다
+      data: { status: "void", sourceDocId: null },
+    });
+    const freshDoc = await db.document.findUniqueOrThrow({ where: { id: doc.id } });
+    await Promise.all([createNoticeFrom(freshDoc), createNoticeFrom(freshDoc)]);
+    assert.equal(
+      await db.document.count({
+        where: { tenantId: tenant.id, type: "notice", status: { not: "void" } },
+      }),
+      1,
+      "동시 파생도 살아 있는 공고문은 한 장만 만든다",
+    );
+    // 경합은 타이밍이라 위 검사만으로는 못 믿는다 — 파생본이 유니크 칸을 채웠는지가
+    // 결정적 증거다(칸이 비면 NULL끼리는 안 겹쳐 DB가 아무것도 막지 않는다).
+    const liveNotice = await db.document.findFirstOrThrow({
+      where: { tenantId: tenant.id, type: "notice", status: { not: "void" } },
+    });
+    assert.equal(
+      liveNotice.sourceDocId,
+      doc.id,
+      "파생본은 sourceDocId 칸을 채워 DB 유니크가 중복을 막게 한다",
     );
 
     // ── 후속 문서(완료보고) 파생 → 채번·역링크·결재선 ──
@@ -232,6 +282,7 @@ async function main() {
         plannedSteps: [],
       },
       createdById: staff.id,
+      sourceDocId: doc.id, // 운영 코드(createFollowup)와 같은 조건 — 유니크 칸을 채운다
     });
     assert.equal(report.docNo, null, "초안에는 번호가 없다 — 채번은 상신 때");
     assert.equal(report.status, "draft", "파생 문서는 초안 — 결재는 따로 받는다");
@@ -239,15 +290,21 @@ async function main() {
     const found = await findFollowupFor(doc.id, "report");
     assert.equal(found?.id, report.id);
     assert.equal(await findFollowupFor(doc.id, "expense"), null); // 종류별로 갈린다
-    // 폐기한 후속 문서는 없는 것으로 — 이 필터가 없으면 잘못 만든 보고서를
-    // 폐기한 뒤 다시 만들 길이 없다(공고문과 같은 규칙)
-    await db.document.update({ where: { id: report.id }, data: { status: "void" } });
+    // 폐기한 후속 문서는 없는 것으로 — 폐기가 유니크 칸을 비우므로(voidGian 규칙)
+    // 조회에서 자연히 빠지고, 잘못 만든 보고서를 폐기한 뒤 다시 만들 수 있다
+    await db.document.update({
+      where: { id: report.id },
+      data: { status: "void", sourceDocId: null },
+    });
     assert.equal(
       await findFollowupFor(doc.id, "report"),
       null,
       "폐기본은 파생 이력으로 치지 않는다 — 재생성이 열린다",
     );
-    await db.document.update({ where: { id: report.id }, data: { status: "draft" } });
+    await db.document.update({
+      where: { id: report.id },
+      data: { status: "draft", sourceDocId: doc.id },
+    });
 
     // 완료보고는 3단 — 회장이 붙지 않는다(원 품의는 회장까지 4단이었다)
     assert.deepEqual(await submitDocument(report.id, staff.id), {});

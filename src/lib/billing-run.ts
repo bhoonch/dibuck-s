@@ -49,6 +49,8 @@ async function billingContact(tenantId: string) {
  *
  * 우리 쪽 FAILED는 "승인 실패"일 수도 있지만 "응답 유실"일 수도 있다. 후자를 그대로
  * 두면 다음 시도가 새 주문번호로 같은 기간을 한 번 더 결제한다 — 이중 출금이다.
+ * PENDING은 승인 직후·기록 전에 프로세스가 죽은 흔적이다 — 호출 전에 적어 둔 이 행이
+ * 주문번호를 아는 유일한 단서라, 여기서 실제 결과(PAID/FAILED)로 닫는다.
  * chargeTenant는 실패 직후에도 대사하지만, 그 조회마저 실패할 수 있어서 다음 시도
  * 입구에서 한 번 더 본다.
  *
@@ -62,10 +64,23 @@ export async function reconcileLastFailure(
     where: { tenantId },
     orderBy: { createdAt: "desc" },
   });
-  if (last?.status !== "FAILED") return null;
+  if (last?.status !== "FAILED" && last?.status !== "PENDING") return null;
 
   const paid = await lookup(last.orderId);
-  if (!paid) return null;
+  if (!paid) {
+    // 승인 내역이 없는 PENDING은 실패로 닫는다 — 영원히 "진행 중"으로 남으면
+    // 이력이 거짓말이 되고, 마지막 행을 보는 이 함수도 계속 여기 걸린다
+    if (last.status === "PENDING")
+      await db.payment.update({
+        where: { id: last.id },
+        data: {
+          status: "FAILED",
+          failCode: "ABORTED",
+          failReason: "결제 진행 중 중단 — 승인 내역 없음",
+        },
+      });
+    return null;
+  }
 
   const [payment] = await db.$transaction([
     db.payment.update({
@@ -125,6 +140,14 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   });
   if (!tenant) return { ok: false, reason: "단지를 찾을 수 없습니다." };
 
+  // 결제 전에 대사부터 — 지난 실패(FAILED)가 사실은 승인이었거나, 지난 시도가
+  // 기록 전에 죽어 PENDING으로 남았다면 오늘 결제할 게 아니라 기록을 고칠 차례다.
+  // 아래 입구 검사보다 먼저 하는 이유: 죽은 시도는 이미 청구일을 다음 달로 밀어 놨을
+  // 수 있어(자리 잡기 후 사망), 입구 검사가 먼저면 다음 달까지 기록이 안 고쳐진다.
+  // 마지막 행이 PAID면(정상 상태) 조회 한 번으로 바로 빠져나온다.
+  const settled = await reconcileLastFailure(tenantId);
+  if (settled) return { ok: true, amount: settled.amount };
+
   // 지금 결제할 차례인가 — 크론은 dunningAction으로 거르지만, 카드 변경 콜백과
   // 오래된 탭의 "지금 결제하기"도 같은 함수를 타므로 검사는 입구에 있어야 한다.
   // 이 검사가 없으면 이미 결제한 기간을 그대로 한 번 더 결제한다.
@@ -134,13 +157,6 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
     kstMidnight(billing.nextBillingAt) > kstMidnight(now)
   )
     return { ok: true, amount: 0 };
-
-  // 재시도 전에 대사부터 — 지난 실패가 사실은 승인됐다면 오늘 결제할 게 아니라
-  // 기록을 고칠 차례다. PAST_DUE일 때만 본다(그때만 FAILED 행이 있다).
-  if (billing.status === "PAST_DUE") {
-    const settled = await reconcileLastFailure(tenantId);
-    if (settled) return { ok: true, amount: settled.amount };
-  }
 
   // 해지 예약 — 이미 낸 기간이 끝났으니 여기서 실제로 끊는다.
   // 탈퇴 신청도 같다: 지워질 단지에 새 결제를 걸면 안 되고, 이 검사가 여기(입구)에
@@ -208,8 +224,6 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   // 동시 요청(크론과 "지금 결제하기"의 경합, 더블클릭)이 같은 기간을 두 번 결제하지
   // 않도록, 읽어 둔 상태 그대로일 때만 자리를 잡는다 — 밀린 쪽은 결제 없이 빠진다.
   // ponytail: 자리만 잡고 서버가 죽으면 이번 달 청구가 건너뛰어진다(다음 달 자동 복구).
-  // 반대로 승인 직후·DB 쓰기 전에 죽으면 그 주문번호를 아무도 모른 채 남아 대사도
-  // 못 한다 — 그때는 호출 전에 PENDING 행을 남기는 방식으로 올릴 것.
   const claimed = await db.billing.updateMany({
     where: {
       tenantId,
@@ -226,6 +240,22 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   const order = orderId(tenantId, now);
   const orderName =
     items.length === 1 ? items[0].name : `${items[0].name} 외 ${items.length - 1}건`;
+
+  // 토스를 부르기 전에 PENDING 행부터 적는다 — 승인 직후·기록 전에 죽으면 이 행의
+  // 주문번호가 대사(reconcileLastFailure)의 유일한 단서다. 응답이 오면 아래에서
+  // 이 행을 PAID/FAILED로 닫는다(새 행을 만들지 않는다).
+  const pending = await db.payment.create({
+    data: {
+      tenantId,
+      orderId: order,
+      amount,
+      status: "PENDING",
+      items,
+      periodStart: now,
+      periodEnd: next,
+      attempt: daysBetween(billing.pastDueSince ?? now, now) + 1,
+    },
+  });
 
   let paid: TossPayment;
   try {
@@ -249,19 +279,9 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
       const pastDueSince = billing.pastDueSince ?? now;
 
       await db.$transaction([
-        db.payment.create({
-          data: {
-            tenantId,
-            orderId: order,
-            amount,
-            status: "FAILED",
-            items,
-            periodStart: now,
-            periodEnd: next,
-            failCode: code,
-            failReason: reason,
-            attempt: daysBetween(pastDueSince, now) + 1,
-          },
+        db.payment.update({
+          where: { id: pending.id },
+          data: { status: "FAILED", failCode: code, failReason: reason },
         }),
         db.billing.update({
           where: { tenantId },
@@ -285,15 +305,10 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
   }
 
   await db.$transaction([
-    db.payment.create({
+    db.payment.update({
+      where: { id: pending.id },
       data: {
-        tenantId,
-        orderId: order,
-        amount,
         status: "PAID",
-        items,
-        periodStart: now,
-        periodEnd: next,
         paymentKey: paid.paymentKey,
         receiptUrl: paid.receipt?.url,
         paidAt: now,

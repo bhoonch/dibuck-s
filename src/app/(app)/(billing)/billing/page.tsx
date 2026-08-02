@@ -219,6 +219,9 @@ export default async function BillingPage() {
                       ) : (
                         <span className="text-green-700">완료</span>
                       )
+                    ) : p.status === "PENDING" ? (
+                      // 결제 도중 조회한 경우 — 결과가 확정되면 다음 청구 처리에서 닫힌다
+                      <span className="text-muted-foreground">확인 중</span>
                     ) : (
                       <span className="text-red-600" title={p.failReason ?? ""}>
                         실패

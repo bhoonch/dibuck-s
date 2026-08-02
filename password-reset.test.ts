@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import {
   RESET_TTL_MS,
+  hashResetToken,
   resetToken,
   resetTokenState,
 } from "./src/lib/password-reset";
@@ -33,5 +34,11 @@ const a = resetToken();
 assert.equal(a.length, 64);
 assert.match(a, /^[0-9a-f]{64}$/);
 assert.notEqual(a, resetToken());
+
+// DB에는 해시만 저장한다 — 평문 그대로면 DB 유출이 곧 계정 탈취다.
+// 같은 토큰 → 같은 해시(조회 키로 쓴다), 해시에서 토큰은 못 되돌린다.
+assert.equal(hashResetToken(a), hashResetToken(a));
+assert.notEqual(hashResetToken(a), a);
+assert.match(hashResetToken(a), /^[0-9a-f]{64}$/);
 
 console.log("password-reset.test.ts — 모든 검증 통과");

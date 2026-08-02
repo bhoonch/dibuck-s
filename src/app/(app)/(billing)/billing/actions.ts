@@ -14,12 +14,13 @@ import { chargeTenant } from "@/lib/billing-run";
 export async function ensureCustomerKey() {
   const session = await requireRole(Role.DIRECTOR);
   const tenantId = session.tenantId!;
-  const existing = await db.billing.findUnique({ where: { tenantId } });
-  if (existing) return existing.customerKey;
-  const created = await db.billing.create({
-    data: { tenantId, customerKey: randomUUID() },
+  // upsert 한 번 — 읽고-검사하고-쓰면 두 탭이 나란히 create에 들어가 P2002가 난다
+  const billing = await db.billing.upsert({
+    where: { tenantId },
+    update: {},
+    create: { tenantId, customerKey: randomUUID() },
   });
-  return created.customerKey;
+  return billing.customerKey;
 }
 
 /** 결제 실패로 정지·유예 중일 때 "지금 결제하기" — 크론과 같은 경로를 탄다 */

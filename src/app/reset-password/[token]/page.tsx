@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { RESET_STATE_MESSAGE, resetTokenState } from "@/lib/password-reset";
+import {
+  RESET_STATE_MESSAGE,
+  hashResetToken,
+  resetTokenState,
+} from "@/lib/password-reset";
 import { AuthShell } from "@/components/auth-shell";
 import { ResetPasswordForm } from "./reset-password-form";
 
@@ -11,7 +15,8 @@ export default async function ResetPasswordPage({
 }) {
   const { token } = await params;
   const record = await db.passwordReset.findUnique({
-    where: { token },
+    // DB에는 해시만 있다 — URL의 평문 토큰을 해시해 조회
+    where: { token: hashResetToken(token) },
     select: { expiresAt: true, usedAt: true, user: { select: { email: true } } },
   });
   const state = resetTokenState(record);

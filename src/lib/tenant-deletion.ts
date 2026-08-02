@@ -26,7 +26,9 @@ export async function purgeExpiredTenants(now = new Date()) {
     where: { deleteRequestedAt: { lte: due } },
     select: { id: true },
   });
-  // Tenant의 자식 관계에는 cascade가 없다 — 순서대로 직접 지운다
+  // Tenant의 자식 관계에는 cascade가 없다 — 순서대로 직접 지운다.
+  // Payment는 지우지 않는다: 결제 기록은 회계 증빙(세무·분쟁 근거)이라 단지가
+  // 나간 뒤에도 남아야 한다(FK 없음 — 스키마 주석 참조). 개인정보는 없다.
   for (const { id: tenantId } of tenants)
     await db.$transaction([
       db.notification.deleteMany({ where: { tenantId } }),
@@ -35,7 +37,6 @@ export async function purgeExpiredTenants(now = new Date()) {
       db.unit.deleteMany({ where: { tenantId } }),
       db.inquiry.deleteMany({ where: { tenantId } }),
       db.tenantModule.deleteMany({ where: { tenantId } }),
-      db.payment.deleteMany({ where: { tenantId } }),
       db.billing.deleteMany({ where: { tenantId } }),
       db.user.deleteMany({ where: { tenantId } }),
       db.tenant.delete({ where: { id: tenantId } }),

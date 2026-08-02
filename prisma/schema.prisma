@@ -81,8 +81,6 @@ model Billing {
   pastDueSince      DateTime?
   /// 기간 말 해지 예약. 이미 낸 달은 끝까지 쓰게 하고 다음 청구일에 실제로 끊는다
   cancelRequestedAt DateTime?
-
-  payments  Payment[]
   updatedAt DateTime  @updatedAt
 
   @@index([nextBillingAt])
@@ -98,9 +96,11 @@ enum BillingStatus {
 /// 청구 이력. items에 **가격 스냅샷**을 남겨서, 모듈 가격이 바뀌어도
 /// 과거 청구 내역이 소급되어 달라지지 않게 한다.
 model Payment {
-  id       String  @id @default(cuid())
+  id       String @id @default(cuid())
+  /// 단지 id — 일부러 FK를 걸지 않는다. 결제 기록은 회계 증빙(세무·분쟁 근거)이라
+  /// 단지 탈퇴(purge)가 Billing·Tenant를 지운 뒤에도 남아야 한다. FK가 있으면
+  /// cascade로 함께 지워지거나(증빙 소실) 부모 삭제가 막힌다.
   tenantId String
-  billing  Billing @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
 
   orderId String        @unique // 토스 주문번호 — 재시도마다 새로 만든다
   amount  Int
@@ -115,7 +115,8 @@ model Payment {
   receiptUrl String?
   failCode   String?
   failReason String?
-  /// 같은 청구 주기의 몇 번째 시도인가 (1=최초, 2=D+3 재시도, 3=D+7 재시도)
+  /// 유예 시작(pastDueSince)부터 며칠째 시도인가 — 최초·연체 없는 결제는 1.
+  /// (재시도는 유예 안에서 매일 돈다 — 옛 D+3/D+7 회차 정책이 아니다)
   attempt    Int     @default(1)
 
   createdAt DateTime  @default(now())
@@ -125,6 +126,7 @@ model Payment {
 }
 
 enum PaymentStatus {
+  PENDING // 토스 호출 전에 먼저 적는 자리 — 죽어도 주문번호가 남아 대사가 가능하다
   PAID
   FAILED
 }
@@ -204,7 +206,7 @@ model User {
 /// 비밀번호 셀프 재설정 링크. 토큰 자체가 PK — 조회는 항상 토큰으로만 한다.
 /// onDelete: Cascade — 직원 삭제·단지 탈퇴가 이 행 때문에 실패하지 않게 DB에 맡긴다.
 model PasswordReset {
-  token     String    @id
+  token     String    @id // sha256 해시 — 평문 토큰은 메일 링크로만 나간다(hashResetToken)
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
@@ -320,6 +322,10 @@ model Document {
   /// 모듈별 구조화 데이터 — 기안·품의는 폼 입력 + LLM 출력 원본을 보관한다.
   /// 재편집, 공고문 자동 파생, 후속 문서(완료보고·지출결의) 필드 상속의 원천.
   meta        Json?
+  /// 파생 문서(공고문·완료보고·지출결의)의 원본 문서 id. 살아 있는 파생본의 중복은
+  /// 아래 @@unique가 막는다(더블클릭·동시 요청) — 폐기(void)하면 이 칸을 비워
+  /// 재생성을 연다. 이력·역링크 표시는 meta.sourceDocId가 계속 담당한다.
+  sourceDocId String?
   status      String    @default("draft")
   dueDate     DateTime? // 기한 — 계약 만료일, 점검 예정일 등 (할 일 위젯이 사용)
   createdById String?
@@ -333,6 +339,8 @@ model Document {
 
   // 공문서 번호는 단지 안에서 유일해야 한다 — 채번이 겹치면 DB가 막는다
   @@unique([tenantId, docNo])
+  // 원본 하나에 살아 있는 파생본은 종류별 한 장 — 검사(find)는 경합에 진다
+  @@unique([type, sourceDocId])
   @@index([tenantId, type])
   @@index([tenantId, createdAt])
 }
