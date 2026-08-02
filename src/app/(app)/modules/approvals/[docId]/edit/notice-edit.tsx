@@ -79,7 +79,7 @@ export function NoticeEdit({
             id="rows"
             name="rows"
             rows={Math.max(4, notice.rows.length + 1)}
-            className={`${fieldInput} resize-y font-mono text-xs`}
+            className={`${fieldInput} resize-y font-mono text-sm`}
             defaultValue={notice.rows
               .map((r) => `${r.red ? "*" : ""}${r.k}: ${r.v}`)
               .join("\n")}
@@ -97,7 +97,7 @@ export function NoticeEdit({
             id="notes"
             name="notes"
             rows={Math.max(3, notice.notes.length + 1)}
-            className={`${fieldInput} resize-y font-mono text-xs`}
+            className={`${fieldInput} resize-y font-mono text-sm`}
             defaultValue={notice.notes
               .map((n) => `${n.red ? "*" : ""}${n.text}`)
               .join("\n")}

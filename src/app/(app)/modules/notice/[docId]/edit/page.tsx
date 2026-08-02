@@ -98,7 +98,7 @@ export default async function NoticeEditPage({
             id="items"
             name="items"
             rows={Math.max(4, draft.items.length + 1)}
-            className={`${fieldInput} resize-y font-mono text-xs`}
+            className={`${fieldInput} resize-y font-mono text-sm`}
             defaultValue={itemsToText(draft.items)}
           />
         </div>
@@ -114,7 +114,7 @@ export default async function NoticeEditPage({
             id="body"
             name="body"
             rows={Math.max(4, draft.bodyLines.length + 1)}
-            className={`${fieldInput} resize-y font-mono text-xs`}
+            className={`${fieldInput} resize-y font-mono text-sm`}
             defaultValue={draft.bodyLines.join("\n")}
           />
         </div>

@@ -116,7 +116,7 @@ export default async function EditGianPage({
               id={`lines${i}`}
               name={`lines${i}`}
               rows={Math.max(3, sec.lines.length + 1)}
-              className={`${fieldInput} resize-y font-mono text-xs`}
+              className={`${fieldInput} resize-y font-mono text-sm`}
               defaultValue={sec.lines.join("\n")}
             />
           </div>
