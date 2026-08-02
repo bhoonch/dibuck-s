@@ -60,23 +60,31 @@ export function NoticeForm({
           {NOTICE_CATEGORIES.map((cat) => (
             <div key={cat}>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">{cat}</p>
-              <div className="flex flex-wrap gap-1.5">
+              {/* 카드 그리드(시안 A) — 고르기 전에 "무엇을 적게 될지"가 힌트로 보인다 */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {NOTICE_TYPES.filter((t) => t.category === cat).map((t) => (
                   <button
                     key={t.key}
                     type="button"
                     onClick={() => setTypeKey(t.key)}
                     className={
-                      "rounded-full border px-3 py-1.5 text-sm " +
+                      "rounded-md border px-3 py-2 text-left " +
                       (typeKey === t.key
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "text-gray-600 hover:bg-gray-50")
+                        ? "border-primary bg-accent shadow-[inset_0_0_0_1px_var(--primary)]"
+                        : "hover:border-primary/60")
                     }
                   >
-                    {t.label}
-                    {t.kind === "official" && t.key !== "free" && (
-                      <span className="ml-1 text-xs opacity-70">공고</span>
-                    )}
+                    <span className="block text-sm font-semibold">
+                      {t.label}
+                      {t.kind === "official" && t.key !== "free" && (
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
+                          공고
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                      {t.hint.detail}
+                    </span>
                   </button>
                 ))}
               </div>

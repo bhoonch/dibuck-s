@@ -31,8 +31,9 @@ export const btnOutline = buttonVariants({ variant: "outline" });
 export const btnRow = buttonVariants({ variant: "outline", size: "sm" });
 export const btnRowPrimary = buttonVariants({ size: "sm" });
 
-/** 금액 표시 — JetBrains Mono에 ₩·만·억 글리프가 없어 폴백 폰트가 크게 튄다.
- *  숫자만 mono로 두고 기호·단위는 본문 폰트를 한 단계 작게 그린다. */
+/** 금액 표시 — 기호(₩)·단위(만·억)를 숫자보다 한 단계 작게 그려 숫자가 주인공이 되게 한다.
+ *  (원래는 mono 폰트의 ₩ 글리프 폴백 문제로 만들었다 — 글꼴이 Pretendard로 통일되며
+ *  글리프 문제는 사라졌고, 크기 위계만 남겼다) */
 export function Money({ n, short = false }: { n: number; short?: boolean }) {
   let num = n.toLocaleString();
   let unit = "";

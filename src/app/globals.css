@@ -8,7 +8,9 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  /* 글꼴은 Pretendard 하나로 통일(2026-08-03 사용자 결정) — font-mono 클래스는
+     "숫자 자릿수를 정렬하는 자리"라는 뜻만 남고, 정렬은 아래 tabular-nums가 대신한다 */
+  --font-mono: var(--font-sans);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -245,4 +247,12 @@
   --gian-line-strong: #c9c5b8;
   --gian-doc-line: #8a94a0;
   --gian-shadow: 0 1px 3px rgba(35, 48, 60, 0.08), 0 8px 24px rgba(35, 48, 60, 0.06);
+}
+
+/* font-mono 자리는 숫자 정렬이 목적이다 — 글꼴이 Pretendard로 통일되면서
+   폭 고정은 글꼴이 아니라 tabular-nums(고정폭 숫자)가 맡는다 */
+@layer utilities {
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
 }

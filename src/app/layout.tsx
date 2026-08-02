@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono", // globals.css의 --font-mono가 이 변수를 참조
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 /**
  * 본문 한글 글꼴. 예전엔 globals.css의 폰트 스택에 이름만 적혀 있고 실제로는
@@ -41,7 +34,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${pretendard.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${pretendard.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {children}
