@@ -79,6 +79,47 @@ export default function SignupPage() {
                 required
               />
             </div>
+            {/* 동의는 신뢰 경계인 서버 액션이 다시 검사한다 — required는 편의일 뿐 */}
+            <div className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="terms"
+                  required
+                  className="mt-0.5 size-4 accent-primary"
+                />
+                <span>
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    className="font-semibold text-primary underline underline-offset-2"
+                  >
+                    이용약관
+                  </Link>
+                  에 동의합니다{" "}
+                  <span className="text-muted-foreground">(필수)</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="privacy"
+                  required
+                  className="mt-0.5 size-4 accent-primary"
+                />
+                <span>
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    className="font-semibold text-primary underline underline-offset-2"
+                  >
+                    개인정보 수집·이용
+                  </Link>
+                  에 동의합니다{" "}
+                  <span className="text-muted-foreground">(필수)</span>
+                </span>
+              </label>
+            </div>
             {state?.error && (
               <p className="text-sm text-destructive">{state.error}</p>
             )}

@@ -195,6 +195,10 @@ model User {
   createdAt         DateTime @default(now())
   // 비밀번호를 바꾼 시각 — 이 시각 이전에 발급된 세션 토큰은 무효(탈취 세션 차단)
   passwordChangedAt DateTime @default(now())
+  /// 가입 시 약관·개인정보 수집 동의 시각(증적). 셀프 가입자만 찍힌다 —
+  /// 마스터가 발급한 직원 계정은 null(동의 주체가 본인이 아니라 기록하지 않는다).
+  /// ponytail: 약관 버전 추적 없음 — 약관을 실질 변경하는 날 versionAt 칼럼으로 올릴 것
+  termsAgreedAt     DateTime?
 
   documents      Document[]
   notifications  Notification[]

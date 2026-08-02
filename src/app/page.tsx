@@ -99,9 +99,16 @@ export default async function LandingPage() {
       </section>
 
       <footer className="border-t border-gray-100">
-        <div className="mx-auto flex w-full max-w-5xl items-center px-6 py-6 text-xs text-muted-foreground">
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-6 text-xs text-muted-foreground">
           © 디벅
-          <Link href="/login" className="ml-auto hover:underline">
+          <Link href="/terms" className="ml-auto hover:underline">
+            이용약관
+          </Link>
+          {/* 개인정보처리방침은 관행대로 굵게 — 공개 의무가 있는 문서라 눈에 띄어야 한다 */}
+          <Link href="/privacy" className="font-semibold hover:underline">
+            개인정보처리방침
+          </Link>
+          <Link href="/login" className="hover:underline">
             로그인
           </Link>
         </div>

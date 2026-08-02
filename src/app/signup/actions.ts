@@ -36,6 +36,9 @@ export async function signup(
 
   if (!tenantName || !name || !email || !password)
     return { error: "모든 항목을 입력해 주세요." };
+  // 화면의 required는 편의일 뿐 — 동의 검증의 신뢰 경계는 여기다
+  if (formData.get("terms") !== "on" || formData.get("privacy") !== "on")
+    return { error: "이용약관과 개인정보 수집·이용에 동의해 주세요." };
   if (tenantName.length > 50) return { error: "단지명이 너무 깁니다." };
   if (password.length < 8)
     return { error: "비밀번호는 8자 이상이어야 합니다." };
@@ -52,6 +55,7 @@ export async function signup(
         name,
         role: "DIRECTOR",
         passwordHash: hashSync(password, 10),
+        termsAgreedAt: new Date(), // 약관·개인정보 동의 증적 — 위 검증을 통과한 시각
         tenant: { create: { name: tenantName } },
       },
     });
