@@ -170,7 +170,7 @@ export function NoticeForm({
       )}
       <div className="flex items-center gap-3">
         <Button type="submit" size="lg" disabled={pending || !typeKey || !aiReady}>
-          공지문 만들기
+          초안 만들기
         </Button>
         <p className="text-sm text-muted-foreground">
           {typeKey
