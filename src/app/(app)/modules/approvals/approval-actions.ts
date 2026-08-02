@@ -457,6 +457,10 @@ export async function updateNoticeSchedule(
   const { doc } = await myDoc(docId);
   const meta = doc?.meta as { notice?: NoticeDoc } | null;
   if (!doc || !meta?.notice) return { error: "공고문을 찾을 수 없습니다." };
+  // 화면은 폐기본의 수정칸을 감추지만 신뢰 경계는 여기다 — 직접 호출이면 그대로 뚫린다.
+  // 폐기본이 고쳐지면 "버린 문서"가 조용히 최신 내용을 얻어 기록이 흐려진다.
+  if (doc.status === "void")
+    return { error: "폐기된 공고문은 수정할 수 없습니다." };
 
   // 첫 행이 "공사일자"/"시행일자" — buildNotice가 항상 그 순서로 만든다
   const rows = meta.notice.rows.map((r, i) =>
@@ -492,6 +496,9 @@ export async function updateNoticePosting(
   const { doc } = await myDoc(docId);
   const meta = doc?.meta as { notice?: NoticeDoc } | null;
   if (!doc || !meta?.notice) return { error: "공고문을 찾을 수 없습니다." };
+  // 일자 수정과 같은 규칙 — 폐기본은 화면 밖(직접 호출)에서도 잠근다
+  if (doc.status === "void")
+    return { error: "폐기된 공고문은 수정할 수 없습니다." };
 
   const places = mergePlaces(
     formData.getAll("places").map(String),
@@ -519,10 +526,19 @@ export async function reissueGianToken(stepId: string): Promise<ActionState> {
   const session = await requireSession();
   const step = await db.approvalStep.findUnique({
     where: { id: stepId },
-    include: { document: { select: { id: true, tenantId: true } } },
+    include: {
+      document: { select: { id: true, tenantId: true, createdById: true } },
+    },
   });
   if (!step || step.document.tenantId !== session.tenantId)
     return { error: "권한이 없습니다." };
+  // 재발급은 기존 링크를 즉시 무효화한다 — 아무 직원이나 누를 수 있으면 회장에게
+  // 이미 보낸 링크가 조용히 죽는다. 문서 수정·폐기와 같은 경계: 작성자 또는 마스터.
+  if (
+    step.document.createdById !== session.userId &&
+    session.role !== Role.DIRECTOR
+  )
+    return { error: "재발급은 작성자 또는 마스터만 할 수 있습니다." };
 
   const result = await reissueToken(stepId);
   revalidatePath(`/modules/approvals/${step.document.id}`);

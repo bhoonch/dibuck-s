@@ -351,8 +351,11 @@ export function GianForm({
         <div className={panel}>
           <h4 className={panelTitle}>지금 판정</h4>
           <p className="text-sm font-bold">{docTypeLabel[cls.docType]}</p>
+          {/* "예산"은 이 화면에서 두 뜻이다(③ 이 건의 금액 / ③-2 연간 예산 반영) —
+              번호로 못 박지 않으면 "예산 외 집행인데 왜 품의서?"로 읽힌다 */}
           <p className="mt-1 text-sm text-[var(--gian-ink-soft)]">
-            예산을 비우면 기안서, 입력하면 품의서로 자동 판별됩니다.
+            ③ 예산(이 건의 금액)을 비우면 기안서, 입력하면 품의서로 자동
+            판별됩니다.
           </p>
         </div>
 
@@ -435,9 +438,9 @@ export function GianForm({
                 {cls.docType === "ltp_work"
                   ? "장기수선충당금 집행은 한도와 무관하게 감사·회장 결재를 받습니다."
                   : budgeted === false
-                    ? `예산 외 집행이라 전결 한도(${directorLimit ? directorLimit.toLocaleString("ko-KR") + "원" : "미설정"})를 적용하지 않아 회장 결재가 붙습니다.`
+                    ? `연간 예산에 없는 집행(③-2 예산 외)이라 전결 한도(${directorLimit ? directorLimit.toLocaleString("ko-KR") + "원" : "미설정"})를 적용하지 않아 회장 결재가 붙습니다.`
                     : !directorLimit
-                      ? "전결 한도가 설정되지 않아 지출 문서에는 회장 결재가 붙습니다 — 설정 > 결재선에서 관리규약의 한도를 등록하면 이하 금액은 소장 전결로 처리됩니다."
+                      ? "전결 한도가 설정되지 않아 지출 문서에는 회장 결재가 붙습니다 — 설정 > 전결 규정에서 관리규약의 한도를 등록하면 이하 금액은 소장 전결로 처리됩니다."
                       : `전결 한도(${directorLimit.toLocaleString("ko-KR")}원, VAT 제외)를 넘어 회장 결재가 붙습니다.`}
               </p>
             )}

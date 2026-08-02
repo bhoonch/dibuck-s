@@ -16,7 +16,9 @@ function sweep(now: number) {
 }
 
 /**
- * @returns 남은 시도 횟수. 0이면 차단해야 한다.
+ * @returns 0이면 **이번 시도가 한도를 넘은 것** — 차단해야 한다. 양수면 이번 시도까지
+ * 포함해 앞으로 쓸 수 있는 횟수. 한도 N이면 정확히 N번 통과한다 —
+ * "10분 3회" 같은 안내 문구와 실제 허용 횟수가 1 어긋나지 않게.
  */
 export function rateLimit(key: string, limit: number, windowMs: number) {
   const now = Date.now();
@@ -24,10 +26,10 @@ export function rateLimit(key: string, limit: number, windowMs: number) {
   const b = buckets.get(key);
   if (!b || b.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return limit - 1;
+    return limit;
   }
   b.count++;
-  return Math.max(0, limit - b.count);
+  return Math.max(0, limit - b.count + 1);
 }
 
 /** 성공하면 카운터를 지운다 — 정상 사용자가 다음 로그인에서 막히지 않게 */
