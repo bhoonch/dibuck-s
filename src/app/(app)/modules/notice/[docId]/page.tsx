@@ -22,6 +22,7 @@ import { AttentionCard } from "@/components/attention-card";
 import { NoticePostPaper } from "@/components/notice-post-paper";
 import { NoticePosting } from "../../approvals/[docId]/notice-posting";
 import { updateNoticePostPosting } from "../actions";
+import { FinalizeButton } from "./finalize-button";
 import { PrintButton } from "./print-button";
 import { VoidButton } from "./void-button";
 
@@ -74,6 +75,7 @@ export default async function NoticeDocPage({
     .filter(Boolean)
     .join(" / ");
   const voided = doc.status === "void";
+  const isDraft = doc.status === "draft";
   // 문서 수정·폐기의 공통 경계 — 작성자 본인 또는 마스터
   const canEdit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
@@ -100,7 +102,11 @@ export default async function NoticeDocPage({
             <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
               {kindLabel}
             </span>
-            <span className="text-sm text-[var(--gian-ink-soft)]">{doc.docNo}</span>
+            {doc.docNo && (
+              <span className="text-sm text-[var(--gian-ink-soft)]">
+                {doc.docNo}
+              </span>
+            )}
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
             >
@@ -113,10 +119,24 @@ export default async function NoticeDocPage({
               </Button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">{!voided && <PrintButton />}</div>
+          {/* 인쇄는 완성본만 — 번호 없는 게시물이 벽에 붙으면 안 된다 */}
+          <div className="flex flex-wrap gap-2">
+            {!voided && !isDraft && <PrintButton />}
+          </div>
         </div>
 
         {/* "지금 채워야 할 것"은 격자 위 전체 폭 — 오른쪽은 상태·설정 자리라 섞지 않는다 */}
+        {isDraft && (
+          <AttentionCard
+            className="mb-4"
+            title="내용을 확인한 뒤 완성해 주세요"
+            action={canEdit ? <FinalizeButton docId={doc.id} /> : undefined}
+          >
+            지금은 초안입니다 — 아래 미리보기를 확인하고, 고칠 곳은 [내용
+            수정]에서 고친 뒤 완성해 주세요. 완성하면 문서번호가 부여되고
+            인쇄할 수 있습니다.
+          </AttentionCard>
+        )}
         {!voided && meta.draft.needsClarification.length > 0 && (
           <AttentionCard className="mb-4" title="게시 전 확인이 필요합니다">
             {meta.draft.needsClarification.join(" · ")} — [내용 수정]에서 고칠 수
@@ -130,7 +150,7 @@ export default async function NoticeDocPage({
               <NoticePostPaper
                 draft={meta.draft}
                 kind={meta.kind}
-                docNo={doc.docNo ?? ""}
+                docNo={doc.docNo ?? "완성 시 부여"}
                 place={meta.place}
                 postFrom={meta.postedDate}
                 postTo={meta.postTo}
@@ -159,7 +179,7 @@ export default async function NoticeDocPage({
                 defaultPostTo={DEFAULT_POST_TO}
                 saveAction={updateNoticePostPosting}
               >
-                {canEdit && <VoidButton docId={doc.id} />}
+                {canEdit && <VoidButton docId={doc.id} draft={isDraft} />}
               </NoticePosting>
             )}
           </aside>

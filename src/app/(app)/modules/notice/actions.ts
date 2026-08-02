@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { createDocument } from "@/lib/documents";
+import { assignDocNo, createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateNoticePost } from "@/lib/notice-ai";
@@ -108,7 +108,10 @@ export async function generateNoticeAction(
     type: "notice",
     title: draft.title,
     content: draftPlainText(draft), // 문서함 검색용 평문
-    status: "final", // 결재 없이 관리사무소장 명의 즉시 확정 — 결재 파생 공고문과 같은 취급
+    // 생성 직후는 초안 — 내용을 확인하고 [공지문 완성]을 눌러야 채번·확정된다.
+    // 번호를 지금 주면 버린 초안이 공지 대장에 영구 결번을 남긴다(기안과 같은 규칙).
+    status: "draft",
+    numberOnSubmit: true,
     createdById: session.userId,
     meta: {
       form: { typeKey, when, where, detail, contact },
@@ -193,15 +196,45 @@ export async function updateNoticePostPosting(
   return {};
 }
 
-/** 폐기 — 목록에 '폐기'로 남고 열람만 된다. 잘못 만든 게시물의 유일한 정정 경로는 새로 만들기 */
+/**
+ * 완성 — 내용 확인이 끝난 초안에 문서번호를 부여하고 확정한다.
+ * 번호 부여(멱등)가 먼저다: 여기서 실패해도 초안으로 남아 다시 누르면 되지만,
+ * 확정부터 하면 번호 없는 완성본이 남는다.
+ */
+export async function finalizeNoticePost(docId: string) {
+  const session = await requireNotice();
+  const found = await ownedPost(docId, session);
+  if ("error" in found) return found;
+  if (found.doc.status !== "draft")
+    return { error: "이미 완성됐거나 폐기된 게시물입니다." };
+  await assignDocNo(found.doc);
+  // 한 번만 일어나야 하는 일 — 조건부 updateMany로 자리를 잡는다 (동시 클릭 안전)
+  await db.document.updateMany({
+    where: { id: found.doc.id, status: "draft" },
+    data: { status: "final" },
+  });
+  revalidatePath(`/modules/notice/${docId}`);
+  revalidatePath("/modules/notice");
+  return { ok: true };
+}
+
+/**
+ * 폐기 — 완성본은 목록에 '폐기'로 남고 열람만 된다.
+ * 한 번도 완성되지 않은 초안(docNo 없음)은 하드 삭제 — 공지 대장에 결번을
+ * 남기지 않는다(기안 초안 폐기와 같은 규칙).
+ */
 export async function voidNoticePost(docId: string) {
   const session = await requireNotice();
   const found = await ownedPost(docId, session);
   if ("error" in found) return found;
-  await db.document.updateMany({
-    where: { id: found.doc.id, status: "final" },
-    data: { status: "void" },
-  });
+  if (!found.doc.docNo) {
+    await db.document.delete({ where: { id: found.doc.id } });
+  } else {
+    await db.document.updateMany({
+      where: { id: found.doc.id, status: { not: "void" } },
+      data: { status: "void" },
+    });
+  }
   revalidatePath("/modules/notice");
   redirect("/modules/notice");
 }

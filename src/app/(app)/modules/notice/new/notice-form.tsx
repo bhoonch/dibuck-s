@@ -173,7 +173,9 @@ export function NoticeForm({
           공지문 만들기
         </Button>
         <p className="text-sm text-muted-foreground">
-          {typeKey ? "완성문은 저장된 뒤 바로 인쇄할 수 있습니다." : "먼저 유형을 골라 주세요."}
+          {typeKey
+            ? "초안이 만들어집니다 — 내용을 확인하고 [공지문 완성]을 누르면 문서번호가 부여됩니다."
+            : "먼저 유형을 골라 주세요."}
         </p>
       </div>
     </form>
