@@ -54,6 +54,7 @@ model Tenant {
   inquiries      Inquiry[]
   billing        Billing?
   dunningEntries DunningEntry[]
+  trainingStaff  TrainingStaff[]
 }
 
 // ── 결제 (토스페이먼츠 자동결제) ─────────────────────────────
@@ -171,6 +172,22 @@ model DunningEntry {
 
   @@index([tenantId, dong, ho])
   @@index([docId])
+}
+
+// ── 산업안전보건 교육일지 — 모듈 전용 직원 명부 ──────────────
+// 앱 계정(User)과 연결하지 않는다: 교육 대상 대부분(기전·경비·미화)이 계정이 없다.
+// 완성된 일지에는 meta.attendees 스냅샷으로 남으므로 여기를 고쳐도 지난 증빙은 불변.
+model TrainingStaff {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name      String
+  position  String // 직종: 사무·기전·경비·미화·기타 (src/lib/safety-training.ts STAFF_POSITIONS)
+  office    Boolean  @default(false) // 사무직 여부 — 정기교육 법정 시간이 갈린다(반기 6h/12h)
+  active    Boolean  @default(true) // 퇴사자는 삭제가 아니라 비활성 — 명부에서 이름이 사라지면 "왜 지웠지"가 된다
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 // ── 직원 계정 + 역할 ─────────────────────────────────────────

@@ -43,6 +43,7 @@ export const docTypeLabels: Record<string, string> = {
   expense: "지출결의서",
   complaint: "민원",
   inspection: "점검",
+  safety_training: "교육일지",
 };
 
 export const docStatusLabels: Record<string, string> = {

@@ -14,6 +14,7 @@ const docNoPrefixes: Record<string, string> = {
   gian: "기안",
   report: "보고", // 완료보고서 (품의에서 파생)
   expense: "지출", // 지출결의서 (품의에서 파생)
+  safety_training: "교육", // 산업안전보건 교육일지
 };
 
 /** 연도는 KST 기준 — 서버 TZ(UTC)로 읽으면 12/31 밤 문서가 지난해 번호를 받는다 */

@@ -42,3 +42,8 @@ next-env.d.ts
 
 # prisma generated client
 /src/generated/
+
+# A4 실측용 임시 스냅샷 — Tailwind 소스 스캔에서도 빠져야 한다
+# (스냅샷 HTML 속 RSC 스크립트 조각을 클래스로 오인해 CSS 컴파일이 깨진 적 있음)
+/public/_a4/
+*.tmp.ts

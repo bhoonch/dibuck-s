@@ -24,7 +24,7 @@ const MODULES = [
   // 기안·품의 = 로드맵 5번(전자결재)+6번(AI 파이프라인) 선행 구현 — 별도 모듈을 만들지 않고 이 id를 재정의했다.
   // 가격 33,000 단일가(사용자 확정 2026-07-27). Phase 2 결재까지 끝나면 isActive: true로.
   { id: "approvals", name: "기안·품의", description: "다섯 항목만 입력하면 법적 검토를 마친 기안서·품의서 초안과 결재까지", icon: "Stamp", route: "/modules/approvals", price: 33000, sortOrder: 7, isActive: false },
-  { id: "safety-training", name: "산업보건 교육일지", description: "법정 교육 기록과 기한 알림", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 8, isActive: false },
+  { id: "safety-training", name: "안전보건 교육일지", description: "종류·주제만 고르면 법정 교육일지가 완성되고, 놓친 반기 교육을 알려드려요", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 8, isActive: true },
 ];
 
 /** 모듈 레지스트리 — 운영에도 필요한 기준 데이터 */
@@ -99,7 +99,7 @@ async function seedDemo() {
   });
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-  for (const moduleId of ["dunning", "notice", "contracts", "approvals"]) {
+  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training"]) {
     const trial = moduleId === "contracts" ? trialEndsAt : null;
     await db.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: tenant.id, moduleId } },
@@ -127,6 +127,63 @@ async function seedDemo() {
       { tenantId: tenant.id, moduleId: "facilities", docNo: `점검-${year}-0001`, type: "inspection", title: "소방설비 정기점검", content: "지하 1층 스프링클러 점검", status: "final", dueDate: days(5), createdById: director.id },
     ],
   });
+
+  // 교육일지 데모 — 명부 6명 + 완성 일지 1건 (문서와 같은 규칙: 없을 때만 심는다)
+  if ((await db.trainingStaff.count({ where: { tenantId: tenant.id } })) === 0) {
+    await db.trainingStaff.createMany({
+      data: [
+        { tenantId: tenant.id, name: "김소장", position: "사무", office: true },
+        { tenantId: tenant.id, name: "이경리", position: "사무", office: true },
+        { tenantId: tenant.id, name: "박기전", position: "기전" },
+        { tenantId: tenant.id, name: "최기전", position: "기전" },
+        { tenantId: tenant.id, name: "정경비", position: "경비" },
+        { tenantId: tenant.id, name: "한미화", position: "미화" },
+      ],
+    });
+  }
+  if ((await db.document.count({ where: { tenantId: tenant.id, type: "safety_training" } })) === 0) {
+    const kstToday = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    await db.document.create({
+      data: {
+        tenantId: tenant.id,
+        moduleId: "safety-training",
+        docNo: `교육-${year}-0001`,
+        type: "safety_training",
+        title: "정기교육 — 화재 대피 요령·소화기 사용법",
+        content: "소화기는 바람을 등지고 안전핀을 뽑아 빗자루로 쓸듯 분사한다.",
+        status: "final",
+        createdById: director.id,
+        meta: {
+          courseType: "regular",
+          date: kstToday,
+          place: "관리사무소",
+          hours: "1시간",
+          instructor: "관리소장 김소장",
+          topics: ["화재 대피 요령·소화기 사용법"],
+          draft: {
+            sections: [
+              {
+                heading: "화재 대피 요령·소화기 사용법",
+                lines: [
+                  "가. 화재 발견 즉시 \"불이야\"를 외치고 비상벨을 누른 뒤 119에 신고한다.",
+                  "나. 대피 시 승강기를 이용하지 않고 계단으로 이동하며, 젖은 수건으로 코와 입을 막는다.",
+                  "다. 소화기는 바람을 등지고 안전핀을 뽑아 손잡이를 움켜쥐고 빗자루로 쓸듯 분사한다.",
+                ],
+              },
+            ],
+            closing: "질의응답 및 안전 실천 다짐",
+            needsClarification: [],
+          },
+          attendees: [
+            { name: "박기전", position: "기전", office: false },
+            { name: "최기전", position: "기전", office: false },
+            { name: "정경비", position: "경비", office: false },
+            { name: "한미화", position: "미화", office: false },
+          ],
+        },
+      },
+    });
+  }
 
   if ((await db.unit.count({ where: { tenantId: tenant.id } })) === 0) {
     const units = [];
