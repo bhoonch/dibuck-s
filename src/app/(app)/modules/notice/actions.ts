@@ -16,6 +16,7 @@ import {
   type NoticeKind,
   type NoticePostDraft,
 } from "@/lib/notice-catalog";
+import { DEFAULT_PLACES, DEFAULT_POST_TO, mergePlaces } from "@/lib/gian/notice";
 import { ymdKst } from "@/lib/utils";
 
 const MODULE_ID = "notice";
@@ -114,6 +115,9 @@ export async function generateNoticeAction(
       draft,
       kind,
       postedDate: ymdKst(new Date()),
+      // 게시장소·게시기간 — 결재 파생 공고문과 같은 기본값, 게시 설정 카드에서 고친다
+      place: DEFAULT_PLACES.join(", "),
+      postTo: DEFAULT_POST_TO,
     },
   });
   revalidatePath("/modules/notice");
@@ -121,27 +125,29 @@ export async function generateNoticeAction(
 }
 
 /**
- * 본문 수정 — 게시 전 다듬기. LLM 재호출 없이 저장값만 고친다.
- * items는 "라벨: 값" 한 줄 형식(textToItems), bodyLines는 줄 단위.
+ * 본문 수정 — 결재 파생 공고문의 saveNoticeBody와 같은 문법의 수정 화면 폼 액션.
+ * LLM 재호출 없이 저장값만 고친다. 개요는 "라벨: 값" 한 줄이 항목 하나,
+ * 본문(협조 사항·개조식)은 한 줄이 한 항목. 게시장소·게시기간은 문서 화면에서 따로.
  */
-export async function saveNoticePost(
-  docId: string,
-  input: { title: string; intro: string; itemsText: string; bodyText: string; closing: string },
-) {
+export async function saveNoticePostBody(formData: FormData) {
   const session = await requireNotice();
+  const docId = String(formData.get("docId") ?? "");
   const found = await ownedPost(docId, session);
-  if ("error" in found) return found;
+  if ("error" in found) return; // 화면 밖 직접 호출 — 조용히 무시 (saveNoticeBody와 동일)
+  if (found.doc.status === "void") return;
 
-  const title = input.title.trim();
-  if (!title) return { error: "제목을 입력해 주세요." };
   const meta = (found.doc.meta ?? {}) as { draft?: NoticePostDraft };
+  const title =
+    String(formData.get("title") ?? "").trim() || meta.draft?.title || found.doc.title;
   const draft: NoticePostDraft = {
-    ...(meta.draft ?? { needsClarification: [] as string[] }),
     title,
-    intro: input.intro.trim(),
-    items: textToItems(input.itemsText),
-    bodyLines: input.bodyText.split("\n").map((l) => l.trim()).filter(Boolean),
-    closing: input.closing.trim(),
+    intro: String(formData.get("intro") ?? "").trim(),
+    items: textToItems(String(formData.get("items") ?? "")),
+    bodyLines: String(formData.get("body") ?? "")
+      .split("\n")
+      .map((l) => l.trimEnd())
+      .filter((l) => l.trim()),
+    closing: String(formData.get("closing") ?? "").trim(),
     needsClarification: meta.draft?.needsClarification ?? [],
   };
   await db.document.update({
@@ -154,7 +160,37 @@ export async function saveNoticePost(
   });
   revalidatePath(`/modules/notice/${docId}`);
   revalidatePath("/modules/notice");
-  return { ok: true };
+  redirect(`/modules/notice/${docId}`);
+}
+
+/** 게시장소·게시기간 — 게시 실무라 문서 화면에서 바로 고친다 (NoticePosting 카드 공용) */
+export async function updateNoticePostPosting(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+) {
+  const session = await requireNotice();
+  const docId = String(formData.get("docId") ?? "");
+  const found = await ownedPost(docId, session);
+  if ("error" in found) return found;
+  // 폐기본은 화면 밖(직접 호출)에서도 잠근다
+  if (found.doc.status === "void")
+    return { error: "폐기된 게시물은 수정할 수 없습니다." };
+
+  const places = mergePlaces(
+    formData.getAll("places").map(String),
+    String(formData.get("customPlace") ?? ""),
+  );
+  if (places.length === 0)
+    return { error: "게시장소를 한 곳 이상 골라 주세요." };
+  const postTo = String(formData.get("postTo") ?? "").trim() || DEFAULT_POST_TO;
+  await db.document.update({
+    where: { id: found.doc.id },
+    data: {
+      meta: { ...(found.doc.meta as object), place: places.join(", "), postTo },
+    },
+  });
+  revalidatePath(`/modules/notice/${docId}`);
+  return {};
 }
 
 /** 폐기 — 목록에 '폐기'로 남고 열람만 된다. 잘못 만든 게시물의 유일한 정정 경로는 새로 만들기 */

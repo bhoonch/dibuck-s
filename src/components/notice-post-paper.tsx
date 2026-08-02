@@ -2,16 +2,19 @@ import type { NoticeKind, NoticePostDraft } from "@/lib/notice-catalog";
 
 /**
  * 공지문 모듈 A4 렌더러 (210×297mm) — 결재 파생 공고문(notice-paper.tsx)과 같은
- * 시각 언어(청색 괘선·표 헤더·명의+직인)를 쓰되, 서식은 두 격으로 갈린다:
- * 안내문 = 제목 → 인사 → 개요 표 → ▶협조 사항 → 맺음 / 공고문 = 공고 호수 → 제목 → 개조식.
+ * 서식 언어: 3분할 헤더(문서번호·게시장소 / 큰 격 이름 / 게시일·게시기간) → 청색 괘선
+ * → 대제목. 본문만 두 격으로 갈린다: 안내문 = 인사 → 개요 표 → ▶협조 사항 → 맺음 /
+ * 공고문 = 도입 → 개요 표 → 개조식.
  *
  * 활자 14pt 기준 — 게시물은 승강기 벽에서 1m 밖에서 읽는다(기안서 11.5pt와 다른 거리).
  */
 export function NoticePostPaper({
   draft,
   kind,
-  officialNo,
-  postedDate,
+  docNo,
+  place,
+  postFrom,
+  postTo,
   office,
   tel,
   sealImage,
@@ -20,10 +23,11 @@ export function NoticePostPaper({
 }: {
   draft: NoticePostDraft;
   kind: NoticeKind;
-  /** 공고문 상단 "○○아파트 공고 제2026-7호" — officialNoOf()가 채번에서 유도 */
-  officialNo: string;
-  /** 게시일 한글 표기 (예: "2026년 8월 3일") */
-  postedDate: string;
+  docNo: string;
+  /** 게시장소·게시기간 — 게시 설정 카드에서 고친다 (결재 파생 공고문과 같은 실무) */
+  place: string;
+  postFrom: string;
+  postTo: string;
   /** 하단 명의 (예: "행복아파트 관리사무소장") */
   office: string;
   tel?: string | null;
@@ -31,24 +35,50 @@ export function NoticePostPaper({
   logoImage?: string | null;
   id?: string;
 }) {
+  const th =
+    "w-[16mm] border border-[#2456A6] bg-[#EAF0FA] px-[1.8mm] py-[1mm] text-center font-bold whitespace-nowrap text-[#16324F]";
+  const td = "border border-[#2456A6] px-[1.8mm] py-[1mm]";
+
   return (
     <div
       id={id}
-      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[16mm] pt-[15mm] pb-[13mm] text-[14pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none"
+      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[14pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none"
     >
-      {kind === "official" && (
-        <>
-          {/* 호수는 채번에서 온 결정값 — 한글이 섞여 mono 금지 */}
-          <p className="text-[12pt] font-bold">{officialNo}</p>
-          <hr className="mt-[2.5mm] mb-[9mm] border-0 border-t-2 border-[#2456A6]" />
-        </>
-      )}
+      {/* 3분할 헤더 — notice-paper.tsx와 같은 규격 */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[5mm]">
+        <table className="w-full max-w-[52mm] border-collapse text-[8.5pt]">
+          <tbody>
+            <tr>
+              <th className={th}>문서번호</th>
+              {/* 채번에 한글이 섞여("공지-2026-0003") mono는 글리프가 없다 — 폰트만 튄다 */}
+              <td className={td}>{docNo}</td>
+            </tr>
+            <tr>
+              <th className={th}>게시장소</th>
+              <td className={td}>{place}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="text-center text-[25pt] font-extrabold tracking-[.5em] indent-[.5em] whitespace-nowrap">
+          {kind === "official" ? "공 고 문" : "안 내 문"}
+        </div>
+        <table className="ml-auto w-full max-w-[52mm] border-collapse text-[8.5pt]">
+          <tbody>
+            <tr>
+              <th className={th}>게 시 일</th>
+              <td className={td}>{postFrom} 부터</td>
+            </tr>
+            <tr>
+              <th className={th}>게시기간</th>
+              <td className={td}>{postTo} 까지</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <h2
-        className={`mb-[8mm] text-center text-[21pt] font-extrabold tracking-[.02em] text-[#2456A6] ${
-          kind === "guide" ? "mt-[6mm]" : ""
-        }`}
-      >
+      <hr className="mt-[4mm] mb-[9mm] border-0 border-t-2 border-[#2456A6]" />
+
+      <h2 className="mb-[8mm] text-center text-[21pt] font-extrabold tracking-[.02em] text-[#2456A6]">
         {draft.title}
       </h2>
 
@@ -105,8 +135,6 @@ export function NoticePostPaper({
       {draft.closing && <p className="indent-[2ch]">{draft.closing}</p>}
 
       <div className="flex-1" />
-
-      <p className="mb-[7mm] text-center text-[14.5pt] font-bold">{postedDate}</p>
 
       <hr className="mb-[5mm] border-0 border-t-[3px] border-[#2456A6]" />
       <div className="flex items-center justify-center gap-[4mm]">

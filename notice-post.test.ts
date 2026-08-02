@@ -9,7 +9,6 @@ import {
   draftPlainText,
   itemsToText,
   noticeTypeOf,
-  officialNoOf,
   textToItems,
 } from "./src/lib/notice-catalog";
 
@@ -28,13 +27,6 @@ assert.deepEqual(
 );
 assert.equal(noticeTypeOf("water_cut")?.label, "단수 안내");
 assert.equal(noticeTypeOf("없는키"), undefined);
-
-// --- 공고 호수 — 채번에서 유도, LLM이 짓지 않는다 ---
-assert.equal(officialNoOf("공지-2026-0007", "행복아파트"), "행복아파트 공고 제2026-7호");
-assert.equal(officialNoOf("공지-2026-0012", "행복아파트"), "행복아파트 공고 제2026-12호");
-// 채번 전·형식 밖 값은 호수 없이 — 틀린 호수를 지어내지 않는다
-assert.equal(officialNoOf(null, "행복아파트"), "행복아파트 공고");
-assert.equal(officialNoOf("독촉-2026-0001", "행복아파트"), "행복아파트 공고");
 
 // --- 개요 표 수정칸 왕복 — 값 속 콜론("10:00")은 구분자가 아니다 ---
 const items = [

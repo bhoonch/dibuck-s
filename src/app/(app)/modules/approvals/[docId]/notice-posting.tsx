@@ -24,6 +24,7 @@ export function NoticePosting({
   options,
   defaultPostTo,
   children,
+  saveAction = updateNoticePosting,
 }: {
   docId: string;
   /** 카드 바닥에 붙는 것 — 폐기처럼 되돌릴 수 없는 일 (결재 패널 하단과 같은 자리) */
@@ -35,11 +36,10 @@ export function NoticePosting({
   postTo: string;
   options: readonly string[];
   defaultPostTo: string;
+  /** 공지문 모듈도 같은 카드를 쓴다 — 저장 액션만 자기 것으로 갈아 끼운다 */
+  saveAction?: typeof updateNoticePosting;
 }) {
-  const [state, action, pending] = useActionState(
-    updateNoticePosting,
-    undefined,
-  );
+  const [state, action, pending] = useActionState(saveAction, undefined);
   const [open, setOpen] = useState(false);
 
   if (!open)

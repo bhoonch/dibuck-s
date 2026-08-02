@@ -82,15 +82,6 @@ export type NoticePostDraft = {
   needsClarification: string[];
 };
 
-/**
- * 공고 호수는 채번에서 유도한다 — LLM이 짓지 않는다.
- * "공지-2026-0007" → "○○아파트 공고 제2026-7호"
- */
-export function officialNoOf(docNo: string | null, aptName: string) {
-  const m = /^공지-(\d{4})-(\d+)$/.exec(docNo ?? "");
-  return m ? `${aptName} 공고 제${m[1]}-${Number(m[2])}호` : `${aptName} 공고`;
-}
-
 /** 문서함 검색용 평문 — 화면 렌더는 meta의 구조화 데이터가 담당한다 */
 export function draftPlainText(d: NoticePostDraft) {
   return [
