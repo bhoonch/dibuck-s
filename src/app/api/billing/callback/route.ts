@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { Role } from "@/generated/prisma/enums";
+import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chargeTenant } from "@/lib/billing-run";
 import { TossError, issueBillingKey } from "@/lib/toss";
@@ -12,9 +13,12 @@ const back = (req: NextRequest, q: string) =>
  *
  * customerKey는 쿼리로 오지만 믿지 않는다 — 세션의 단지에 저장된 값과 대조해야
  * 남의 customerKey를 붙여 넣어 빌링키를 가로채는 걸 막을 수 있다.
+ * 카드 등록·즉시 정산은 마스터의 일이다 — 결제 화면·액션과 같은 경계(DIRECTOR)를
+ * 콜백 입구에도 건다. 검사를 호출자(결제창을 연 화면)에게만 맡기면 이 URL을 직접
+ * 친 다른 권한의 계정이 그대로 통과한다.
  */
 export async function GET(req: NextRequest) {
-  const session = await requireSession();
+  const session = await requireRole(Role.DIRECTOR);
   if (!session.tenantId) return back(req, "error=no_tenant");
 
   const authKey = req.nextUrl.searchParams.get("authKey");

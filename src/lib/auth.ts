@@ -62,13 +62,17 @@ export const getSession = cache(async (): Promise<Session | null> => {
   }
 
   // 임퍼서네이션 중에는 토큰의 권한(단지 DIRECTOR)이 DB의 실제 권한(SUPER_ADMIN)과
-  // 다른 게 정상이다. 발급자가 아직 운영자인지만 확인하고 토큰 값을 그대로 쓴다.
+  // 다른 게 정상이다. 발급자가 아직 운영자인지 확인하고 토큰 값을 그대로 쓰되,
+  // 비밀번호 변경 전 발급 토큰 무효화는 일반 세션과 같은 규칙 — 운영자 계정이
+  // 탈취돼 비밀번호를 재설정했는데 대리 세션만 7일을 더 살면 안 된다.
   if (claims.impersonating) {
     const admin = await db.user.findUnique({
       where: { id: claims.userId },
-      select: { role: true },
+      select: { role: true, passwordChangedAt: true },
     });
-    return admin?.role === Role.SUPER_ADMIN ? claims : null;
+    if (admin?.role !== Role.SUPER_ADMIN) return null;
+    if (issuedAt + 1000 < admin.passwordChangedAt.getTime()) return null;
+    return claims;
   }
 
   const user = await db.user.findUnique({
