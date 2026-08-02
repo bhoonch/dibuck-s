@@ -14,11 +14,14 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await requireRole(Role.SUPER_ADMIN);
-  // 기능 테스트용 사용자 대시보드 진입 대상 — 가장 오래된 운영 중 단지(시드 데모 단지)
+  // 기능 테스트용 사용자 대시보드 진입 대상 — 시드 데모 단지(id 고정)만.
+  // "가장 오래된 ACTIVE 단지"로 고르면 운영 DB에선 최고참 실고객이 걸려,
+  // 테스트 버튼 한 번이 실고객 단지 임퍼서네이션이 된다. 데모 단지가 없는
+  // 환경(운영)에서는 버튼이 아예 그려지지 않는다. 실고객 진입은 지금처럼
+  // 단지 상세의 임퍼서네이션(로그 증적 포함)으로만.
   const [testTenant, supportCount] = await Promise.all([
-    db.tenant.findFirst({
-      where: { status: "ACTIVE" },
-      orderBy: { createdAt: "asc" },
+    db.tenant.findUnique({
+      where: { id: "demo-tenant", status: "ACTIVE" },
       select: { id: true, name: true },
     }),
     db.inquiry.count({ where: { status: "open" } }),
