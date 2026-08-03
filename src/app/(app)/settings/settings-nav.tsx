@@ -26,12 +26,13 @@ const items: { name: string; href: string; icon: LucideIcon }[] = [
 ];
 
 /**
- * 설정 세로 메뉴 — 가로 탭은 항목이 늘면 빡빡해서 세로로 두었다.
+ * 설정 상단 가로 탭 — 세로 메뉴였다가 상단으로 옮겼다(사용자 결정, 2026-08-03).
+ * 항목이 늘어 한 줄에 안 들어가면 flex-wrap으로 다음 줄로 흐른다.
  */
 export function SettingsNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-px lg:sticky lg:top-20">
+    <nav className="flex flex-wrap gap-1 border-b pb-3">
       {items.map((t) => {
         const active = pathname === t.href;
         return (

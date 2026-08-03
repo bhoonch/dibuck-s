@@ -20,7 +20,7 @@ export default function SettingsLayout({
         title="단지 관리"
         description="단지 정보와 세대·직원, 결재 규정을 관리합니다."
       />
-      <div className="grid items-start gap-6 lg:grid-cols-[11rem_minmax(0,1fr)]">
+      <div className="space-y-6">
         <SettingsNav />
         <div className="min-w-0">{children}</div>
       </div>

@@ -74,15 +74,17 @@ export default async function DunningHomePage() {
       </PageHeader>
       {docs.length > 0 && (
         <SummaryBox>
-          <SummaryStat label="미납 세대" value={`${open.length}세대`} />
-          <SummaryStat label="미납 총액" value={won(total)} />
-          <SummaryStat
-            label="단계별"
-            value={[1, 2, 3]
-              .map((s) => `${s}차 ${open.filter((e) => e.stage === s).length}`)
-              .join(" · ")}
-            note="세대별 최신 발송 기준"
-          />
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+            <SummaryStat label="미납 세대" value={`${open.length}세대`} />
+            <SummaryStat label="미납 총액" value={won(total)} />
+            <SummaryStat
+              label="단계별"
+              value={[1, 2, 3]
+                .map((s) => `${s}차 ${open.filter((e) => e.stage === s).length}`)
+                .join(" · ")}
+              note="세대별 최신 발송 기준"
+            />
+          </dl>
         </SummaryBox>
       )}
       {stale.length > 0 && (
