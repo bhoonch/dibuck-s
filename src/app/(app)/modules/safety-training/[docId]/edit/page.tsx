@@ -7,6 +7,7 @@ import { isSubscribed } from "@/lib/modules";
 import { Role } from "@/generated/prisma/enums";
 import {
   attendeesToText,
+  parseHours,
   sectionsToText,
   type AttendeeSnap,
   type TrainingDraft,
@@ -41,7 +42,7 @@ export default async function TrainingEditPage({
   const meta = (doc.meta ?? {}) as {
     date?: string;
     place?: string;
-    hours?: string;
+    hours?: unknown; // 옛 일지는 자유 텍스트, 새 일지는 숫자
     instructor?: string;
     draft?: TrainingDraft;
     attendees?: AttendeeSnap[];
@@ -89,12 +90,20 @@ export default async function TrainingEditPage({
             <label htmlFor="hours" className={fieldLabel}>
               교육시간
             </label>
-            <input
-              id="hours"
-              name="hours"
-              className={fieldInput}
-              defaultValue={meta.hours ?? ""}
-            />
+            {/* 숫자 — 반기 누적 판정이 합산한다. 옛 일지의 "1시간"도 숫자만 뽑아 채운다 */}
+            <div className="flex items-center gap-2">
+              <input
+                id="hours"
+                name="hours"
+                type="number"
+                step="0.5"
+                min="0.5"
+                className={`${fieldInput} w-28`}
+                defaultValue={parseHours(meta.hours) ?? ""}
+                required
+              />
+              <span className="text-sm text-[var(--gian-ink-soft)]">시간</span>
+            </div>
           </div>
           <div>
             <label htmlFor="place" className={fieldLabel}>

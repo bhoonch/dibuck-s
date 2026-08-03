@@ -51,12 +51,47 @@ export const COURSE_TYPES: {
 export const courseTypeOf = (key: string) =>
   COURSE_TYPES.find((c) => c.key === key);
 
+// ── 교육시간 ──
+// 법정 기준이 "매반기 6시간 이상" 누적이라 시간은 반드시 숫자여야 한다.
+// 예전엔 meta.hours가 자유 텍스트("1시간")라 합산이 불가능했고, 1시간짜리
+// 한 번으로도 "완료"로 보였다. 옛 일지를 읽어야 하므로 파서는 둘 다 받는다.
+
+/** 교육시간 → 시간(숫자). 옛 자유 텍스트("1시간", "1.5h")도 읽는다. null = 못 읽음 */
+export function parseHours(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) && v > 0 ? v : null;
+  if (typeof v !== "string") return null;
+  const m = v.match(/\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return n > 0 ? n : null;
+}
+
+/** 화면·문서 표기 — 1 → "1시간", 1.5 → "1시간 30분". 못 읽으면 원문 그대로 */
+export function formatHours(v: unknown): string {
+  const n = parseHours(v);
+  if (n === null) return typeof v === "string" ? v : "";
+  const h = Math.floor(n);
+  const min = Math.round((n - h) * 60);
+  if (min === 0) return `${h}시간`;
+  return h === 0 ? `${min}분` : `${h}시간 ${min}분`;
+}
+
 // ── 직원 명부 ──
 
 export const STAFF_POSITIONS = ["사무", "기전", "경비", "미화", "기타"] as const;
 
-/** 완성된 일지에 남는 참석자 스냅샷 — 명부를 나중에 고쳐도 지난 증빙은 불변 */
-export type AttendeeSnap = { name: string; position: string; office: boolean };
+/**
+ * 완성된 일지에 남는 참석자 스냅샷 — 명부를 나중에 고쳐도 지난 증빙은 불변.
+ * staffId는 인원별 이수 집계가 사람을 특정하는 열쇠다. 이름만으로 묶으면
+ * 동명이인이 한 사람으로 합쳐진다. 옛 일지에는 없으므로(선택) 집계 쪽은
+ * staffId가 없으면 이름으로 떨어지는 폴백을 갖는다.
+ */
+export type AttendeeSnap = {
+  name: string;
+  position: string;
+  office: boolean;
+  staffId?: string;
+};
 
 // ── 주제 카탈로그 — 화면은 현재 반기 계절 주제를 앞에 배치한다 ──
 
@@ -157,11 +192,32 @@ export function daysToHalfEnd(d: Date): number {
 
 // ── 이행 현황 집계 — 모듈 홈이 열 때마다 계산한다(크론·저장값 없음) ──
 
+/** 반기 정기교육 법정 최소 시간 — 판정에 쓰는 숫자. 문구는 LEGAL_HOURS */
+export const REQUIRED_HOURS = { office: 6, field: 12 } as const;
+
 export type LogSummary = {
   courseType: CourseType;
   /** 교육일자 YYYY-MM-DD (meta.date) */
   date: string;
-  attendees: Pick<AttendeeSnap, "office">[];
+  /** 교육시간 — 새 일지는 숫자, 옛 일지는 자유 텍스트. parseHours가 읽는다 */
+  hours?: unknown;
+  attendees: Pick<AttendeeSnap, "office" | "name" | "staffId">[];
+};
+
+export type RosterMember = {
+  id: string;
+  name: string;
+  position: string;
+  office: boolean;
+};
+
+/** 한 사람의 이번 반기 정기교육 이수 현황 */
+export type PersonProgress = RosterMember & {
+  /** 이번 반기 정기교육 이수 시간 합계 */
+  hours: number;
+  /** 법정 최소 시간 — 사무직 6, 그 외 12 */
+  required: number;
+  done: boolean;
 };
 
 export type Compliance = {
@@ -174,32 +230,64 @@ export type Compliance = {
   supervisor: boolean;
 };
 
+/** 참석자 스냅샷이 이 직원인가 — id가 있으면 id로, 옛 일지는 이름으로 떨어진다 */
+const isSamePerson = (
+  a: Pick<AttendeeSnap, "name" | "staffId">,
+  s: RosterMember,
+) => (a.staffId ? a.staffId === s.id : a.name === s.name);
+
 /**
- * "실시했다" = 완성(final)된 일지의 교육일자가 이번 반기 안이고, 그 직군 참석자가
- * 한 명이라도 있다. 사무직/그 외는 참석자 스냅샷의 office로 가른다 —
- * 명부를 나중에 고쳐도 지난 일지의 판정은 변하지 않는다.
+ * 인원별 이수 시간 — 이번 반기 정기교육 일지에서 그 사람이 참석한 회차의 시간을 더한다.
+ * 법정 요건이 근로자 **개인별** 누적(사무직 6h·그 외 12h)이라 회차 수가 아니라 시간을 센다.
+ *
+ * 시간을 읽을 수 없는 옛 일지는 0으로 친다 — 실제보다 적게 세는 쪽이라
+ * "이수했는데 미이수로 보이는" 안전한 방향의 오차다(반대면 위반을 놓친다).
+ * 채용 시·관리감독자 교육은 별도 요건이라 반기 누적에 넣지 않는다.
+ */
+export function personProgress(
+  now: Date,
+  finalLogs: LogSummary[],
+  roster: RosterMember[],
+): PersonProgress[] {
+  const { start, end } = halfRange(halfOfKst(now));
+  const inHalf = finalLogs.filter(
+    (l) => l.courseType === "regular" && l.date >= start && l.date <= end,
+  );
+  return roster.map((s) => {
+    const hours = inHalf.reduce(
+      (sum, l) =>
+        l.attendees.some((a) => isSamePerson(a, s))
+          ? sum + (parseHours(l.hours) ?? 0)
+          : sum,
+      0,
+    );
+    const required = s.office ? REQUIRED_HOURS.office : REQUIRED_HOURS.field;
+    return { ...s, hours, required, done: hours >= required };
+  });
+}
+
+/**
+ * 직군별 이행 판정 = 그 직군 **전원**이 법정 시간을 채웠는가.
+ * 예전엔 "그 직군 참석자가 한 명이라도 있으면 완료"였다 — 사무직 6명 중
+ * 한 명만 받아도 완료로 보였고, 1시간짜리 한 번이 6시간 요건을 통과했다.
+ * 관리감독자 교육은 대상이 소장 한 명이라 실시 여부로만 본다(연 16시간).
  */
 export function complianceOf(
   now: Date,
   finalLogs: LogSummary[],
-  roster: { office: boolean }[],
+  roster: RosterMember[],
 ): Compliance {
   const half = halfOfKst(now);
-  const { start, end } = halfRange(half);
-  const inHalf = finalLogs.filter(
-    (l) => l.courseType === "regular" && l.date >= start && l.date <= end,
-  );
-  const hasOfficeStaff = roster.some((s) => s.office);
-  const hasFieldStaff = roster.some((s) => !s.office);
+  const progress = personProgress(now, finalLogs, roster);
+  const allDone = (office: boolean) => {
+    const group = progress.filter((p) => p.office === office);
+    return group.length === 0 ? null : group.every((p) => p.done);
+  };
   return {
     half,
     daysLeft: daysToHalfEnd(now),
-    regularOffice: hasOfficeStaff
-      ? inHalf.some((l) => l.attendees.some((a) => a.office))
-      : null,
-    regularField: hasFieldStaff
-      ? inHalf.some((l) => l.attendees.some((a) => !a.office))
-      : null,
+    regularOffice: allDone(true),
+    regularField: allDone(false),
     supervisor: finalLogs.some(
       (l) => l.courseType === "supervisor" && l.date.startsWith(`${half.year}-`),
     ),
@@ -258,4 +346,26 @@ export function textToAttendees(text: string): AttendeeSnap[] {
       const position = comma < 0 ? "기타" : line.slice(comma + 1).trim() || "기타";
       return { name, position, office: position === "사무" };
     });
+}
+
+/**
+ * 수정칸에서 돌아온 참석자에 기존 스냅샷의 신원(직원 id·사무직 여부)을 다시 잇는다.
+ * 파서는 이름·직종만 읽으므로 이걸 빼면 일지를 한 번 수정할 때마다 staffId가
+ * 사라지고, 인원별 이수 집계가 이름 매칭으로 되돌아간다(동명이인에서 깨진다).
+ * 수정칸에서 새로 타이핑한 이름은 명부에 없는 사람일 수 있어 그대로 둔다.
+ */
+export function mergeAttendees(
+  parsed: AttendeeSnap[],
+  prev: AttendeeSnap[],
+): AttendeeSnap[] {
+  const byName = new Map(prev.map((a) => [a.name, a]));
+  return parsed.map((a) => {
+    const old = byName.get(a.name);
+    if (!old) return a;
+    return {
+      ...a,
+      office: old.office,
+      ...(old.staffId ? { staffId: old.staffId } : {}),
+    };
+  });
 }

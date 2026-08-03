@@ -1,4 +1,9 @@
-import { LEGAL_BASIS, type AttendeeSnap, type TrainingDraft } from "@/lib/safety-training";
+import {
+  LEGAL_BASIS,
+  formatHours,
+  type AttendeeSnap,
+  type TrainingDraft,
+} from "@/lib/safety-training";
 
 /** 공문서 날짜 표기 "2026. 08. 03." — 폼의 YYYY-MM-DD를 그대로 바꾼다 */
 const paperDate = (ymd: string) =>
@@ -28,7 +33,8 @@ export function SafetyTrainingPaper({
   /** 교육일자 YYYY-MM-DD */
   date: string;
   place: string;
-  hours: string;
+  /** 교육시간 — 새 일지는 숫자, 옛 일지는 자유 텍스트("1시간"). 표기는 formatHours가 맡는다 */
+  hours: unknown;
   instructor: string;
   draft: TrainingDraft;
   attendees: AttendeeSnap[];
@@ -79,7 +85,7 @@ export function SafetyTrainingPaper({
             <th className={th}>교육일자</th>
             <td className={td}>{paperDate(date)}</td>
             <th className={th}>교육시간</th>
-            <td className={td}>{hours}</td>
+            <td className={td}>{formatHours(hours)}</td>
           </tr>
           <tr>
             <th className={th}>교육장소</th>

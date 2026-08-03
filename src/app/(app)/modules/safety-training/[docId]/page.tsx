@@ -40,7 +40,7 @@ export default async function TrainingDocPage({
     courseType?: string;
     date?: string;
     place?: string;
-    hours?: string;
+    hours?: unknown; // 옛 일지는 자유 텍스트, 새 일지는 숫자
     instructor?: string;
     draft?: TrainingDraft;
     attendees?: AttendeeSnap[];
@@ -51,7 +51,7 @@ export default async function TrainingDocPage({
     courseLabel: courseTypeOf(raw.courseType ?? "")?.label ?? "정기교육",
     date: raw.date ?? ymdKst(doc.createdAt),
     place: raw.place ?? "관리사무소",
-    hours: raw.hours ?? "",
+    hours: raw.hours ?? "",  // 표기는 SafetyTrainingPaper가 formatHours로 한다
     instructor: raw.instructor ?? "",
     draft: raw.draft ?? {
       sections: [{ heading: doc.title, lines: doc.content.split("\n").filter(Boolean) }],

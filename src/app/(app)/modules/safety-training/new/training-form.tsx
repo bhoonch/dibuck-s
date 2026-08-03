@@ -198,7 +198,20 @@ export function TrainingForm({
           </div>
           <div>
             <Label htmlFor="hours">교육시간</Label>
-            <Input id="hours" name="hours" defaultValue="1시간" className="mt-1.5" />
+            {/* 숫자로 받는다 — 반기 누적(사무직 6h·그 외 12h) 판정이 이 값을 합산한다 */}
+            <div className="mt-1.5 flex items-center gap-2">
+              <Input
+                id="hours"
+                name="hours"
+                type="number"
+                step="0.5"
+                min="0.5"
+                defaultValue="1"
+                className="w-24"
+                required
+              />
+              <span className="text-sm text-muted-foreground">시간</span>
+            </div>
           </div>
           <div>
             <Label htmlFor="place">교육장소</Label>

@@ -13,6 +13,9 @@ import {
   STAFF_POSITIONS,
   courseTypeOf,
   draftPlainText,
+  formatHours,
+  mergeAttendees,
+  parseHours,
   textToAttendees,
   textToSections,
   topicOf,
@@ -74,7 +77,8 @@ export async function generateTrainingAction(
   const date = String(formData.get("date") ?? "").trim();
   if (!date) return { error: "교육일자를 입력해 주세요." };
   const place = String(formData.get("place") ?? "").trim() || "관리사무소";
-  const hours = String(formData.get("hours") ?? "").trim() || "1시간";
+  // 시간은 숫자로 저장한다 — 반기 누적(6h/12h) 판정이 이 값을 합산한다
+  const hours = parseHours(formData.get("hours")) ?? 1;
   const instructor = String(formData.get("instructor") ?? "").trim();
   if (!instructor) return { error: "강사를 입력해 주세요." };
 
@@ -88,6 +92,7 @@ export async function generateTrainingAction(
     : [];
   if (staff.length === 0) return { error: "참석자를 한 명 이상 골라 주세요." };
   const attendees: AttendeeSnap[] = staff.map((s) => ({
+    staffId: s.id, // 인원별 이수 집계가 사람을 특정하는 열쇠 — 동명이인을 가른다
     name: s.name,
     position: s.position,
     office: s.office,
@@ -122,7 +127,7 @@ export async function generateTrainingAction(
     draft = await generateTrainingDraft({
       courseLabel: course.label,
       topics: topicLabels,
-      hours,
+      hours: formatHours(hours),
       attendeeSummary,
       tenantName: tenant.name,
     });
@@ -166,6 +171,7 @@ export async function saveTrainingBody(formData: FormData) {
     draft?: TrainingDraft;
     attendees?: AttendeeSnap[];
     topics?: string[];
+    hours?: number | string; // 새 일지는 숫자, 옛 일지는 자유 텍스트 — 못 읽으면 그대로 둔다
   };
   const sections = textToSections(String(formData.get("sections") ?? ""));
   const draft: TrainingDraft = {
@@ -173,10 +179,10 @@ export async function saveTrainingBody(formData: FormData) {
     closing: String(formData.get("closing") ?? "").trim(),
     needsClarification: meta.draft?.needsClarification ?? [],
   };
-  // 참석자 파서는 office를 직종=사무로 추정한다 — 이름이 그대로면 원래 값을 보존한다
-  const oldOffice = new Map((meta.attendees ?? []).map((a) => [a.name, a.office]));
-  const attendees = textToAttendees(String(formData.get("attendees") ?? "")).map(
-    (a) => ({ ...a, office: oldOffice.get(a.name) ?? a.office }),
+  // 파서는 이름·직종만 읽는다 — 이름이 그대로면 원래 신원(직원 id·사무직)을 다시 잇는다
+  const attendees = mergeAttendees(
+    textToAttendees(String(formData.get("attendees") ?? "")),
+    meta.attendees ?? [],
   );
   if (attendees.length === 0) return; // 참석자 없는 교육일지는 증빙이 아니다
 
@@ -193,7 +199,7 @@ export async function saveTrainingBody(formData: FormData) {
         ...(found.doc.meta as object),
         date: String(formData.get("date") ?? "").trim() || (meta as { date?: string }).date,
         place: String(formData.get("place") ?? "").trim(),
-        hours: String(formData.get("hours") ?? "").trim(),
+        hours: parseHours(formData.get("hours")) ?? meta.hours,
         instructor: String(formData.get("instructor") ?? "").trim(),
         absentReason: String(formData.get("absentReason") ?? "").trim(),
         topics,
