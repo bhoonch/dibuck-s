@@ -45,6 +45,7 @@ export default async function TrainingEditPage({
     instructor?: string;
     draft?: TrainingDraft;
     attendees?: AttendeeSnap[];
+    absentReason?: string;
   };
   const draft = meta.draft ?? {
     sections: [{ heading: doc.title, lines: doc.content.split("\n").filter(Boolean) }],
@@ -160,6 +161,21 @@ export default async function TrainingEditPage({
             rows={Math.max(4, attendees.length + 1)}
             className={`${fieldInput} resize-y font-mono text-sm`}
             defaultValue={attendeesToText(attendees)}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="absentReason" className={fieldLabel}>
+            미참석 사유
+            <span className="text-xs font-normal text-[var(--gian-ink-soft)]">
+              대상자 중 참석하지 못한 직원이 있을 때만 — 예: 홍길동(병가)
+            </span>
+          </label>
+          <input
+            id="absentReason"
+            name="absentReason"
+            className={fieldInput}
+            defaultValue={meta.absentReason ?? ""}
           />
         </div>
 

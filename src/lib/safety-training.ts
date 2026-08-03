@@ -69,35 +69,49 @@ export type TrainingTopic = {
   audience: string;
   /** 다룰 내용 한 줄 */
   hint: string;
+  /**
+   * 이 주제가 해당하는 교육 종류 — 시행규칙 별표 5의 교육 종류별 내용 기준.
+   * 화면은 선택한 교육에 해당하는 주제만 활성화한다(비해당은 회색·선택 불가,
+   * 사용자 결정 2026-08-03 — 잘못 담기는 사고 차단을 유연성보다 우선).
+   */
+  courses: CourseType[];
 };
 
 export const TRAINING_TOPICS: TrainingTopic[] = [
-  // 계절 — 상반기
-  { key: "thaw", label: "해빙기 시설물 안전", season: "h1", audience: "", hint: "옹벽·축대 균열 점검, 지반 침하 주의" },
-  { key: "spring_fire", label: "봄철 화재 예방", season: "h1", audience: "", hint: "건조기 화기 취급, 세대 화재 예방 안내" },
-  { key: "dust", label: "미세먼지·황사 건강관리", season: "h1", audience: "", hint: "옥외 작업 시 마스크 착용, 세척·세안" },
-  { key: "rainy", label: "장마철 감전·누전 예방", season: "h1", audience: "기전", hint: "침수 구역 전기 차단, 누전차단기 점검" },
-  { key: "heatwave", label: "폭염 대비 온열질환 예방", season: "h1", audience: "", hint: "물·그늘·휴식, 온열질환 증상과 응급조치" },
+  // 계절 — 상반기. 계절 순회 주제는 정기교육의 것이다
+  { key: "thaw", label: "해빙기 시설물 안전", season: "h1", audience: "", hint: "옹벽·축대 균열 점검, 지반 침하 주의", courses: ["regular"] },
+  { key: "spring_fire", label: "봄철 화재 예방", season: "h1", audience: "", hint: "건조기 화기 취급, 세대 화재 예방 안내", courses: ["regular"] },
+  { key: "dust", label: "미세먼지·황사 건강관리", season: "h1", audience: "", hint: "옥외 작업 시 마스크 착용, 세척·세안", courses: ["regular"] },
+  { key: "rainy", label: "장마철 감전·누전 예방", season: "h1", audience: "기전", hint: "침수 구역 전기 차단, 누전차단기 점검", courses: ["regular"] },
+  { key: "heatwave", label: "폭염 대비 온열질환 예방", season: "h1", audience: "", hint: "물·그늘·휴식, 온열질환 증상과 응급조치", courses: ["regular"] },
   // 계절 — 하반기
-  { key: "typhoon", label: "태풍·집중호우 대응", season: "h2", audience: "", hint: "배수로 점검, 낙하물 결속, 침수 대비" },
-  { key: "autumn_fire", label: "가을철 화재 예방", season: "h2", audience: "", hint: "건조한 날씨 화기 취급, 낙엽 화재 주의" },
-  { key: "coldwave", label: "한파 대비 한랭질환 예방", season: "h2", audience: "", hint: "방한복 착용, 저체온증·동상 증상과 조치" },
-  { key: "freeze", label: "동파·제설 작업 안전", season: "h2", audience: "", hint: "계량기 보온, 제설 작업 시 미끄럼·심혈관 주의" },
-  { key: "ice", label: "빙판길 넘어짐 예방", season: "h2", audience: "", hint: "결빙 구간 모래·염화칼슘, 보행 요령" },
-  // 직무 — 연중
-  { key: "electric", label: "전기 작업 안전", season: "all", audience: "기전", hint: "차단·검전·잠금 절차, 감전 시 응급조치" },
-  { key: "ladder", label: "사다리·고소작업 안전", season: "all", audience: "", hint: "2인 1조, 아웃트리거·안전모, 최상단 금지" },
-  { key: "confined", label: "밀폐공간(저수조·정화조) 질식 재해 예방", season: "all", audience: "기전", hint: "산소 농도 측정, 환기, 감시인 배치" },
-  { key: "tools", label: "전동공구·수공구 안전", season: "all", audience: "기전", hint: "보호구 착용, 점검·보관, 회전체 주의" },
-  { key: "musculo", label: "근골격계 질환 예방", season: "all", audience: "미화·경비", hint: "중량물 취급 자세, 스트레칭, 반복 작업 휴식" },
-  { key: "chemicals", label: "청소·소독 약품(화학물질) 취급 안전", season: "all", audience: "미화", hint: "혼합 금지(락스+산성), 보호장갑, 환기" },
-  { key: "parking", label: "차량·주차장 사고 예방", season: "all", audience: "경비", hint: "차량 유도 요령, 후진 차량 주의, 야간 시인성" },
-  { key: "elevator", label: "승강기 갇힘·구조 대응", season: "all", audience: "", hint: "갇힘 신고 접수 요령, 임의 구출 금지, 유지보수 업체 호출" },
-  { key: "cpr", label: "응급처치·심폐소생술", season: "all", audience: "", hint: "심폐소생술 순서, 자동심장충격기 위치와 사용법" },
-  { key: "stress", label: "직무스트레스·감정노동 관리", season: "all", audience: "", hint: "입주민 응대 스트레스, 폭언 대응 절차, 상담 안내" },
-  { key: "harassment", label: "직장 내 괴롭힘 예방", season: "all", audience: "", hint: "괴롭힘의 판단 기준, 신고 절차, 2차 피해 방지" },
-  { key: "fire_evac", label: "화재 대피 요령·소화기 사용법", season: "all", audience: "", hint: "대피 경로·집결지, 소화기·옥내소화전 사용법" },
-  { key: "sanjae", label: "산재보상 제도 안내", season: "all", audience: "", hint: "업무상 재해 신고 절차, 산재보험 급여 종류" },
+  { key: "typhoon", label: "태풍·집중호우 대응", season: "h2", audience: "", hint: "배수로 점검, 낙하물 결속, 침수 대비", courses: ["regular"] },
+  { key: "autumn_fire", label: "가을철 화재 예방", season: "h2", audience: "", hint: "건조한 날씨 화기 취급, 낙엽 화재 주의", courses: ["regular"] },
+  { key: "coldwave", label: "한파 대비 한랭질환 예방", season: "h2", audience: "", hint: "방한복 착용, 저체온증·동상 증상과 조치", courses: ["regular"] },
+  { key: "freeze", label: "동파·제설 작업 안전", season: "h2", audience: "", hint: "계량기 보온, 제설 작업 시 미끄럼·심혈관 주의", courses: ["regular"] },
+  { key: "ice", label: "빙판길 넘어짐 예방", season: "h2", audience: "", hint: "결빙 구간 모래·염화칼슘, 보행 요령", courses: ["regular"] },
+  // 직무 — 연중. 신규자가 바로 배워야 하는 직무 위험은 채용 시에도 해당
+  { key: "electric", label: "전기 작업 안전", season: "all", audience: "기전", hint: "차단·검전·잠금 절차, 감전 시 응급조치", courses: ["regular", "new_hire"] },
+  { key: "ladder", label: "사다리·고소작업 안전", season: "all", audience: "", hint: "2인 1조, 아웃트리거·안전모, 최상단 금지", courses: ["regular", "new_hire"] },
+  { key: "confined", label: "밀폐공간(저수조·정화조) 질식 재해 예방", season: "all", audience: "기전", hint: "산소 농도 측정, 환기, 감시인 배치", courses: ["regular", "supervisor"] },
+  { key: "tools", label: "전동공구·수공구 안전", season: "all", audience: "기전", hint: "보호구 착용, 점검·보관, 회전체 주의", courses: ["regular", "new_hire"] },
+  { key: "musculo", label: "근골격계 질환 예방", season: "all", audience: "미화·경비", hint: "중량물 취급 자세, 스트레칭, 반복 작업 휴식", courses: ["regular", "new_hire"] },
+  { key: "chemicals", label: "청소·소독 약품(화학물질) 취급 안전", season: "all", audience: "미화", hint: "혼합 금지(락스+산성), 보호장갑, 환기", courses: ["regular", "new_hire"] },
+  { key: "parking", label: "차량·주차장 사고 예방", season: "all", audience: "경비", hint: "차량 유도 요령, 후진 차량 주의, 야간 시인성", courses: ["regular", "new_hire"] },
+  { key: "elevator", label: "승강기 갇힘·구조 대응", season: "all", audience: "", hint: "갇힘 신고 접수 요령, 임의 구출 금지, 유지보수 업체 호출", courses: ["regular", "new_hire"] },
+  { key: "cpr", label: "응급처치·심폐소생술", season: "all", audience: "", hint: "심폐소생술 순서, 자동심장충격기 위치와 사용법", courses: ["regular", "new_hire", "supervisor"] },
+  { key: "stress", label: "직무스트레스·감정노동 관리", season: "all", audience: "", hint: "입주민 응대 스트레스, 폭언 대응 절차, 상담 안내", courses: ["regular", "new_hire"] },
+  { key: "harassment", label: "직장 내 괴롭힘 예방", season: "all", audience: "", hint: "괴롭힘의 판단 기준, 신고 절차, 2차 피해 방지", courses: ["regular", "new_hire"] },
+  { key: "fire_evac", label: "화재 대피 요령·소화기 사용법", season: "all", audience: "", hint: "대피 경로·집결지, 소화기·옥내소화전 사용법", courses: ["regular", "new_hire", "supervisor"] },
+  { key: "sanjae", label: "산재보상 제도 안내", season: "all", audience: "", hint: "업무상 재해 신고 절차, 산재보험 급여 종류", courses: ["regular", "new_hire"] },
+  // 전용 — 채용 시 (별표 5 채용 시 교육 내용: 기계·기구 위험성, 법령·관리체계, 작업 절차)
+  { key: "nh_intro", label: "단지 시설·작업환경과 위험요인 안내", season: "all", audience: "", hint: "담당 구역·시설 안내, 기계·기구 위험성과 안전수칙", courses: ["new_hire"] },
+  { key: "nh_law", label: "산업안전보건법령·안전보건관리체계 안내", season: "all", audience: "", hint: "법령 요지, 관리체계와 담당자, 건의·신고 절차", courses: ["new_hire"] },
+  { key: "nh_ppe", label: "작업 순서·동선과 보호구 지급", season: "all", audience: "", hint: "작업 절차·동선 숙지, 지급 보호구 종류와 착용법", courses: ["new_hire"] },
+  // 전용 — 관리감독자 (별표 5 관리감독자 교육 내용: 유해·위험요인 파악, 감독 요령)
+  { key: "sv_role", label: "관리감독자의 역할과 책임", season: "all", audience: "", hint: "법상 업무 범위, 지휘·감독 요령, 사고 시 보고 절차", courses: ["supervisor"] },
+  { key: "sv_risk", label: "유해·위험요인 파악과 위험성평가", season: "all", audience: "", hint: "구역별 위험요인 파악, 위험성평가 절차와 개선 조치", courses: ["supervisor"] },
+  { key: "sv_check", label: "작업 전 안전점검·작업지시 요령", season: "all", audience: "", hint: "작업 전 점검 항목, 안전 작업지시, 감시인 배치 판단", courses: ["supervisor"] },
 ];
 
 export const topicOf = (key: string) =>

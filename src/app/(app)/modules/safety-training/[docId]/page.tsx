@@ -44,6 +44,8 @@ export default async function TrainingDocPage({
     instructor?: string;
     draft?: TrainingDraft;
     attendees?: AttendeeSnap[];
+    targetCount?: number;
+    absentReason?: string;
   };
   const meta = {
     courseLabel: courseTypeOf(raw.courseType ?? "")?.label ?? "정기교육",
@@ -123,6 +125,8 @@ export default async function TrainingDocPage({
                 instructor={meta.instructor}
                 draft={meta.draft}
                 attendees={meta.attendees}
+                targetCount={raw.targetCount}
+                absentReason={raw.absentReason}
                 office={`${tenant.name} 관리사무소장`}
               />
             </PaperScale>

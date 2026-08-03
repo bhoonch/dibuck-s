@@ -31,7 +31,21 @@ assert.ok(TRAINING_TOPICS.length >= 20, "주제 20종 이상");
 for (const t of TRAINING_TOPICS) {
   assert.ok(t.label && t.hint, `${t.key} 필드 누락`);
   assert.ok(["h1", "h2", "all"].includes(t.season));
+  assert.ok(t.courses.length > 0, `${t.key} courses 비어 있음`);
+  for (const c of t.courses)
+    assert.ok(courseTypeOf(c), `${t.key} courses에 없는 교육 종류: ${c}`);
 }
+// 교육 종류마다 고를 주제가 있어야 한다 — 전용 주제가 실수로 지워지면 여기서 잡힌다
+for (const c of COURSE_TYPES) {
+  const mine = TRAINING_TOPICS.filter((t) => t.courses.includes(c.key));
+  assert.ok(mine.length >= 3, `${c.label} 주제 3종 미만`);
+}
+// 채용 시·관리감독자는 전용 주제(정기교육에 없는 것)가 있어야 한다
+for (const key of ["new_hire", "supervisor"] as const)
+  assert.ok(
+    TRAINING_TOPICS.some((t) => t.courses.includes(key) && !t.courses.includes("regular")),
+    `${key} 전용 주제 없음`,
+  );
 // 상반기 화면: 상반기 계절 주제가 맨 앞, 하반기 계절 주제가 맨 뒤
 const h1Sorted = topicsForHalf(1);
 assert.equal(h1Sorted[0].season, "h1");

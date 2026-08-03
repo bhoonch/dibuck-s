@@ -18,6 +18,8 @@ export function SafetyTrainingPaper({
   instructor,
   draft,
   attendees,
+  targetCount,
+  absentReason,
   office,
   id = "a4-sheet",
 }: {
@@ -30,6 +32,10 @@ export function SafetyTrainingPaper({
   instructor: string;
   draft: TrainingDraft;
   attendees: AttendeeSnap[];
+  /** 교육 대상자 수 스냅샷 — 없으면(구버전 일지) 참석자 수로 간주해 미참석 줄을 만들지 않는다 */
+  targetCount?: number;
+  /** 미참석 사유 (선택) — 미참석자가 있을 때만 의미가 있다 */
+  absentReason?: string;
   /** 하단 확인란 명의 (예: "행복아파트 관리사무소장") */
   office: string;
   id?: string;
@@ -37,6 +43,10 @@ export function SafetyTrainingPaper({
   const line = "border border-[var(--gian-doc-line)]";
   const th = `${line} bg-[var(--gian-paper)] px-[2mm] py-[1.2mm] text-center text-[10pt] font-bold whitespace-nowrap`;
   const td = `${line} px-[2.5mm] py-[1.2mm] text-[10.5pt]`;
+
+  // 교육인원 — 대상은 스냅샷, 참석은 명단 수. 감독 점검이 보는 건 "대상 전원이 받았나"다
+  const target = targetCount ?? attendees.length;
+  const absent = Math.max(0, target - attendees.length);
 
   // 참석자 2단 — [왼쪽 i, 오른쪽 i+rows] 짝. 홀수면 오른쪽 마지막 칸은 빈칸
   const rows = Math.ceil(attendees.length / 2);
@@ -77,6 +87,21 @@ export function SafetyTrainingPaper({
             <th className={th}>강　　사</th>
             <td className={td}>{instructor}</td>
           </tr>
+          <tr>
+            <th className={th}>교육인원</th>
+            <td className={td} colSpan={3}>
+              대상 {target}명 · 참석 {attendees.length}명
+              {absent > 0 && (
+                <>
+                  {" "}
+                  · 미참석 {absent}명
+                  {absentReason && (
+                    <span className="text-[var(--gian-ink-soft)]"> ({absentReason})</span>
+                  )}
+                </>
+              )}
+            </td>
+          </tr>
         </tbody>
       </table>
       <p className="mt-[1.5mm] text-[9pt] text-[var(--gian-ink-soft)]">
@@ -92,15 +117,18 @@ export function SafetyTrainingPaper({
               {i + 1}. {sec.heading}
             </p>
             <div className="pl-4">
+              {/* 행잉 인던트 — 줄이 넘어가면 "가. " 기호 폭(1.6em)만큼 들여 본문끼리 정렬 */}
               {sec.lines.map((l, j) => (
-                <p key={j} className="whitespace-pre-wrap">
+                <p key={j} className="-indent-[1.6em] pl-[1.6em] whitespace-pre-wrap">
                   {l}
                 </p>
               ))}
             </div>
           </div>
         ))}
-        {draft.closing && <p className="pl-4">※ {draft.closing}</p>}
+        {draft.closing && (
+          <p className="-indent-[1.6em] pl-[calc(1rem+1.6em)]">※ {draft.closing}</p>
+        )}
       </section>
 
       {/* 참석자 서명 표 — 인쇄 후 자필 서명. 쪽이 나뉘어도 행 중간은 자르지 않는다 */}
@@ -133,10 +161,9 @@ export function SafetyTrainingPaper({
       <div className="mt-[5mm] break-inside-avoid text-center">
         <p>위와 같이 안전보건교육을 실시하였음.</p>
         <p className="mt-[2mm]">{paperDate(date)}</p>
-        <div className="mt-[3mm] ml-auto w-fit space-y-[1.5mm] text-right">
-          <p>
-            강사 : {instructor} <span className="text-[var(--gian-ink-soft)]">(서명)</span>
-          </p>
+        {/* 확인은 소장 한 줄 — 강사는 상단 정보 표에 있고, 관리사무소는 사실상 항상
+            소장이 강사라 강사 서명 줄을 따로 두면 같은 사람이 두 번 찍게 된다 */}
+        <div className="mt-[3mm] ml-auto w-fit text-right">
           <p className="font-bold">
             {office} <span className="font-normal text-[var(--gian-ink-soft)]">(인)</span>
           </p>

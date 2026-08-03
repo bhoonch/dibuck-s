@@ -8,6 +8,7 @@ import {
   STAFF_POSITIONS,
   halfOfKst,
   topicsForHalf,
+  type CourseType,
   type TrainingTopic,
 } from "@/lib/safety-training";
 import { Button } from "@/components/ui/button";
@@ -27,12 +28,15 @@ function GeneratingOverlay() {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-white/85 backdrop-blur-[1px]">
-      <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      <p className="text-base font-bold">교육 내용을 만들고 있습니다</p>
-      <p className="text-sm text-muted-foreground">
-        보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
-      </p>
+    <div className="absolute inset-0 z-10 rounded-lg bg-white/85 backdrop-blur-[1px]">
+      {/* sticky — 폼이 길어서 세로 중앙 정렬이면 안내가 화면 밖에 놓인다. 스크롤 위치와 무관하게 보이는 자리 */}
+      <div className="sticky top-[35vh] flex flex-col items-center gap-3">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        <p className="text-base font-bold">교육 내용을 만들고 있습니다</p>
+        <p className="text-sm text-muted-foreground">
+          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
+        </p>
+      </div>
     </div>
   );
 }
@@ -103,6 +107,10 @@ export function TrainingForm({
 }) {
   const [state, formAction, pending] = useActionState(generateTrainingAction, undefined);
   const [courseType, setCourseType] = useState("");
+  // [초안 만들기]는 화면 맨 아래 — 생성이 시작되면 맨 위로 올려 로딩 중임을 보여준다
+  useEffect(() => {
+    if (pending) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [pending]);
   const [topics, setTopics] = useState<Set<string>>(new Set());
   const [customTopic, setCustomTopic] = useState("");
   const toggleTopic = (key: string) =>
@@ -117,11 +125,36 @@ export function TrainingForm({
   const half = halfOfKst(new Date());
   const sorted = topicsForHalf(half.half);
   const seasonNow = half.half === 1 ? "h1" : "h2";
-  const groups: [string, TrainingTopic[]][] = [
-    [`이번 반기 계절 주제`, sorted.filter((t) => t.season === seasonNow)],
-    ["연중 · 직무", sorted.filter((t) => t.season === "all")],
-    ["다른 반기 계절 주제", sorted.filter((t) => t.season !== seasonNow && t.season !== "all")],
+  const seasonGroups = (list: TrainingTopic[]): [string, TrainingTopic[]][] => [
+    [`이번 반기 계절 주제`, list.filter((t) => t.season === seasonNow)],
+    ["연중 · 직무", list.filter((t) => t.season === "all")],
+    ["다른 반기 계절 주제", list.filter((t) => t.season !== seasonNow && t.season !== "all")],
   ];
+  // 주제 선택은 B안 — 목록 배치는 고정, 선택한 교육에 해당하는 주제(별표 5 기준)만
+  // 활성(사용자 결정 2026-08-03, A안 앞배치+전체 선택 가능과 비교 후).
+  // 교육 종류를 바꾸면 해당 없는 선택은 자동 해제된다(잘못 담기는 사고 차단).
+  const enabled = (t: TrainingTopic) =>
+    !courseType || t.courses.includes(courseType as CourseType);
+  const pickCourse = (key: CourseType) => {
+    setCourseType(key);
+    setTopics(
+      (prev) =>
+        new Set(
+          [...prev].filter((k) =>
+            sorted.find((t) => t.key === k)?.courses.includes(key),
+          ),
+        ),
+    );
+  };
+  const onlyFor = (c: CourseType) =>
+    sorted.filter((t) => t.courses.length === 1 && t.courses[0] === c);
+  const groups: [string, TrainingTopic[]][] = (
+    [
+      ["채용 시 전용", onlyFor("new_hire")] as [string, TrainingTopic[]],
+      ["관리감독자 전용", onlyFor("supervisor")] as [string, TrainingTopic[]],
+      ...seasonGroups(sorted.filter((t) => t.courses.includes("regular"))),
+    ]
+  ).filter(([, l]) => l.length > 0);
   const ready = courseType && (topics.size > 0 || customTopic.trim()) && roster.length > 0;
 
   return (
@@ -140,7 +173,7 @@ export function TrainingForm({
             <button
               key={c.key}
               type="button"
-              onClick={() => setCourseType(c.key)}
+              onClick={() => pickCourse(c.key)}
               className={
                 "rounded-md border px-3 py-2.5 text-left " +
                 (courseType === c.key
@@ -188,7 +221,8 @@ export function TrainingForm({
       <Card className="p-6">
         <h2 className="mb-1 text-sm font-semibold">3. 무엇을 교육하나요?</h2>
         <p className="mb-4 text-xs text-muted-foreground">
-          여러 개를 골라도 됩니다 — 한 회차에 2~3개 주제가 관행입니다.
+          여러 개를 골라도 됩니다 — 한 회차에 2~3개 주제가 관행입니다. 선택한
+          교육 종류에 해당하는 주제만 고를 수 있습니다.
         </p>
         <div className="space-y-4">
           {groups.map(([label, list]) => (
@@ -199,12 +233,15 @@ export function TrainingForm({
                   <button
                     key={t.key}
                     type="button"
+                    disabled={!enabled(t)}
                     onClick={() => toggleTopic(t.key)}
                     className={
                       "rounded-md border px-3 py-2 text-left " +
-                      (topics.has(t.key)
-                        ? "border-primary bg-accent shadow-[inset_0_0_0_1px_var(--primary)]"
-                        : "hover:border-primary/60")
+                      (!enabled(t)
+                        ? "cursor-not-allowed opacity-40"
+                        : topics.has(t.key)
+                          ? "border-primary bg-accent shadow-[inset_0_0_0_1px_var(--primary)]"
+                          : "hover:border-primary/60")
                     }
                   >
                     <span className="block text-sm font-semibold">

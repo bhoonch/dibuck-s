@@ -93,6 +93,14 @@ export async function generateTrainingAction(
     office: s.office,
   }));
 
+  // 교육 대상자 수 스냅샷 — 정기교육은 전 직원(활성 명부 전체)이 법정 대상이고,
+  // 채용 시·관리감독자 교육은 참석자로 고른 사람이 곧 대상이다.
+  // 명부를 나중에 고쳐도 이 일지의 대상/미참석 수는 변하지 않는다(참석자와 같은 원칙).
+  const targetCount =
+    course.key === "regular"
+      ? await db.trainingStaff.count({ where: { tenantId, active: true } })
+      : attendees.length;
+
   if (rateLimit(`safety-training:${tenantId}`, DAILY_LIMIT, 24 * 60 * 60 * 1000) <= 0)
     return { error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.` };
 
@@ -137,7 +145,7 @@ export async function generateTrainingAction(
     status: "draft",
     numberOnSubmit: true,
     createdById: session.userId,
-    meta: { courseType: course.key, date, place, hours, instructor, topics: topicLabels, draft, attendees },
+    meta: { courseType: course.key, date, place, hours, instructor, topics: topicLabels, draft, attendees, targetCount },
   });
   revalidatePath("/modules/safety-training");
   redirect(`/modules/safety-training/${doc.id}`);
@@ -187,6 +195,7 @@ export async function saveTrainingBody(formData: FormData) {
         place: String(formData.get("place") ?? "").trim(),
         hours: String(formData.get("hours") ?? "").trim(),
         instructor: String(formData.get("instructor") ?? "").trim(),
+        absentReason: String(formData.get("absentReason") ?? "").trim(),
         topics,
         draft,
         attendees,
