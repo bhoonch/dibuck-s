@@ -6,6 +6,9 @@ import { DocumentsTable, type DocRow } from "./documents-table";
 import { ymdKst } from "@/lib/utils";
 import { waitingOnLabel } from "@/lib/gian/rules";
 
+/** 문서 상세 화면(/modules/{id}/[docId])이 있는 모듈 — 전부 같은 경로 규칙을 쓴다 */
+const LINKABLE_MODULES = new Set(["approvals", "dunning", "notice", "safety-training"]);
+
 /** 기간 필터의 기준 시각. 0·NaN이면 기간 제한 없음 */
 function daysAgo(n: number) {
   if (!(n > 0)) return null;
@@ -71,13 +74,12 @@ export default async function DocumentsPage({
     status: d.status,
     waitingOn: waitingOnLabel(d.approvalSteps[0]),
     createdAt: ymdKst(d.createdAt),
-    // 열어 볼 화면이 있는 모듈만 링크가 된다 — 아직 화면이 없는 모듈은 눌러도 갈 곳이 없다
+    // 열어 볼 화면이 있는 모듈만 링크가 된다 — 아직 화면이 없는 모듈(contracts)은
+    // 눌러도 갈 곳이 없다. 새 모듈에 [docId] 화면을 만들면 여기 목록에 추가할 것.
     href:
-      d.moduleId === "approvals"
-        ? `/modules/approvals/${d.id}`
-        : d.type === "dunning_letter"
-          ? `/modules/dunning/${d.id}`
-          : null,
+      d.moduleId && LINKABLE_MODULES.has(d.moduleId)
+        ? `/modules/${d.moduleId}/${d.id}`
+        : null,
   }));
 
   return (
