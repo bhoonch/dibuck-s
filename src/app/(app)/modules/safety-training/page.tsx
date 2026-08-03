@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FilePlus2, Users } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { ymdKst } from "@/lib/utils";
@@ -25,7 +25,7 @@ type LogMeta = {
 };
 
 export default async function SafetyTrainingHomePage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, "safety-training"))) redirect("/subscriptions");
 

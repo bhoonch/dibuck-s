@@ -1,9 +1,9 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DirectorLimitEditor } from "./director-limit-editor";
 
 export default async function DirectorLimitPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: session.tenantId! },
     select: { directorLimit: true, directorLimitClause: true },

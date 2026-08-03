@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assignDocNo, createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
@@ -29,7 +29,7 @@ const DAILY_LIMIT = 30;
  * 수정·폐기만 작성자 본인 또는 마스터로 좁힌다.
  */
 async function requireNotice() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, MODULE_ID)))
     throw new Error("공지문 모듈을 구독 중이 아닙니다.");
   return session;

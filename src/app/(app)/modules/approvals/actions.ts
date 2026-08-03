@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
@@ -39,7 +39,7 @@ export async function generateGian(
   _prev: GenerateState,
   formData: FormData,
 ): Promise<GenerateState> {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, MODULE_ID)))
     return { error: "모듈 구독이 필요합니다." };

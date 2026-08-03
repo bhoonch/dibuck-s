@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/safety-training-ai";
@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TrainingForm } from "./training-form";
 
 export default async function NewTrainingPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, "safety-training"))) redirect("/subscriptions");
 

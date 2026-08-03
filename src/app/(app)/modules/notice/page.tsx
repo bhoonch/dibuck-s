@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { ymdKst } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { NoticeTable } from "./notice-table";
 
 export default async function NoticeHomePage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, "notice"))) redirect("/subscriptions");
 

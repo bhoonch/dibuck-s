@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   Card,
@@ -13,7 +13,7 @@ import { UnitsUpload } from "./units-upload";
 import { UnitsTable } from "./units-table";
 
 export default async function UnitsPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const units = await db.unit.findMany({
     where: { tenantId: session.tenantId! },
     orderBy: [{ dong: "asc" }, { ho: "asc" }],

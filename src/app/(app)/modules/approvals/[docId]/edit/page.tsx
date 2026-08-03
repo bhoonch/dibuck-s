@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import type { GianDraft } from "@/lib/gian/claude";
@@ -23,7 +23,7 @@ export default async function EditGianPage({
 }: {
   params: Promise<{ docId: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
     redirect("/subscriptions");
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 
@@ -8,7 +8,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ docId: string }> },
 ) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, "dunning")))
     return new NextResponse("Not Found", { status: 404 });
   const { docId } = await params;

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/gian/claude";
@@ -11,7 +11,7 @@ import { GianSteps } from "@/components/gian-steps";
 import { GianForm } from "./gian-form";
 
 export default async function NewGianPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
     redirect("/subscriptions");
 

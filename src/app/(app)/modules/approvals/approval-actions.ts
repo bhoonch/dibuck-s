@@ -3,7 +3,7 @@
 import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createDocument } from "@/lib/documents";
 import { ymdKst } from "@/lib/utils";
@@ -46,7 +46,7 @@ const canSubmitOthers = (role: Role) =>
 
 /** 문서가 내 단지 것인지 — 결재 액션 공통 경계 */
 async function myDoc(docId: string) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const doc = await db.document.findUnique({ where: { id: docId } });
   if (!doc || doc.tenantId !== session.tenantId || doc.moduleId !== "approvals")
     return { session, doc: null };
@@ -118,7 +118,7 @@ export async function actOnGianStep(
   const action = formData.get("action") === "reject" ? "reject" : "approve";
   const comment = String(formData.get("comment") ?? "");
 
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const step = await db.approvalStep.findUnique({
     where: { id: stepId },
     include: { document: { select: { id: true, tenantId: true } } },
@@ -523,7 +523,7 @@ export async function updateNoticePosting(
 }
 
 export async function reissueGianToken(stepId: string): Promise<ActionState> {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const step = await db.approvalStep.findUnique({
     where: { id: stepId },
     include: {
@@ -608,7 +608,7 @@ export async function uploadQuoteFile(
 export async function deleteQuoteFile(
   attachmentId: string,
 ): Promise<ActionState> {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const att = await db.documentAttachment.findUnique({
     where: { id: attachmentId },
     include: {

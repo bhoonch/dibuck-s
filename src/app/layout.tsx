@@ -32,8 +32,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // suppressHydrationWarning: 일부 브라우저 확장이 hydration 전에 <html>에
+    // data-* 속성을 붙여 매 로드마다 mismatch 에러가 났다(예: data-hwp-extension).
+    // 이 엘리먼트의 속성 한 겹만 무시하므로 자식 트리의 진짜 mismatch는 그대로 잡힌다.
     <html
       lang="ko"
+      suppressHydrationWarning
       className={`${pretendard.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

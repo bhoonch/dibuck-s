@@ -106,6 +106,20 @@ export async function requireSession(): Promise<Session> {
   return session;
 }
 
+/**
+ * 단지 화면·액션의 입구. tenantId 없는 세션(SUPER_ADMIN)은 관리자 화면으로.
+ * (app)/layout.tsx의 검사만 믿으면 안 된다 — 레이아웃은 인증 경계가 아니라
+ * 소프트 내비게이션에서 다시 실행되지 않고, /home이 null tenantId로
+ * Prisma 쿼리를 던져 터진 적이 있다(2026-08-03).
+ */
+export async function requireTenantSession(): Promise<
+  Session & { tenantId: string }
+> {
+  const session = await requireSession();
+  if (!session.tenantId) redirect("/admin");
+  return session as Session & { tenantId: string };
+}
+
 /** 역할 검사 — 권한 없으면 홈으로 돌려보냄 */
 export async function requireRole(...roles: Role[]): Promise<Session> {
   const session = await requireSession();

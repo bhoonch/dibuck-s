@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assignDocNo, createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
@@ -28,7 +28,7 @@ const DAILY_LIMIT = 30;
 
 /** 일지 작성은 일반 사무라 전 직원 — 수정·폐기만 작성자/마스터로 좁힌다 (공지문 경계) */
 async function requireTraining() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, MODULE_ID)))
     throw new Error("교육일지 모듈을 구독 중이 아닙니다.");
   return session;

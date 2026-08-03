@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/notice-ai";
@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { NoticeForm } from "./notice-form";
 
 export default async function NewNoticePage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, "notice")))
     redirect("/subscriptions");
 

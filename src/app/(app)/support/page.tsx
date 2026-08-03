@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ymdKst } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,7 @@ export default async function SupportPage({
 }: {
   searchParams: Promise<{ category?: string; from?: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const { category, from } = await searchParams;
   const inquiries = await db.inquiry.findMany({
     where: { tenantId: session.tenantId },

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, CreditCard } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { GRACE_DAYS, billableItems, daysBetween, totalAmount } from "@/lib/billing";
 import { tossEnabled } from "@/lib/toss";
@@ -14,7 +14,7 @@ const won = (n: number) => `${n.toLocaleString()}원`;
 const date = (d: Date) => ymdKst(d).replace(/-/g, ".");
 
 export default async function BillingPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   const isDirector = session.role === "DIRECTOR";
 

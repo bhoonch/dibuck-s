@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { SubscribeButton } from "./subscribe-button";
  * 카드·청구·결제 내역은 옆 탭인 결제(/billing).
  */
 export default async function SubscriptionsPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const modules = await getModulesForTenant(session.tenantId!);
   const subscribed = modules.filter((m) => m.subscribed);
   const trialing = subscribed.filter((m) => m.trialEndsAt);

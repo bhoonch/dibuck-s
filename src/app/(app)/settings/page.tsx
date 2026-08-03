@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { tossEnabled } from "@/lib/toss";
 import { ymdKst } from "@/lib/utils";
@@ -41,7 +41,7 @@ function Tile({
 
 /* ponytail: 동·호 상세 구조 편집기는 생략 — 세대 목록은 설정 > 세대 관리의 엑셀 업로드가 담당 */
 export default async function TenantSettingsPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   const [tenant, units, staff, modules, billing] = await Promise.all([
     db.tenant.findUniqueOrThrow({ where: { id: tenantId } }),

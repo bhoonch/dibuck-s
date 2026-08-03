@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentsFilter } from "./documents-filter";
@@ -24,7 +24,7 @@ export default async function DocumentsPage({
     days?: string;
   }>;
 }) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const { q, type, status, days } = await searchParams;
   const since = daysAgo(Number(days));
 

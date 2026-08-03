@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 // 스키마 주석의 유형 목록과 동일 — "체험 신청"은 가입 전 경로라 제외 (inquiry-form.tsx와 짝)
@@ -11,7 +11,7 @@ export async function createInquiry(
   _prev: { error?: string; success?: string } | undefined,
   formData: FormData,
 ) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const category = String(formData.get("category") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   // 사용자가 채우는 값이 아니라 링크가 실어 보내는 값 — 앱 내부 경로만 받는다

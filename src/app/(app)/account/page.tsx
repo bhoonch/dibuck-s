@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AccountSettings } from "@/components/account-settings";
 import { PageHeader } from "@/components/ui/page-header";
@@ -11,7 +11,7 @@ import { Role } from "@/generated/prisma/enums";
  * 직원이 자기 비밀번호를 바꾸러 단지 서랍을 뒤지게 하지 않는다.
  */
 export default async function MyAccountPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const [me, tenant] = await Promise.all([
     db.user.findUniqueOrThrow({
       where: { id: session.userId },

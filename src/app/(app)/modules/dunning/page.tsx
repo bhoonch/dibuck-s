@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FilePlus2 } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import {
@@ -22,7 +22,7 @@ import { UnpaidTable } from "./unpaid-table";
 const monthAgo = () => new Date(Date.now() - 30 * 86400000);
 
 export default async function DunningHomePage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, "dunning"))) redirect("/subscriptions");
 

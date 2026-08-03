@@ -1,5 +1,5 @@
 import { CheckCheck } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ymdKst } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
@@ -9,7 +9,7 @@ import { NotificationsTable } from "./notifications-table";
 
 /* 빠른 확인은 헤더 종의 슬라이드 창 — 여기는 전체 이력을 문서함처럼 훑는 자리 */
 export default async function NotificationsPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const notifications = await db.notification.findMany({
     where: { userId: session.userId },
     orderBy: { createdAt: "desc" },

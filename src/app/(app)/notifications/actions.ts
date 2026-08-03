@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function markAllRead() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   await db.notification.updateMany({
     where: { userId: session.userId, readAt: null },
     data: { readAt: new Date() },
@@ -20,7 +20,7 @@ export async function markAllRead() {
  * 이게 없으면 알림을 다 눌러 봐도 헤더 미읽음 배지가 그대로 남는다.
  */
 export async function openNotification(formData: FormData) {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const id = String(formData.get("id"));
   const link = String(formData.get("link") ?? "");
   // userId 조건이 소유권 검사 — 남의 알림 id를 넣어도 아무것도 안 바뀐다

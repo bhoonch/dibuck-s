@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, Hourglass, Megaphone } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
 import { pickAnnouncement } from "@/lib/announcements";
@@ -16,8 +16,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireSession();
-  if (!session.tenantId) redirect("/admin"); // SUPER_ADMIN은 관리자 화면으로
+  const session = await requireTenantSession();
   const tenantId = session.tenantId;
   const now = new Date();
   const days = (n: number) => new Date(now.getTime() + n * 86400000);

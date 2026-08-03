@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { roleLabels } from "@/lib/labels";
 import {
@@ -7,7 +7,7 @@ import {
 } from "./approval-line-editor";
 
 export default async function ApprovalLinePage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const [tenant, staff] = await Promise.all([
     db.tenant.findUniqueOrThrow({ where: { id: session.tenantId! } }),
     db.user.findMany({

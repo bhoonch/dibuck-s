@@ -1,11 +1,11 @@
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assignableRoles, roleGuide, roleLabels } from "@/lib/labels";
 import { Card } from "@/components/ui/card";
 import { StaffTable } from "./staff-table";
 
 export default async function StaffPage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const staff = await db.user.findMany({
     where: { tenantId: session.tenantId! },
     orderBy: { createdAt: "asc" },

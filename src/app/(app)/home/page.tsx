@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
@@ -22,7 +22,7 @@ type TaskItem = {
 };
 
 export default async function HomePage() {
-  const session = await requireSession();
+  const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   const now = new Date();
   const days = (n: number) => new Date(now.getTime() + n * 86400000);
