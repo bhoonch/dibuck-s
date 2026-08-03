@@ -25,12 +25,15 @@ function GeneratingOverlay() {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-lg bg-white/85 backdrop-blur-[1px]">
-      <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      <p className="text-base font-bold">공지문을 만들고 있습니다</p>
-      <p className="text-sm text-muted-foreground">
-        보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
-      </p>
+    <div className="absolute inset-0 z-10 rounded-lg bg-white/85 backdrop-blur-[1px]">
+      {/* sticky — 폼이 길어서 세로 중앙 정렬이면 안내가 화면 밖에 놓인다. 스크롤 위치와 무관하게 보이는 자리 */}
+      <div className="sticky top-[35vh] flex flex-col items-center gap-3">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+        <p className="text-base font-bold">공지문을 만들고 있습니다</p>
+        <p className="text-sm text-muted-foreground">
+          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
+        </p>
+      </div>
     </div>
   );
 }
@@ -44,6 +47,10 @@ export function NoticeForm({
   aiReady: boolean;
 }) {
   const [state, formAction, pending] = useActionState(generateNoticeAction, undefined);
+  // [초안 만들기]는 화면 맨 아래 — 생성이 시작되면 맨 위로 올려 로딩 중임을 보여준다
+  useEffect(() => {
+    if (pending) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [pending]);
   const [typeKey, setTypeKey] = useState("");
   const [freeKind, setFreeKind] = useState<"guide" | "official">("guide");
   const type = noticeTypeOf(typeKey);
