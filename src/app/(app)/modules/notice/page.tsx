@@ -45,7 +45,7 @@ export default async function NoticeHomePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="공지문 자동완성"
+        title="AI 공지문 완성"
         description="유형을 고르고 일시·대상·내용만 입력하면 게시판·승강기에 붙일 공고문·안내문이 완성됩니다."
       >
         <Button asChild size="lg">

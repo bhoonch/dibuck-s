@@ -16,7 +16,7 @@ const titles: [prefix: string, title: string][] = [
   ["/account", "내 계정"],
   ["/subscriptions", "구독·결제"],
   ["/billing", "구독·결제"],
-  ["/modules/approvals", "기안·품의"],
+  ["/modules/approvals", "AI 기안·결재"],
   // 런처는 없앴다(구독·결제에 합침) — 남은 /modules/* 는 아직 화면이 없는 모듈의 자리표시
   ["/modules", "모듈"],
   ["/support", "고객 문의"],

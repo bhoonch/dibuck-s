@@ -90,7 +90,7 @@ export default async function GianModulePage() {
   return (
     <>
       <PageHeader
-        title="기안·품의"
+        title="AI 기안·결재"
         description="다섯 항목 입력으로 기안서·품의서 초안을 만들고 결재까지 진행합니다."
       >
         <Button asChild size="lg">

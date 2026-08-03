@@ -76,7 +76,7 @@ export default async function SafetyTrainingHomePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="안전보건 교육일지"
+        title="AI 안전교육일지"
         description="종류·주제를 고르고 참석자를 체크하면 교육 내용까지 채워진 법정 교육일지가 완성됩니다. 인쇄해 참석자 서명을 받아 보관하세요."
       >
         <Button asChild variant="outline" size="lg">
