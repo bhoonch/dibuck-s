@@ -264,11 +264,7 @@ const staffPaths = () => {
   revalidatePath("/modules/safety-training");
 };
 
-export async function addStaff(input: {
-  name: string;
-  position: string;
-  office: boolean;
-}) {
+export async function addStaff(input: { name: string; position: string }) {
   const gate = await requireStaffAdmin();
   if ("error" in gate) return gate;
   const name = input.name.trim();
@@ -277,18 +273,15 @@ export async function addStaff(input: {
     ? input.position
     : "기타";
   await db.trainingStaff.create({
-    data: { tenantId: gate.session.tenantId!, name, position, office: !!input.office },
+    // 사무직 여부(정기교육 6h/12h)는 직종에서 자동 판정 — 애매한 '기타'는
+    // 그 외(12h)로 집계한다. 더 많이 교육하는 방향의 오차라 법적으로 안전하다.
+    data: { tenantId: gate.session.tenantId!, name, position, office: position === "사무" },
   });
   staffPaths();
   return {};
 }
 
-export async function updateStaff(input: {
-  id: string;
-  name: string;
-  position: string;
-  office: boolean;
-}) {
+export async function updateStaff(input: { id: string; name: string; position: string }) {
   const gate = await requireStaffAdmin();
   if ("error" in gate) return gate;
   const name = input.name.trim();
@@ -299,7 +292,7 @@ export async function updateStaff(input: {
   // tenantId를 조건에 넣는다 — 남의 단지 명부 id로는 아무 행도 맞지 않는다
   await db.trainingStaff.updateMany({
     where: { id: input.id, tenantId: gate.session.tenantId! },
-    data: { name, position, office: !!input.office },
+    data: { name, position, office: position === "사무" }, // 사무직 여부는 직종에서 자동 판정
   });
   staffPaths();
   return {};

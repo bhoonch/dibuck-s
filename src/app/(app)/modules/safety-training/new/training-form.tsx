@@ -51,7 +51,7 @@ function QuickAddStaff() {
   const add = () => {
     if (!name.trim() || pending) return;
     startTransition(async () => {
-      const r = await addStaff({ name, position, office: position === "사무" });
+      const r = await addStaff({ name, position }); // 사무직 여부는 액션이 직종에서 판정
       if (r && "error" in r && r.error) setError(r.error);
       else {
         setName("");

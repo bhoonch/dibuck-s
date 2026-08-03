@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Loader2, UserPlus } from "lucide-react";
-import { STAFF_POSITIONS } from "@/lib/safety-training";
+import { LEGAL_HOURS, STAFF_POSITIONS } from "@/lib/safety-training";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,6 @@ type StaffRow = {
   id: string;
   name: string;
   position: string;
-  office: boolean;
   active: boolean;
 };
 
@@ -23,14 +22,12 @@ function AddForm() {
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [position, setPosition] = useState<string>("기전");
-  // 사무직 여부는 정기교육 법정 시간(반기 6h/12h)을 가른다 — 직종을 따라가되 고칠 수 있다
-  const [office, setOffice] = useState(false);
   const [error, setError] = useState<string>();
 
   const add = () => {
     if (!name.trim() || pending) return;
     startTransition(async () => {
-      const r = await addStaff({ name, position, office });
+      const r = await addStaff({ name, position });
       if (r && "error" in r && r.error) setError(r.error);
       else {
         setName("");
@@ -51,10 +48,7 @@ function AddForm() {
         />
         <select
           value={position}
-          onChange={(e) => {
-            setPosition(e.target.value);
-            setOffice(e.target.value === "사무");
-          }}
+          onChange={(e) => setPosition(e.target.value)}
           className={selectCls}
         >
           {STAFF_POSITIONS.map((p) => (
@@ -63,14 +57,6 @@ function AddForm() {
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-1.5 text-sm">
-          <input
-            type="checkbox"
-            checked={office}
-            onChange={(e) => setOffice(e.target.checked)}
-          />
-          사무직
-        </label>
         <Button type="button" onClick={add} disabled={pending || !name.trim()}>
           {pending && <Loader2 className="size-4 animate-spin" />} 추가
         </Button>
@@ -84,9 +70,7 @@ function Row({ row }: { row: StaffRow }) {
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(row.name);
   const [position, setPosition] = useState(row.position);
-  const [office, setOffice] = useState(row.office);
-  const dirty =
-    name !== row.name || position !== row.position || office !== row.office;
+  const dirty = name !== row.name || position !== row.position;
 
   return (
     <div
@@ -110,15 +94,6 @@ function Row({ row }: { row: StaffRow }) {
           </option>
         ))}
       </select>
-      <label className="flex items-center gap-1.5 text-sm">
-        <input
-          type="checkbox"
-          checked={office}
-          onChange={(e) => setOffice(e.target.checked)}
-          disabled={!row.active}
-        />
-        사무직
-      </label>
       {!row.active && (
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
           비활성
@@ -132,7 +107,7 @@ function Row({ row }: { row: StaffRow }) {
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await updateStaff({ id: row.id, name, position, office });
+                await updateStaff({ id: row.id, name, position });
               })
             }
           >
@@ -182,9 +157,6 @@ export function StaffManager({
             <li key={s.id} className={`flex items-center gap-2 py-2 text-sm ${s.active ? "" : "opacity-50"}`}>
               {s.name}
               <span className="text-xs text-muted-foreground">{s.position}</span>
-              {s.office && (
-                <span className="text-xs text-muted-foreground">사무직</span>
-              )}
               {!s.active && (
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                   비활성
@@ -230,6 +202,10 @@ export function StaffManager({
           </div>
         </div>
         <AddForm />
+        <p className="mt-3 text-xs text-muted-foreground">
+          직종이 &lsquo;사무&rsquo;면 정기교육 {LEGAL_HOURS.regularOffice}, 그 외는{" "}
+          {LEGAL_HOURS.regularField} 기준으로 집계됩니다.
+        </p>
       </Card>
 
       <Card className="p-6">

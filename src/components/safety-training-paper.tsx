@@ -59,7 +59,7 @@ export function SafetyTrainingPaper({
     <article
       id={id}
       // 행간 1.5 — 참석자 12명·주제 2개 회차가 A4 한 장에 앉는 한계선(헤드리스 실측값)
-      className="flex w-full max-w-[210mm] shrink-0 flex-col bg-[var(--gian-card)] px-[16mm] py-[12mm] text-[11.5pt] leading-[1.5] text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
+      className="flex w-full max-w-[210mm] shrink-0 flex-col bg-[var(--gian-card)] px-[16mm] pt-[18mm] pb-[12mm] text-[11.5pt] leading-[1.5] text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
     >
       <h2 className="mb-1.5 text-center text-[17pt] font-extrabold tracking-[.3em] indent-[.3em] text-balance">
         안전보건교육 일지

@@ -15,7 +15,7 @@ export default async function TrainingStaffPage() {
   const staff = await db.trainingStaff.findMany({
     where: { tenantId },
     orderBy: [{ active: "desc" }, { createdAt: "asc" }],
-    select: { id: true, name: true, position: true, office: true, active: true },
+    select: { id: true, name: true, position: true, active: true },
   });
   // 명부 관리는 마스터·매니저 — 세대 명부와 같은 경계
   const canManage =
