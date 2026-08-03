@@ -240,3 +240,31 @@ export async function sendSuspended(to: string, name: string) {
     ),
   );
 }
+
+// ── 안전보건 교육 미이수 안내 ──────────────────────────────────
+/**
+ * 반기 마감 전 미이수자 안내. 인앱 알림만으로는 몇 주 앱을 안 여는 소장에게
+ * 닿지 않아 메일을 같이 보낸다 — 마감을 넘기면 과태료 대상이 된다.
+ */
+export async function sendTrainingDue(
+  to: string,
+  name: string,
+  halfText: string,
+  daysLeft: number,
+  people: string[],
+) {
+  const list = people.map((p) => escapeHtml(p)).join(", ");
+  await send(
+    to,
+    `[디벅] ${halfText} 안전보건교육 마감까지 ${daysLeft}일 — 미이수 ${people.length}명`,
+    layout(
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(halfText)}</b> 정기 안전보건교육 마감까지 <b>${daysLeft}일</b> 남았습니다.
+       법정 시간을 아직 못 채운 직원이 <b>${people.length}명</b> 있습니다.</p>
+       <p style="color:#b45309;">${list}</p>
+       <p>교육을 실시하고 일지를 남기면 이수 시간이 자동으로 집계됩니다.
+       사무직은 매반기 6시간, 그 외 직원은 12시간이 법정 기준입니다.</p>`,
+      { label: "교육일지 작성하기", url: `${APP_URL}/modules/safety-training` },
+    ),
+  );
+}

@@ -183,6 +183,19 @@ export function halfRange(h: Half): { start: string; end: string } {
     : { start: `${h.year}-07-01`, end: `${h.year}-12-31` };
 }
 
+/**
+ * 미이수 안내 회차 — 반기 마감까지 남은 일수로 고른다. null = 아직 안내할 때 아님.
+ *
+ * "D-30 당일"이 아니라 "30일 이하에서 처음"인 이유: 크론이 하루 빠지면 그 회차가
+ * 영영 안 나간다. 임계값은 반드시 **작은 것부터** 본다 — 큰 것부터 보면 D-7에도
+ * 30이 먼저 걸려 마지막 안내가 나가지 않는다.
+ */
+export const DUE_MILESTONES = [7, 30] as const;
+
+export function dueMilestone(daysLeft: number): number | null {
+  return DUE_MILESTONES.find((m) => daysLeft <= m) ?? null;
+}
+
 /** 반기 마감(6/30·12/31)까지 남은 일수 — 마감 당일 0 */
 export function daysToHalfEnd(d: Date): number {
   const { y, m, day } = kstParts(d);

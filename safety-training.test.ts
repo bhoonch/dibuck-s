@@ -12,6 +12,7 @@ import {
   courseTypeOf,
   daysToHalfEnd,
   draftPlainText,
+  dueMilestone,
   formatHours,
   halfLabel,
   halfOfKst,
@@ -92,6 +93,16 @@ assert.deepEqual(halfRange({ year: 2026, half: 2 }), { start: "2026-07-01", end:
 assert.equal(daysToHalfEnd(new Date("2026-06-30T00:00:00+09:00")), 0);
 assert.equal(daysToHalfEnd(new Date("2026-06-29T00:00:00+09:00")), 1);
 assert.equal(daysToHalfEnd(new Date("2026-12-31T09:00:00+09:00")), 0);
+
+// --- 미이수 안내 회차 ---
+// 임계값을 큰 것부터 보면 D-7에도 30이 먼저 걸려 마지막 안내가 안 나간다
+assert.equal(dueMilestone(31), null, "아직 안내할 때 아님");
+assert.equal(dueMilestone(30), 30);
+assert.equal(dueMilestone(20), 30);
+assert.equal(dueMilestone(8), 30);
+assert.equal(dueMilestone(7), 7, "D-7 회차는 7이어야 한다");
+assert.equal(dueMilestone(1), 7);
+assert.equal(dueMilestone(0), 7, "마감 당일도 안내 대상");
 
 // --- 인원별 이수 시간 + 이행 현황 집계 ---
 const now = new Date("2026-08-03T10:00:00+09:00"); // 하반기

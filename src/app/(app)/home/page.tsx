@@ -5,6 +5,15 @@ import { getModulesForTenant } from "@/lib/modules";
 import { getModuleIcon } from "@/lib/module-icons";
 import { docStatusLabels, docStatusStyles, docTypeLabels } from "@/lib/labels";
 import { kstDayStart, ymdKst, dayKst } from "@/lib/utils";
+import {
+  daysToHalfEnd,
+  halfLabel,
+  halfOfKst,
+  halfRange,
+  personProgress,
+  type AttendeeSnap,
+  type CourseType,
+} from "@/lib/safety-training";
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -57,6 +66,8 @@ export default async function HomePage() {
     tenant,
     unitCount,
     staffCount,
+    trainingDocs,
+    trainingRoster,
   ] = await Promise.all([
       db.document.findMany({
         where: where.approval,
@@ -117,7 +128,40 @@ export default async function HomePage() {
       }),
       db.unit.count({ where: { tenantId } }),
       db.user.count({ where: { tenantId } }),
+      // 교육 미이수는 문서가 아니라 계산값이라 할 일 목록에 따로 실어야 한다 —
+      // 이게 없으면 교육일지 모듈에 직접 들어가야만 마감을 안다
+      db.document.findMany({
+        where: { tenantId, type: "safety_training", status: "final" },
+        select: { meta: true, createdAt: true },
+      }),
+      db.trainingStaff.findMany({
+        where: { tenantId, active: true },
+        select: { id: true, name: true, position: true, office: true },
+      }),
     ]);
+
+  // 구독 중이고 명부가 있을 때만 — 안 쓰는 모듈의 할 일을 홈에 띄우지 않는다
+  const training = modules.some((m) => m.id === "safety-training" && m.subscribed)
+    ? personProgress(
+        now,
+        trainingDocs.map((d) => {
+          const m = (d.meta ?? {}) as {
+            courseType?: CourseType;
+            date?: string;
+            hours?: unknown;
+            attendees?: AttendeeSnap[];
+          };
+          return {
+            courseType: m.courseType ?? "regular",
+            date: m.date ?? ymdKst(d.createdAt),
+            hours: m.hours,
+            attendees: m.attendees ?? [],
+          };
+        }),
+        trainingRoster,
+      ).filter((p) => !p.done)
+    : [];
+  const half = halfOfKst(now);
 
   const tasks: TaskItem[] = [
     ...approvals.map((d) => ({
@@ -157,6 +201,25 @@ export default async function HomePage() {
       href: "/documents?type=complaint",
       sortKey: d.createdAt.getTime(),
     })),
+    // 마감이 있는 항목이라 계약·점검과 같은 D-N 형태로 줄 세운다
+    ...(training.length > 0
+      ? [
+          {
+            id: "safety-training-half",
+            title: `정기교육 미이수 ${training.length}명 — ${training
+              .slice(0, 3)
+              .map((p) => p.name)
+              .join(", ")}${training.length > 3 ? ` 외 ${training.length - 3}명` : ""}`,
+            meta: `${halfLabel(half)} 마감`,
+            tag: `D-${daysToHalfEnd(now)}`,
+            dot: "bg-violet-600",
+            tagStyle: "bg-violet-50 text-violet-700",
+            cta: "교육",
+            href: "/modules/safety-training",
+            sortKey: kstDayStart(halfRange(half).end).getTime(),
+          },
+        ]
+      : []),
     ...inspections.map((d) => ({
       id: d.id,
       title: d.title,

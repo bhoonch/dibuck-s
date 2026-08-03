@@ -349,6 +349,13 @@
 ```
 크론이 하는 일: ① 청구·재시도·정지 ② 갱신 예고 D-7·D-1 ③ 체험 D-7·만료 안내(5.5에서 이월). 하루에 두 번 돌아도 이중 청구되지 않는다(성공하면 `nextBillingAt`이 다음 달로 밀린다).
 
+**크론 두 번째 — 안전보건교육 미이수 안내:** `/api/cron/training` (같은 `CRON_SECRET`, GET·POST 둘 다). 반기 마감(6/30·12/31) **D-30·D-7**에 미이수자를 인앱 알림 + 마스터 메일로 알린다. 미이수는 문서가 아니라 계산값이라 저장 시점 훅이 없어서 배치가 필요하다.
+
+```
+0 4 * * *  curl -H "Authorization: Bearer $CRON_SECRET" https://.../api/cron/training
+```
+회차 중복은 `Notification.type`의 기간 키(`training_due_2026H2_D30`)로 막는다. 회차 판정이 "D-30 당일"이 아니라 "30일 이하에서 처음"이라 크론이 하루 빠져도 안내가 사라지지 않는다.
+
 **청구 모델: 단지당 월 1회 통합 청구.** 그 시점에 유료인 모듈 가격의 합. 체험 중인 모듈은 빠지고, 체험이 끝나는 날부터 포함된다.
 - `Billing`(단지 1:1) — `customerKey`·`billingKey`·카드 표시정보·`status`·`nextBillingAt`·`billingDay`·`pastDueSince`·`cancelRequestedAt`
 - `Payment` — 청구 이력. **`items`에 가격 스냅샷**을 남겨 모듈 가격이 바뀌어도 과거 내역이 소급되지 않는다
@@ -490,9 +497,9 @@
 - 카카오 로그인은 `.env`에 `KAKAO_REST_API_KEY`(+선택 `KAKAO_CLIENT_SECRET`)를 넣어야 활성화 — 없으면 로그인 페이지에서 버튼 숨김
 - 메일 발송은 `.env`에 `SMTP_HOST`·`SMTP_USER`·`SMTP_PASS`(+선택 `SMTP_PORT`·`SMTP_SECURE`·`SMTP_FROM`)를 넣어야 활성화 — 없으면 비밀번호 셀프 재설정 UI가 숨고 수동 재설정 안내로 대체된다. **배포 시 `APP_URL`을 실제 도메인으로** (메일 링크가 이 값을 쓴다)
 - 결제는 `.env`에 `TOSS_SECRET_KEY`·`NEXT_PUBLIC_TOSS_CLIENT_KEY`를 넣어야 활성화 — 없으면 설정 > 결제가 "결제 준비 중" 안내로 대체된다. 심사 전에도 **토스 테스트 키로 전 흐름을 확인할 수 있다**
-- 크론 인증용 `CRON_SECRET` 필수 — 없으면 `/api/cron/billing`이 401로 막힌다(fail closed). **배포 시 새 값으로 바꿀 것**
+- 크론 인증용 `CRON_SECRET` 필수 — 없으면 `/api/cron/billing`·`/api/cron/training`이 401로 막힌다(fail closed). **배포 시 새 값으로 바꿀 것**
 - AI 초안 생성은 `.env`에 `ANTHROPIC_API_KEY` — 없으면 기안·품의 모듈의 **생성만** "준비 중"으로 막히고 폼·판정·문서 열람은 그대로 돈다. 개발 키는 발급 완료(2026-07-27). 키는 조직 단위 자격증명이라 **모듈마다 나누지 않는다** — 나누는 기준은 프로젝트(placelink ↔ 디벅)와 환경(개발 ↔ 운영). 콘솔 워크스페이스별 지출 한도를 걸어 두는 게 만료일보다 실효가 크다
-- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx password-reset.test.ts` (재설정 토큰 상태) / `npx tsx billing.test.ts` (청구 계산·크론 판정) / `npx tsx gian-rules.test.ts` (금액·문서분류·결재선·한글금액) / `npx tsx approval-flow.test.ts` (외부 서명 토큰 fail-closed)
+- 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx password-reset.test.ts` (재설정 토큰 상태) / `npx tsx billing.test.ts` (청구 계산·크론 판정) / `npx tsx gian-rules.test.ts` (금액·문서분류·결재선·한글금액) / `npx tsx approval-flow.test.ts` (외부 서명 토큰 fail-closed) / `npx tsx safety-training.test.ts` (교육시간 파싱·인원별 누적·안내 회차)
 - DB 필요: `npx tsx modules.test.ts` (모듈 노출·잠금 규칙) / `npx tsx billing-run.test.ts` (청구 상태 전이) / `npx tsx approval-run.test.ts` (상신→반려→재상신→순차 승인→외부 토큰→완료)
 - **실 API 호출(비용 발생, 자동 검증 아님)**: `npx tsx gian-draft.manual.ts [0|1|2]` — 프롬프트를 손볼 때 결과를 눈으로 보는 스크립트(0=품의서 수의계약, 1=기안서 예산없음, 2=공사추진 장충금+입찰). 건당 ~15원
 - ⚠️ 스키마 변경 후 `prisma generate` 하면 dev 서버 재시작 필요 (구버전 클라이언트 캐시로 500 발생)
