@@ -14,17 +14,21 @@ const db = new PrismaClient({
  * 없는 소프트웨어를 상대로 소진되고 가입자는 "체험 종료 → 잠김"으로 끝난다.
  * 모듈 라우트를 실제로 구현할 때 해당 줄의 isActive를 true로 바꿀 것.
  */
+// sortOrder는 AI 모듈(1~4)이 먼저, 기록·관리 모듈(5~8)이 뒤 — 요금표·구독 화면·
+// 사이드바가 전부 이 순서를 읽는다(사용자 결정 2026-08-03). AI가 이 제품의
+// 차별점이자 가격 근거라 라인업이 한 덩어리로 읽혀야 한다. 섹션 제목은 아직
+// 없다 — 켜진 모듈이 3개뿐이라 2개·1개짜리 그룹에 제목을 붙이면 어색하다.
 const MODULES = [
-  { id: "dunning", name: "미납 독촉장", description: "관리비 미납 세대 독촉장을 한 번에 만들어요", icon: "FileWarning", route: "/modules/dunning", price: 30000, sortOrder: 1, isActive: true },
-  { id: "notice", name: "AI 공지문 완성", description: "상황만 고르면 공지문 초안이 완성돼요", icon: "Megaphone", route: "/modules/notice", price: 20000, sortOrder: 2, isActive: true },
-  { id: "contracts", name: "계약 만료 알리미", description: "계약 만료 전에 미리 알려드려요", icon: "FileText", route: "/modules/contracts", price: 20000, sortOrder: 3, isActive: false },
-  { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 4, isActive: false },
-  { id: "facilities", name: "설비 이력관리", description: "점검 주기 관리와 수리 이력", icon: "Wrench", route: "/modules/facilities", price: 20000, sortOrder: 5, isActive: false },
-  { id: "minutes", name: "AI 회의록 완성", description: "메모만 넘기면 회의록이 정리돼요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 6, isActive: false },
+  { id: "notice", name: "AI 공지문 완성", description: "상황만 고르면 공지문 초안이 완성돼요", icon: "Megaphone", route: "/modules/notice", price: 20000, sortOrder: 1, isActive: true },
   // 기안·품의 = 로드맵 5번(전자결재)+6번(AI 파이프라인) 선행 구현 — 별도 모듈을 만들지 않고 이 id를 재정의했다.
-  // 가격 33,000 단일가(사용자 확정 2026-07-27). Phase 2 결재까지 끝나면 isActive: true로.
-  { id: "approvals", name: "AI 기안·결재", description: "다섯 항목만 입력하면 법적 검토를 마친 기안서·품의서 초안과 결재까지", icon: "Stamp", route: "/modules/approvals", price: 33000, sortOrder: 7, isActive: false },
-  { id: "safety-training", name: "AI 안전교육일지", description: "종류·주제만 고르면 법정 교육일지가 완성되고, 놓친 반기 교육을 알려드려요", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 8, isActive: true },
+  // 가격 33,000 단일가(사용자 확정 2026-07-27). 결재까지 구현이 끝나 판매 중이다.
+  { id: "approvals", name: "AI 기안·결재", description: "다섯 항목만 입력하면 법적 검토를 마친 기안서·품의서 초안과 결재까지", icon: "Stamp", route: "/modules/approvals", price: 33000, sortOrder: 2, isActive: true },
+  { id: "safety-training", name: "AI 안전교육일지", description: "종류·주제만 고르면 법정 교육일지가 완성되고, 놓친 반기 교육을 알려드려요", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 3, isActive: true },
+  { id: "minutes", name: "AI 회의록 완성", description: "메모만 넘기면 회의록이 정리돼요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 4, isActive: false },
+  { id: "dunning", name: "미납 독촉장", description: "관리비 미납 세대 독촉장을 한 번에 만들어요", icon: "FileWarning", route: "/modules/dunning", price: 30000, sortOrder: 5, isActive: true },
+  { id: "contracts", name: "계약 만료 알리미", description: "계약 만료 전에 미리 알려드려요", icon: "FileText", route: "/modules/contracts", price: 20000, sortOrder: 6, isActive: false },
+  { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 7, isActive: false },
+  { id: "facilities", name: "설비 이력관리", description: "점검 주기 관리와 수리 이력", icon: "Wrench", route: "/modules/facilities", price: 20000, sortOrder: 8, isActive: false },
 ];
 
 /** 모듈 레지스트리 — 운영에도 필요한 기준 데이터 */
@@ -90,13 +94,9 @@ async function seedDemo() {
     });
   }
 
-  // dunning·notice·approvals는 정식 구독, contracts는 무료 체험 중(데모용).
-  // 이들은 개발 화면을 채우려고 여기서만 판매 상태로 켠다 — 운영에서는 꺼진 채로
-  // 남아야 하므로 MODULES 쪽 isActive는 건드리지 않는다.
-  await db.module.updateMany({
-    where: { id: { in: ["dunning", "notice", "contracts", "approvals"] } },
-    data: { isActive: true },
-  });
+  // 판매 상태(isActive)는 MODULES가 유일한 원본이다 — 예전엔 여기서 updateMany로
+  // 덮어써서 화면이 안 만들어진 contracts까지 켰다(요금표에 자리표시 모듈이 노출).
+  // 데모 단지는 구독 행만 만든다: 구독 중이면 판매 중단 모듈도 계속 보인다(retired).
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
   for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training"]) {
