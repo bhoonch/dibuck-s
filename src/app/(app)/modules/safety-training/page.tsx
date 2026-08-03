@@ -13,6 +13,8 @@ import {
   newHireOverdue,
   newHireProgress,
   personProgress,
+  type NewHireProgress,
+  type PersonProgress,
   type AttendeeSnap,
   type CourseType,
   type LogSummary,
@@ -80,6 +82,7 @@ export default async function SafetyTrainingHomePage() {
       b.required - b.hours - (a.required - a.hours),
   );
   const unfinished = progress.filter((p) => !p.done);
+  const finished = progress.filter((p) => p.done);
   // 채용 시 교육은 개인별 1회성 — 입사일을 넣은 사람만 대상이다(넣지 않으면 조용하다)
   const newHire = new Map(
     newHireProgress(now, finalLogs, roster).map((p) => [p.id, p]),
@@ -167,7 +170,8 @@ export default async function SafetyTrainingHomePage() {
           <h2 className="mb-1 text-sm font-semibold">
             인원별 이수 현황{" "}
             <span className="font-normal text-muted-foreground">
-              ({halfLabel(c.half)} 정기교육 · 미이수 {unfinished.length}명)
+              ({halfLabel(c.half)} 정기교육 · 전체 {progress.length}명 중 미이수{" "}
+              {unfinished.length}명)
             </span>
           </h2>
           <p className="mb-4 text-xs text-muted-foreground">
@@ -175,45 +179,36 @@ export default async function SafetyTrainingHomePage() {
             ({LEGAL_HOURS.newHire})은 입사일을 넣은 직원에게만 별도로 표시되며, 정기교육
             시간에 합산하지 않습니다.
           </p>
-          <ul className="divide-y">
-            {progress.map((p) => (
-              <li key={p.id} className="flex items-center gap-3 py-2 text-sm">
-                <span className="w-20 shrink-0 font-medium">{p.name}</span>
-                <span className="w-12 shrink-0 text-xs text-muted-foreground">
-                  {p.position}
-                </span>
-                {/* 진행 막대 — 숫자만으로는 "얼마나 남았나"가 한눈에 안 온다 */}
-                <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
-                  <span
-                    className={`block h-full rounded-full ${p.done ? "bg-emerald-500" : "bg-amber-500"}`}
-                    style={{
-                      width: `${Math.min(100, Math.round((p.hours / p.required) * 100))}%`,
-                    }}
-                  />
-                </span>
-                <span className="w-24 shrink-0 text-right font-mono text-xs tabular-nums">
-                  {formatHours(p.hours) || "0시간"} / {p.required}시간
-                </span>
-                <span
-                  className={`w-14 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium ${
-                    p.done
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-amber-50 text-amber-700"
-                  }`}
-                >
-                  {p.done ? "이수" : "미이수"}
-                </span>
-                {/* 채용 시 교육은 입사일을 넣은 사람에게만 붙는 별도 요건 */}
-                <span className="w-28 shrink-0 text-right text-xs">
-                  {newHire.get(p.id) && !newHire.get(p.id)!.done ? (
-                    <span className="rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700">
-                      채용 시 {newHire.get(p.id)!.hours}/{newHire.get(p.id)!.required}h
-                    </span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
+
+          {/* 손댈 일이 있는 건 미이수자뿐이라 그쪽만 펼쳐 둔다 — 명부가 40명이면
+              전원을 그리는 순간 카드 하나가 1,400px가 되어 아래 일지 목록(증빙을
+              꺼내 인쇄하는 통로)이 두 화면 밑으로 밀린다. */}
+          {unfinished.length === 0 ? (
+            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+              {halfLabel(c.half)} 정기교육 전원 이수 ({progress.length}명)
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {unfinished.slice(0, VISIBLE_ROWS).map((p) => (
+                <ProgressRow key={p.id} p={p} newHire={newHire.get(p.id)} />
+              ))}
+            </ul>
+          )}
+
+          {unfinished.length > VISIBLE_ROWS && (
+            <RowsDetails
+              label={`미이수 나머지 ${unfinished.length - VISIBLE_ROWS}명 보기`}
+              rows={unfinished.slice(VISIBLE_ROWS)}
+              newHire={newHire}
+            />
+          )}
+          {finished.length > 0 && (
+            <RowsDetails
+              label={`이수 완료 ${finished.length}명 보기`}
+              rows={finished}
+              newHire={newHire}
+            />
+          )}
         </Card>
       )}
 
@@ -233,5 +228,72 @@ export default async function SafetyTrainingHomePage() {
         })}
       />
     </div>
+  );
+}
+
+/** 미이수자를 몇 명까지 펼쳐 둘지 — 나머지는 접는다 */
+const VISIBLE_ROWS = 8;
+
+function ProgressRow({
+  p,
+  newHire,
+}: {
+  p: PersonProgress;
+  newHire?: NewHireProgress;
+}) {
+  return (
+    <li className="flex items-center gap-3 py-2 text-sm">
+      <span className="w-20 shrink-0 font-medium">{p.name}</span>
+      <span className="w-12 shrink-0 text-xs text-muted-foreground">{p.position}</span>
+      {/* 진행 막대 — 숫자만으로는 "얼마나 남았나"가 한눈에 안 온다 */}
+      <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+        <span
+          className={`block h-full rounded-full ${p.done ? "bg-emerald-500" : "bg-amber-500"}`}
+          style={{ width: `${Math.min(100, Math.round((p.hours / p.required) * 100))}%` }}
+        />
+      </span>
+      <span className="w-24 shrink-0 text-right font-mono text-xs tabular-nums">
+        {formatHours(p.hours) || "0시간"} / {p.required}시간
+      </span>
+      <span
+        className={`w-14 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium ${
+          p.done ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+        }`}
+      >
+        {p.done ? "이수" : "미이수"}
+      </span>
+      {/* 채용 시 교육은 입사일을 넣은 사람에게만 붙는 별도 요건 */}
+      <span className="w-28 shrink-0 text-right text-xs">
+        {newHire && !newHire.done ? (
+          <span className="rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700">
+            채용 시 {newHire.hours}/{newHire.required}h
+          </span>
+        ) : null}
+      </span>
+    </li>
+  );
+}
+
+/** 접어 두는 행 묶음 — details는 네이티브라 상태·JS가 필요 없다 */
+function RowsDetails({
+  label,
+  rows,
+  newHire,
+}: {
+  label: string;
+  rows: PersonProgress[];
+  newHire: Map<string, NewHireProgress>;
+}) {
+  return (
+    <details className="mt-2 border-t pt-2">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
+        {label}
+      </summary>
+      <ul className="divide-y">
+        {rows.map((p) => (
+          <ProgressRow key={p.id} p={p} newHire={newHire.get(p.id)} />
+        ))}
+      </ul>
+    </details>
   );
 }
