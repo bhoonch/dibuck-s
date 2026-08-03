@@ -268,3 +268,28 @@ export async function sendTrainingDue(
     ),
   );
 }
+
+/**
+ * 채용 시 교육 미이수 — 반기 마감이 아니라 **입사일** 기준이라 사람마다 시점이 다르다.
+ * 법 문언은 "작업 배치 전"이라 유예를 길게 잡을 수 없다.
+ */
+export async function sendNewHireTrainingDue(
+  to: string,
+  name: string,
+  staffName: string,
+  daysSinceHire: number,
+  hours: number,
+) {
+  await send(
+    to,
+    `[디벅] ${staffName}님 채용 시 안전보건교육이 아직 완료되지 않았습니다`,
+    layout(
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(staffName)}</b>님이 입사한 지 <b>${daysSinceHire}일</b>이 지났는데,
+       채용 시 안전보건교육이 <b>${hours}/8시간</b>으로 아직 완료되지 않았습니다.</p>
+       <p>채용 시 교육은 작업에 배치하기 전에 실시해야 하는 법정 교육입니다.
+       교육일지에서 <b>채용 시 교육</b>을 선택해 실시 기록을 남겨 주세요.</p>`,
+      { label: "채용 시 교육일지 작성", url: `${APP_URL}/modules/safety-training/new` },
+    ),
+  );
+}

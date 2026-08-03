@@ -168,6 +168,21 @@ const kstParts = (d: Date) => {
   return { y: kst.getUTCFullYear(), m: kst.getUTCMonth() + 1, day: kst.getUTCDate() };
 };
 
+/** KST 기준 YYYY-MM-DD — 교육일자(문자열)와 사전순 비교하려고 표기를 맞춘다 */
+const ymdKstOf = (d: Date) => {
+  const { y, m, day } = kstParts(d);
+  return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
+/** KST 자정 기준 경과 일수 (from → to). 같은 날 0 */
+const daysSinceKst = (from: Date, to: Date) => {
+  const a = kstParts(from);
+  const b = kstParts(to);
+  return Math.round(
+    (Date.UTC(b.y, b.m - 1, b.day) - Date.UTC(a.y, a.m - 1, a.day)) / 86400000,
+  );
+};
+
 export function halfOfKst(d: Date): Half {
   const { y, m } = kstParts(d);
   return { year: y, half: m <= 6 ? 1 : 2 };
@@ -205,8 +220,20 @@ export function daysToHalfEnd(d: Date): number {
 
 // ── 이행 현황 집계 — 모듈 홈이 열 때마다 계산한다(크론·저장값 없음) ──
 
-/** 반기 정기교육 법정 최소 시간 — 판정에 쓰는 숫자. 문구는 LEGAL_HOURS */
-export const REQUIRED_HOURS = { office: 6, field: 12 } as const;
+/**
+ * 판정에 쓰는 법정 최소 시간(숫자). 문구는 LEGAL_HOURS.
+ * newHire 8시간은 상시 근로자 기준이다 — 일용·1주 이하 기간제는 1시간이지만
+ * 명부에 고용형태 칸이 없어 구분하지 않는다. 많이 요구하는 쪽이라 안전한 오차고,
+ * 대체 인력이 흔한 단지가 나오면 그때 명부에 칸을 늘릴 것.
+ */
+export const REQUIRED_HOURS = { office: 6, field: 12, newHire: 8 } as const;
+
+/**
+ * 채용 시 교육을 며칠 안에 하는 것으로 볼 것인가 — 안내 시점의 기준.
+ * 법 문언은 "작업 배치 전"이라 사실상 즉시지만, 입사 당일부터 미이수로 띄우면
+ * 입사 처리 중인 단지에 매번 경고가 뜬다. 유예를 두고 그 뒤부터 알린다.
+ */
+export const NEW_HIRE_GRACE_DAYS = 7;
 
 export type LogSummary = {
   courseType: CourseType;
@@ -222,6 +249,18 @@ export type RosterMember = {
   name: string;
   position: string;
   office: boolean;
+  /** 입사일 — null이면 채용 시 교육 판정에서 아예 빠진다(도입 전 입사자) */
+  hiredAt?: Date | null;
+};
+
+/** 한 사람의 채용 시 교육 이수 현황. 대상이 아닌 사람은 목록에 아예 없다 */
+export type NewHireProgress = RosterMember & {
+  /** 입사일 이후 채용 시 교육 이수 시간 합계 */
+  hours: number;
+  required: number;
+  done: boolean;
+  /** 입사 후 지난 일수 — 안내 유예(NEW_HIRE_GRACE_DAYS) 판정에 쓴다 */
+  daysSinceHire: number;
 };
 
 /** 한 사람의 이번 반기 정기교육 이수 현황 */
@@ -278,6 +317,60 @@ export function personProgress(
     return { ...s, hours, required, done: hours >= required };
   });
 }
+
+/**
+ * 채용 시 교육 이수 — 개인별 1회성 요건이라 반기 누적(정기교육)과 축이 다르다.
+ * 입사일 이후에 실시된 채용 시 교육만 센다: 입사 전 일지가 잡히면 전 직장에서
+ * 받은 교육을 이수로 치는 꼴이 된다.
+ *
+ * **입사일이 없는 사람은 결과에 넣지 않는다.** 디벅 도입 전 입사자는 이미
+ * 받았는지 알 방법이 없고, 전부 미이수로 띄우면 알림이 그날로 무의미해진다.
+ * 정기교육 시간을 감하는 규정은 적용하지 않는다 — 법 조문 해석은 코드가 하지
+ * 않는다(전결 한도와 같은 원칙). 필요하면 확인 후 켤 것.
+ */
+export function newHireProgress(
+  now: Date,
+  finalLogs: LogSummary[],
+  roster: RosterMember[],
+): NewHireProgress[] {
+  return roster
+    .filter((s): s is RosterMember & { hiredAt: Date } => !!s.hiredAt)
+    .map((s) => {
+      const hired = ymdKstOf(s.hiredAt);
+      const hours = finalLogs.reduce(
+        (sum, l) =>
+          l.courseType === "new_hire" &&
+          l.date >= hired &&
+          l.attendees.some((a) => isSamePerson(a, s))
+            ? sum + (parseHours(l.hours) ?? 0)
+            : sum,
+        0,
+      );
+      return {
+        ...s,
+        hours,
+        required: REQUIRED_HOURS.newHire,
+        done: hours >= REQUIRED_HOURS.newHire,
+        daysSinceHire: daysSinceKst(s.hiredAt, now),
+      };
+    });
+}
+
+/**
+ * 채용 시 교육 안내 회차 — 입사 후 **지난** 일수로 고른다. null = 아직 유예 안.
+ * 반기 안내(dueMilestone)와 방향이 반대다: 저쪽은 마감까지 남은 일수라 작은 것부터
+ * 보지만, 여기는 지날수록 급해지므로 **큰 것부터** 봐야 한다. 순서를 뒤집으면
+ * 입사 30일이 지난 사람도 7일 회차로 잡혀 두 번째 안내가 나가지 않는다.
+ */
+export const NEW_HIRE_MILESTONES = [30, NEW_HIRE_GRACE_DAYS] as const;
+
+export function newHireMilestone(daysSinceHire: number): number | null {
+  return NEW_HIRE_MILESTONES.find((m) => daysSinceHire >= m) ?? null;
+}
+
+/** 안내·경고 대상 — 유예를 넘겼는데 아직 못 채운 사람 */
+export const newHireOverdue = (list: NewHireProgress[]) =>
+  list.filter((p) => !p.done && p.daysSinceHire >= NEW_HIRE_GRACE_DAYS);
 
 /**
  * 직군별 이행 판정 = 그 직군 **전원**이 법정 시간을 채웠는가.

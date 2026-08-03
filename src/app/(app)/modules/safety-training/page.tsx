@@ -6,9 +6,12 @@ import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { ymdKst } from "@/lib/utils";
 import {
+  LEGAL_HOURS,
   complianceOf,
   formatHours,
   halfLabel,
+  newHireOverdue,
+  newHireProgress,
   personProgress,
   type AttendeeSnap,
   type CourseType,
@@ -52,7 +55,7 @@ export default async function SafetyTrainingHomePage() {
     db.trainingStaff.findMany({
       where: { tenantId, active: true },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, position: true, office: true },
+      select: { id: true, name: true, position: true, office: true, hiredAt: true },
     }),
   ]);
 
@@ -77,10 +80,17 @@ export default async function SafetyTrainingHomePage() {
       b.required - b.hours - (a.required - a.hours),
   );
   const unfinished = progress.filter((p) => !p.done);
+  // 채용 시 교육은 개인별 1회성 — 입사일을 넣은 사람만 대상이다(넣지 않으면 조용하다)
+  const newHire = new Map(
+    newHireProgress(now, finalLogs, roster).map((p) => [p.id, p]),
+  );
+  const newHireDue = newHireOverdue([...newHire.values()]);
   const missing = [
     c.regularOffice === false && "정기교육(사무직)",
     c.regularField === false && "정기교육(그 외 근로자)",
     !c.supervisor && "관리감독자 교육",
+    newHireDue.length > 0 &&
+      `채용 시 교육(${newHireDue.map((p) => p.name).join(", ")})`,
   ].filter(Boolean) as string[];
   // 판정이 "직군 전원 이수"라 라벨도 실시 여부가 아니라 이수 여부다
   const mark = (v: boolean | null) =>
@@ -161,8 +171,9 @@ export default async function SafetyTrainingHomePage() {
             </span>
           </h2>
           <p className="mb-4 text-xs text-muted-foreground">
-            완성된 정기교육 일지의 교육시간을 사람별로 더한 값입니다. 채용 시·관리감독자
-            교육은 별도 요건이라 합산하지 않습니다.
+            완성된 정기교육 일지의 교육시간을 사람별로 더한 값입니다. 채용 시 교육
+            ({LEGAL_HOURS.newHire})은 입사일을 넣은 직원에게만 별도로 표시되며, 정기교육
+            시간에 합산하지 않습니다.
           </p>
           <ul className="divide-y">
             {progress.map((p) => (
@@ -191,6 +202,14 @@ export default async function SafetyTrainingHomePage() {
                   }`}
                 >
                   {p.done ? "이수" : "미이수"}
+                </span>
+                {/* 채용 시 교육은 입사일을 넣은 사람에게만 붙는 별도 요건 */}
+                <span className="w-28 shrink-0 text-right text-xs">
+                  {newHire.get(p.id) && !newHire.get(p.id)!.done ? (
+                    <span className="rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700">
+                      채용 시 {newHire.get(p.id)!.hours}/{newHire.get(p.id)!.required}h
+                    </span>
+                  ) : null}
                 </span>
               </li>
             ))}

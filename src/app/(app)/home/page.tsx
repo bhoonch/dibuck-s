@@ -10,6 +10,8 @@ import {
   halfLabel,
   halfOfKst,
   halfRange,
+  newHireOverdue,
+  newHireProgress,
   personProgress,
   type AttendeeSnap,
   type CourseType,
@@ -136,30 +138,31 @@ export default async function HomePage() {
       }),
       db.trainingStaff.findMany({
         where: { tenantId, active: true },
-        select: { id: true, name: true, position: true, office: true },
+        select: { id: true, name: true, position: true, office: true, hiredAt: true },
       }),
     ]);
 
   // 구독 중이고 명부가 있을 때만 — 안 쓰는 모듈의 할 일을 홈에 띄우지 않는다
+  const trainingLogs = trainingDocs.map((d) => {
+    const m = (d.meta ?? {}) as {
+      courseType?: CourseType;
+      date?: string;
+      hours?: unknown;
+      attendees?: AttendeeSnap[];
+    };
+    return {
+      courseType: m.courseType ?? ("regular" as CourseType),
+      date: m.date ?? ymdKst(d.createdAt),
+      hours: m.hours,
+      attendees: m.attendees ?? [],
+    };
+  });
   const training = modules.some((m) => m.id === "safety-training" && m.subscribed)
-    ? personProgress(
-        now,
-        trainingDocs.map((d) => {
-          const m = (d.meta ?? {}) as {
-            courseType?: CourseType;
-            date?: string;
-            hours?: unknown;
-            attendees?: AttendeeSnap[];
-          };
-          return {
-            courseType: m.courseType ?? "regular",
-            date: m.date ?? ymdKst(d.createdAt),
-            hours: m.hours,
-            attendees: m.attendees ?? [],
-          };
-        }),
-        trainingRoster,
-      ).filter((p) => !p.done)
+    ? personProgress(now, trainingLogs, trainingRoster).filter((p) => !p.done)
+    : [];
+  // 채용 시 교육은 사람마다 기한이 달라 반기 마감과 별개로 뜬다
+  const newHireDue = modules.some((m) => m.id === "safety-training" && m.subscribed)
+    ? newHireOverdue(newHireProgress(now, trainingLogs, trainingRoster))
     : [];
   const half = halfOfKst(now);
 
@@ -220,6 +223,19 @@ export default async function HomePage() {
           },
         ]
       : []),
+    // 채용 시 교육은 반기 마감이 아니라 입사일 기준 — 사람마다 따로 세운다
+    ...newHireDue.map((p) => ({
+      id: `newhire-${p.id}`,
+      title: `채용 시 교육 미이수 — ${p.name} (${p.hours}/${p.required}시간)`,
+      meta: `입사 ${p.daysSinceHire}일째 · 작업 배치 전 실시`,
+      tag: "채용",
+      dot: "bg-rose-600",
+      tagStyle: "bg-rose-50 text-rose-700",
+      cta: "교육",
+      href: "/modules/safety-training/new",
+      // 입사가 오래된 사람일수록 위로 — 마감 지난 항목처럼 다룬다
+      sortKey: now.getTime() - p.daysSinceHire * 86400000,
+    })),
     ...inspections.map((d) => ({
       id: d.id,
       title: d.title,

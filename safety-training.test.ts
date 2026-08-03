@@ -18,6 +18,9 @@ import {
   halfOfKst,
   halfRange,
   mergeAttendees,
+  newHireMilestone,
+  newHireOverdue,
+  newHireProgress,
   parseHours,
   personProgress,
   sectionsToText,
@@ -195,6 +198,76 @@ assert.equal(
 const fieldOnly = complianceOf(now, [], [기전]);
 assert.equal(fieldOnly.regularOffice, null);
 assert.equal(fieldOnly.regularField, false);
+
+// --- 채용 시 교육 (개인별 1회성) ---
+const 신입 = {
+  id: "s4",
+  name: "정신입",
+  position: "경비",
+  office: false,
+  hiredAt: new Date("2026-07-20T00:00:00+09:00"),
+};
+const nhLog = (date: string, hours: unknown, who: { id: string; name: string }[]) => ({
+  courseType: "new_hire" as const,
+  date,
+  hours,
+  attendees: who.map((m) => ({ staffId: m.id, name: m.name, office: false })),
+});
+
+// 입사일 없는 사람은 결과에 아예 없다 — 도입 전 입사자를 미이수로 띄우면 알림이 죽는다
+assert.deepEqual(newHireProgress(now, [], [경리, 기전]), []);
+// 8시간 미만이면 미이수, 채우면 이수
+let nh = newHireProgress(now, [nhLog("2026-07-21", 4, [신입])], [기전, 신입]);
+assert.deepEqual(
+  nh.map((x) => [x.name, x.hours, x.required, x.done]),
+  [["정신입", 4, 8, false]],
+);
+assert.equal(
+  newHireProgress(now, [nhLog("2026-07-21", 8, [신입])], [신입])[0].done,
+  true,
+);
+// 여러 회차 누적
+assert.equal(
+  newHireProgress(
+    now,
+    [nhLog("2026-07-21", 4, [신입]), nhLog("2026-07-22", 4, [신입])],
+    [신입],
+  )[0].done,
+  true,
+);
+// 입사 전 교육은 안 친다 — 전 직장에서 받은 교육을 이수로 치는 꼴이 된다
+assert.equal(
+  newHireProgress(now, [nhLog("2026-07-19", 8, [신입])], [신입])[0].hours,
+  0,
+);
+// 정기교육 시간은 채용 시 교육에 합산하지 않는다(감면 규정은 코드가 판단하지 않는다)
+assert.equal(
+  newHireProgress(now, [log("2026-07-21", 8, [경리])], [
+    { ...신입, id: 경리.id, name: 경리.name },
+  ])[0].hours,
+  0,
+);
+// 입사 후 경과일 — 2026-07-20 입사, 기준 2026-08-03 → 14일
+assert.equal(newHireProgress(now, [], [신입])[0].daysSinceHire, 14);
+// 안내 대상은 유예(7일)를 넘긴 미이수자만 — 입사 당일부터 경고하면 매번 뜬다
+assert.deepEqual(
+  newHireOverdue(newHireProgress(now, [], [신입])).map((p) => p.name),
+  ["정신입"],
+);
+const 오늘입사 = { ...신입, id: "s5", name: "오늘입사", hiredAt: now };
+assert.deepEqual(newHireOverdue(newHireProgress(now, [], [오늘입사])), []);
+// 이수했으면 유예를 넘겨도 대상이 아니다
+assert.deepEqual(
+  newHireOverdue(newHireProgress(now, [nhLog("2026-07-21", 8, [신입])], [신입])),
+  [],
+);
+
+// 안내 회차는 지날수록 급해지므로 큰 것부터 본다 — 뒤집으면 30일 회차가 안 나간다
+assert.equal(newHireMilestone(6), null, "유예 안");
+assert.equal(newHireMilestone(7), 7);
+assert.equal(newHireMilestone(29), 7);
+assert.equal(newHireMilestone(30), 30, "30일 지나면 두 번째 회차");
+assert.equal(newHireMilestone(100), 30);
 
 // --- 수정칸 왕복 ---
 const sections = [

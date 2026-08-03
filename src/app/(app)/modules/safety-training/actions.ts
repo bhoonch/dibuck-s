@@ -270,7 +270,22 @@ const staffPaths = () => {
   revalidatePath("/modules/safety-training");
 };
 
-export async function addStaff(input: { name: string; position: string }) {
+/**
+ * 입사일 입력 → 저장값. 빈 값은 null(채용 시 교육 판정 제외).
+ * KST 자정으로 고정한다 — 그냥 new Date("2026-07-20")은 UTC 자정이라
+ * 한국 시각으론 전날 09:00이 되어 입사 전 교육이 이수로 잡힌다.
+ */
+const hiredAtOf = (v: string | undefined) =>
+  v && /^\d{4}-\d{2}-\d{2}$/.test(v.trim())
+    ? new Date(`${v.trim()}T00:00:00+09:00`)
+    : null;
+
+export async function addStaff(input: {
+  name: string;
+  position: string;
+  /** 입사일 YYYY-MM-DD. 빈 값 = 채용 시 교육 판정 제외(도입 전 입사자) */
+  hiredAt?: string;
+}) {
   const gate = await requireStaffAdmin();
   if ("error" in gate) return gate;
   const name = input.name.trim();
@@ -281,13 +296,24 @@ export async function addStaff(input: { name: string; position: string }) {
   await db.trainingStaff.create({
     // 사무직 여부(정기교육 6h/12h)는 직종에서 자동 판정 — 애매한 '기타'는
     // 그 외(12h)로 집계한다. 더 많이 교육하는 방향의 오차라 법적으로 안전하다.
-    data: { tenantId: gate.session.tenantId!, name, position, office: position === "사무" },
+    data: {
+      tenantId: gate.session.tenantId!,
+      name,
+      position,
+      hiredAt: hiredAtOf(input.hiredAt),
+      office: position === "사무",
+    },
   });
   staffPaths();
   return {};
 }
 
-export async function updateStaff(input: { id: string; name: string; position: string }) {
+export async function updateStaff(input: {
+  id: string;
+  name: string;
+  position: string;
+  hiredAt?: string;
+}) {
   const gate = await requireStaffAdmin();
   if ("error" in gate) return gate;
   const name = input.name.trim();
@@ -298,7 +324,8 @@ export async function updateStaff(input: { id: string; name: string; position: s
   // tenantId를 조건에 넣는다 — 남의 단지 명부 id로는 아무 행도 맞지 않는다
   await db.trainingStaff.updateMany({
     where: { id: input.id, tenantId: gate.session.tenantId! },
-    data: { name, position, office: position === "사무" }, // 사무직 여부는 직종에서 자동 판정
+    // 사무직 여부는 직종에서 자동 판정
+    data: { name, position, hiredAt: hiredAtOf(input.hiredAt), office: position === "사무" },
   });
   staffPaths();
   return {};

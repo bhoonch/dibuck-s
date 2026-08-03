@@ -184,6 +184,12 @@ model TrainingStaff {
   name      String
   position  String // 직종: 사무·기전·경비·미화·기타 (src/lib/safety-training.ts STAFF_POSITIONS)
   office    Boolean  @default(false) // 사무직 여부 — 정기교육 법정 시간이 갈린다(반기 6h/12h)
+  /// 입사일(KST 00:00). 채용 시 교육(8시간)의 대상과 기한이 여기서만 나온다.
+  /// **null = 판정 제외**가 핵심이다 — 디벅 도입 전 입사자를 전부 미이수로 띄우면
+  /// 알림이 그날로 무의미해진다. 새로 뽑은 사람만 채워 넣으면 자동으로 대상이 된다.
+  /// createdAt(명부 등록일)을 대신 쓰면 안 된다: [앱 직원 불러오기]로 20명을
+  /// 한 번에 넣는 순간 전원이 "오늘 입사"가 된다.
+  hiredAt   DateTime?
   active    Boolean  @default(true) // 퇴사자는 삭제가 아니라 비활성 — 명부에서 이름이 사라지면 "왜 지웠지"가 된다
   createdAt DateTime @default(now())
 
