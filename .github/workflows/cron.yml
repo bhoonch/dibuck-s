@@ -1,0 +1,35 @@
+# 일일 크론 — billing·training·inspection 라우트를 밖에서 때린다.
+# Next.js에는 상주 프로세스가 없어 스케줄러가 앱 밖에 있어야 한다.
+#
+# ⚠️ 아직 비활성 상태다 — 호스팅 전이라 때릴 공개 주소가 없다. 배포하는 날:
+#   1. repo Settings → Secrets and variables → Actions에 등록:
+#      - APP_URL     (예: https://dibuck.example.com — 끝에 / 없이)
+#      - CRON_SECRET (배포 환경변수와 같은 값, 개발용 말고 새 값)
+#   2. 아래 schedule 블록의 주석을 푼다
+#   3. Actions 탭 → daily-cron → Run workflow(수동 실행)로 세 스텝 200 확인
+#
+# 세 크론 모두 "하루 1회, 시각 부정확·하루 결손 허용" 설계라(회차 판정이
+# "임계를 처음 넘긴 때") 무료 스케줄러의 지연·결손이 실제로 문제가 안 된다.
+# GitHub은 repo가 60일간 커밋이 없으면 스케줄을 자동 중지하고 메일로 알린다.
+name: daily-cron
+on:
+  # schedule:
+  #   - cron: "0 19 * * *" # UTC 19:00 = KST 04:00
+  workflow_dispatch: # 수동 실행 버튼 — 배포 직후 첫 확인용
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      # -f: HTTP 4xx/5xx면 스텝 실패 → GitHub이 실패 메일을 보낸다.
+      # "405만 나며 조용히 멈춤"이 재발할 수 없다 — 실패가 시끄럽다.
+      - name: billing
+        run: curl -fsS --retry 3 --retry-delay 30 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.APP_URL }}/api/cron/billing"
+      # 앞 스텝이 실패해도 나머지 안내는 나가야 한다 — 크론 하나의 장애가
+      # 다른 크론을 멈추면 안 된다(trySend와 같은 논리)
+      - name: training
+        if: ${{ !cancelled() }}
+        run: curl -fsS --retry 3 --retry-delay 30 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.APP_URL }}/api/cron/training"
+      - name: inspection
+        if: ${{ !cancelled() }}
+        run: curl -fsS --retry 3 --retry-delay 30 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.APP_URL }}/api/cron/inspection"
