@@ -203,27 +203,29 @@ export async function createInspectionRecord(
   });
   if (!item) return { error: "점검 항목을 선택해 주세요." };
 
-  const doneAt = String(formData.get("doneAt") ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(doneAt))
-    return { error: "실시일자를 입력해 주세요." };
-  const performedBy =
-    String(formData.get("performedBy") ?? "").trim() || "자체";
-  const result = formData.get("result") === "지적사항" ? "지적사항" : "정상";
-  const findings = String(formData.get("findings") ?? "").trim();
-  const actions = String(formData.get("actions") ?? "").trim();
-  if (result === "지적사항" && !findings)
-    return { error: "지적 내용을 입력해 주세요." };
-  const cost = parseWon(formData.get("cost"));
+  const fields = readRecordFields(formData);
+  if ("error" in fields) return fields;
+
+  // 파일은 문서를 만들기 **전에** 검사한다 — 파일이 반려됐는데 문서만 생기면
+  // 사용자는 저장이 실패한 줄 알고 한 번 더 저장한다(중복 기록)
+  const files = formData
+    .getAll("files")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length > MAX_FILES_PER_DOC)
+    return { error: `첨부는 ${MAX_FILES_PER_DOC}장까지 올릴 수 있습니다.` };
+  for (const f of files) {
+    if (!allowedMime(f.type))
+      return { error: "이미지 또는 PDF만 첨부할 수 있습니다." };
+    if (f.size > MAX_FILE_BYTES)
+      return { error: `${f.name} — 3MB 이하만 첨부할 수 있습니다.` };
+  }
 
   const doc = await createDocument({
     tenantId,
     moduleId: MODULE_ID,
     type: TYPE,
-    title: `${item.name} (${doneAt})`,
-    // 문서함 검색용 평문
-    content: [item.name, item.legalBasis, `결과: ${result}`, findings, actions]
-      .filter(Boolean)
-      .join("\n"),
+    title: `${item.name} (${fields.doneAt})`,
+    content: recordPlainText(item.name, item.legalBasis, fields),
     status: "final",
     createdById: session.userId,
     // 항목명·근거 스냅샷 — 항목을 나중에 고쳐도 지난 증빙은 불변(교육일지 참석자와 같은 원칙)
@@ -231,20 +233,122 @@ export async function createInspectionRecord(
       itemId: item.id,
       itemName: item.name,
       legalBasis: item.legalBasis,
-      doneAt,
-      performedBy,
-      result,
-      findings,
-      actions,
-      cost,
+      ...fields,
       vendor: item.vendor,
     },
   });
 
-  await rollForward(tenantId, item.id, doneAt);
+  for (const f of files) {
+    const buf = Buffer.from(await f.arrayBuffer());
+    await db.documentAttachment.create({
+      data: {
+        documentId: doc.id,
+        quoteIndex: null,
+        name: f.name,
+        mime: f.type,
+        size: buf.byteLength,
+        sha256: crypto.createHash("sha256").update(buf).digest("hex"),
+        data: buf,
+      },
+    });
+  }
+
+  await rollForward(tenantId, item.id, fields.doneAt);
 
   revalidatePath("/modules/facilities");
   redirect(`/modules/facilities/${doc.id}`);
+}
+
+/** 작성·수정이 같은 검증을 쓴다 — 폼 값 → meta 필드. error면 저장하지 않는다 */
+function readRecordFields(formData: FormData) {
+  const doneAt = String(formData.get("doneAt") ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(doneAt))
+    return { error: "실시일자를 입력해 주세요." as const };
+  const performedBy = String(formData.get("performedBy") ?? "").trim() || "자체";
+  const result = formData.get("result") === "지적사항" ? "지적사항" : "정상";
+  const findings = String(formData.get("findings") ?? "").trim();
+  const actions = String(formData.get("actions") ?? "").trim();
+  if (result === "지적사항" && !findings)
+    return { error: "지적 내용을 입력해 주세요." as const };
+  return { doneAt, performedBy, result, findings, actions, cost: parseWon(formData.get("cost")) };
+}
+
+/** 문서함 검색용 평문 */
+const recordPlainText = (
+  itemName: string,
+  legalBasis: string,
+  f: { result: string; findings: string; actions: string },
+) =>
+  [itemName, legalBasis, `결과: ${f.result}`, f.findings, f.actions]
+    .filter(Boolean)
+    .join("\n");
+
+/**
+ * 내용 수정 — 작성자·마스터, 폐기 전까지(교육일지도 완성본 수정이 되는 결).
+ * 항목은 바꿀 수 없다 — 항목을 잘못 골랐으면 폐기 후 새로 쓴다(스냅샷·앵커가 얽힌다).
+ * 실시일이 바뀌면 앵커를 기록들로부터 재계산한다.
+ */
+export async function saveInspectionRecord(
+  _prev: RecordState,
+  formData: FormData,
+): Promise<RecordState> {
+  const session = await requireInspection();
+  const docId = String(formData.get("docId") ?? "");
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId: session.tenantId!, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status === "void") return { error: "폐기된 기록은 수정할 수 없습니다." };
+  // 문서 수정·폐기의 공통 경계 — 작성자 본인 또는 마스터
+  if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
+    return { error: "수정은 작성자 또는 마스터만 할 수 있습니다." };
+
+  const fields = readRecordFields(formData);
+  if ("error" in fields) return fields;
+
+  const meta = (doc.meta ?? {}) as { itemId?: string; itemName?: string; legalBasis?: string };
+  await db.document.update({
+    where: { id: doc.id },
+    data: {
+      title: `${meta.itemName ?? doc.title} (${fields.doneAt})`,
+      content: recordPlainText(meta.itemName ?? "", meta.legalBasis ?? "", fields),
+      // 항목 스냅샷(itemId·itemName·legalBasis·vendor)은 그대로 두고 입력값만 바꾼다
+      meta: { ...(doc.meta as object), ...fields },
+    },
+  });
+  if (meta.itemId) await recomputeAnchor(session.tenantId!, meta.itemId);
+
+  revalidatePath("/modules/facilities");
+  revalidatePath(`/modules/facilities/${doc.id}`);
+  redirect(`/modules/facilities/${doc.id}`);
+}
+
+/**
+ * 앵커 재계산 — 수정·폐기 뒤에는 "앞으로만"(rollForward)으로는 부족하다:
+ * 실시일을 당기거나 기록을 폐기하면 도래일이 **뒤로** 돌아가야 정직하다.
+ * 완성 기록의 실시일 최대값으로 다시 놓는다. 기록이 하나도 없으면 손대지 않는다 —
+ * 마법사에서 손으로 넣은 기준일일 수 있고, 그 값이 틀렸는지는 앱이 알 수 없다.
+ */
+async function recomputeAnchor(tenantId: string, itemId: string) {
+  const records = await db.document.findMany({
+    where: {
+      tenantId,
+      type: TYPE,
+      status: "final",
+      meta: { path: ["itemId"], equals: itemId },
+    },
+    select: { meta: true },
+  });
+  const dates = records
+    .map((r) => (r.meta as { doneAt?: string })?.doneAt)
+    .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  const last = dates.at(-1);
+  if (!last) return;
+  await db.inspectionItem.updateMany({
+    where: { id: itemId, tenantId },
+    data: { lastDoneAt: new Date(`${last}T00:00:00+09:00`) },
+  });
 }
 
 /**
@@ -276,7 +380,8 @@ async function rollForward(tenantId: string, itemId: string, doneAtYmd: string) 
 
 /**
  * 폐기 — 완성본은 목록에 '폐기'로 남고 열람만 된다(교육일지와 같은 규칙).
- * 앵커는 되돌리지 않는다 — 실시일이 잘못됐으면 [항목 관리]에서 기준일을 고친다.
+ * 폐기한 기록은 이행에서 빠지므로 앵커를 재계산한다 — 유일한 기록을 폐기하면
+ * 앵커는 마지막으로 알던 값에 남는다(재계산 주석 참조).
  */
 export async function voidInspectionRecord(docId: string) {
   const session = await requireInspection();
@@ -291,6 +396,8 @@ export async function voidInspectionRecord(docId: string) {
     where: { id: doc.id, status: { not: "void" } },
     data: { status: "void" },
   });
+  const itemId = (doc.meta as { itemId?: string })?.itemId;
+  if (itemId) await recomputeAnchor(session.tenantId!, itemId);
   revalidatePath("/modules/facilities");
   redirect("/modules/facilities");
 }

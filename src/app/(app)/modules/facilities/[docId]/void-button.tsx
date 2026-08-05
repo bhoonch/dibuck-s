@@ -24,7 +24,7 @@ export function VoidButton({ docId }: { docId: string }) {
           </Button>
         }
         title="이 점검 기록을 폐기할까요?"
-        description="목록에는 '폐기'로 남고 열람만 됩니다. 실시일이 잘못됐다면 새 기록을 만들고 [항목 관리]에서 기준일을 확인해 주세요."
+        description="목록에는 '폐기'로 남고 열람만 됩니다. 폐기하면 이행에서 빠져 다음 도래일이 다시 계산됩니다 — 오타는 폐기 대신 [내용 수정]으로 고칠 수 있습니다."
         confirmLabel="폐기"
         destructive
         onConfirm={() =>

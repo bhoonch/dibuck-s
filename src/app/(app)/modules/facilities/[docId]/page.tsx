@@ -116,6 +116,11 @@ export default async function InspectionDocPage({
             >
               {docStatusLabels[doc.status] ?? doc.status}
             </span>
+            {!voided && canEdit && (
+              <Button asChild variant="outline" className="ml-auto">
+                <Link href={`/modules/facilities/${doc.id}/edit`}>내용 수정</Link>
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">{!voided && <PrintButton />}</div>
         </div>

@@ -12,27 +12,13 @@ import {
   statusOf,
   type InspectionStatus,
 } from "@/lib/inspection/schedule";
+import { STATUS_PILL, STATUS_RANK } from "@/lib/inspection/status";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SummaryBox, SummaryStat } from "@/components/ui/summary-box";
 import { AttentionCard } from "@/components/attention-card";
 import { InspectionTable } from "./inspection-table";
-
-/** 급한 것부터 — 지연이 빨강 최상단, 그다음 임박(D-day 순), 기준일 필요, 정상 */
-const STATUS_RANK: Record<InspectionStatus, number> = {
-  overdue: 0,
-  imminent: 1,
-  needsAnchor: 2,
-  ok: 3,
-};
-
-const STATUS_PILL: Record<InspectionStatus, { label: string; cls: string }> = {
-  overdue: { label: "지연", cls: "bg-red-50 text-red-700" },
-  imminent: { label: "임박", cls: "bg-amber-50 text-amber-700" },
-  needsAnchor: { label: "기준일 필요", cls: "bg-gray-100 text-gray-600" },
-  ok: { label: "정상", cls: "bg-emerald-50 text-emerald-700" },
-};
 
 export default async function InspectionHomePage() {
   const session = await requireTenantSession();
