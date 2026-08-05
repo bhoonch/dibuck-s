@@ -94,6 +94,7 @@ export async function createDocument({
   attachments,
   meta,
   status = "draft",
+  dueDate,
   createdById,
   sourceDocId,
   notify,
@@ -108,6 +109,8 @@ export async function createDocument({
   /** 모듈별 구조화 데이터 (Document.meta) — 재편집·파생 문서의 원천 */
   meta?: object;
   status?: string;
+  /** 기한 — 계약 만료일, 점검 도래일 등. 홈 할 일 위젯이 읽는다 */
+  dueDate?: Date;
   createdById?: string;
   /**
    * 파생 문서(공고문·완료보고·지출결의)의 원본 문서 id. 넘기면 @@unique([type, sourceDocId])가
@@ -138,6 +141,7 @@ export async function createDocument({
           attachments,
           meta,
           status,
+          dueDate,
           createdById,
           sourceDocId,
         },

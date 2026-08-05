@@ -46,15 +46,16 @@ model Tenant {
   status              TenantStatus @default(ACTIVE)
   createdAt           DateTime     @default(now())
 
-  users          User[]
-  modules        TenantModule[]
-  documents      Document[]
-  notifications  Notification[]
-  units          Unit[]
-  inquiries      Inquiry[]
-  billing        Billing?
-  dunningEntries DunningEntry[]
-  trainingStaff  TrainingStaff[]
+  users           User[]
+  modules         TenantModule[]
+  documents       Document[]
+  notifications   Notification[]
+  units           Unit[]
+  inquiries       Inquiry[]
+  billing         Billing?
+  dunningEntries  DunningEntry[]
+  trainingStaff   TrainingStaff[]
+  inspectionItems InspectionItem[]
 }
 
 // ── 결제 (토스페이먼츠 자동결제) ─────────────────────────────
@@ -192,6 +193,32 @@ model TrainingStaff {
   hiredAt   DateTime?
   active    Boolean  @default(true) // 퇴사자는 삭제가 아니라 비활성 — 명부에서 이름이 사라지면 "왜 지웠지"가 된다
   createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ── 법정점검 대장 — 단지별 활성 점검 항목 ────────────────────
+// 카탈로그(src/lib/inspection/catalog.ts)의 **스냅샷**이다: 이름·근거·주기를
+// 복사해 두므로 카탈로그를 개정해도 이미 켜 둔 항목과 지난 증빙은 불변.
+// 다음 도래일은 저장하지 않는다 — nextDue(item) 순수 함수로 열 때마다 계산
+// (저장하면 갱신 크론이 필요해지고 어긋날 자리가 생긴다).
+model InspectionItem {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  presetKey  String? // 카탈로그 키. null = 사용자 정의 항목
+  name       String
+  legalBasis String
+  cycleType  String // MONTHLY | QUARTERLY | SEMIANNUAL | ANNUAL | YEARS
+  cycleN     Int? // YEARS일 때 몇 년 주기
+  leadDays   Int       @default(7) // 준비 리드타임 — 업체 예약·기관 접수 항목은 30
+  /// 앵커일 — 마지막 실시일(KST 00:00). 완료 기록 저장 시 자동 갱신되어
+  /// 다음 도래일이 저절로 굴러간다. **null = "기준일 입력 필요"로 표시**한다
+  /// (교육 hiredAt의 "null = 제외"와 반대 — 켜 놓고 주기를 못 세는 건 알려야 한다)
+  lastDoneAt DateTime?
+  vendor     String? // 담당 업체명·연락처 자유 텍스트
+  active     Boolean   @default(true) // 퇴역은 삭제가 아니라 비활성 — 명부와 같은 결
+  createdAt  DateTime  @default(now())
 
   @@index([tenantId])
 }

@@ -28,7 +28,9 @@ const MODULES = [
   { id: "dunning", name: "미납 독촉장", description: "관리비 미납 세대 독촉장을 한 번에 만들어요", icon: "FileWarning", route: "/modules/dunning", price: 30000, sortOrder: 5, isActive: true },
   { id: "contracts", name: "계약 만료 알리미", description: "계약 만료 전에 미리 알려드려요", icon: "FileText", route: "/modules/contracts", price: 20000, sortOrder: 6, isActive: false },
   { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 7, isActive: false },
-  { id: "facilities", name: "설비 이력관리", description: "점검 주기 관리와 수리 이력", icon: "Wrench", route: "/modules/facilities", price: 20000, sortOrder: 8, isActive: false },
+  // facilities = 법정점검 대장으로 재정의 (2026-08-05, 사용자 확정) — 모듈 id는 라우트·아이콘
+  // 매핑이 물려 있어 바꾸지 않는다. 설명은 크론이 실제로 하는 범위만 서술(과장 금지).
+  { id: "facilities", name: "법정점검 대장", description: "소방·승강기·저수조 등 법정 주기를 앱이 세고, 기록 한 번으로 일지와 감사 서류철까지 쌓여요", icon: "ClipboardCheck", route: "/modules/facilities", price: 20000, sortOrder: 8, isActive: true },
 ];
 
 /** 모듈 레지스트리 — 운영에도 필요한 기준 데이터 */
@@ -99,7 +101,7 @@ async function seedDemo() {
   // 데모 단지는 구독 행만 만든다: 구독 중이면 판매 중단 모듈도 계속 보인다(retired).
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training"]) {
+  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training", "facilities"]) {
     const trial = moduleId === "contracts" ? trialEndsAt : null;
     await db.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: tenant.id, moduleId } },
@@ -182,6 +184,73 @@ async function seedDemo() {
           ],
         },
       },
+    });
+  }
+
+  // 법정점검 데모 — 항목 5(상태가 골고루: 정상·임박·지연·기준일 필요) + 완료 기록 2
+  // (문서와 같은 규칙: 없을 때만 심는다)
+  if ((await db.inspectionItem.count({ where: { tenantId: tenant.id } })) === 0) {
+    const kstDay = (daysAgo: number) => {
+      const d = new Date(Date.now() + 9 * 3600_000 - daysAgo * 86400000);
+      return new Date(`${d.toISOString().slice(0, 10)}T00:00:00+09:00`);
+    };
+    const ymdOf = (d: Date) =>
+      new Date(d.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+
+    const mk = (data: {
+      presetKey: string;
+      name: string;
+      legalBasis: string;
+      cycleType: string;
+      cycleN?: number;
+      leadDays: number;
+      vendor?: string;
+      lastDoneAt?: Date;
+    }) => ({ tenantId: tenant.id, cycleN: null, ...data });
+
+    const elevatorLast = kstDay(20); // 월 1회 — 도래 10일 뒤(리드 7일 밖, 정상)
+    const tankLast = kstDay(200); // 반기 1회 — 20일 지남(지연)
+    await db.inspectionItem.createMany({
+      data: [
+        mk({ presetKey: "fire_operation", name: "소방시설 작동점검", legalBasis: "소방시설 설치 및 관리에 관한 법률 제22조", cycleType: "ANNUAL", leadDays: 30, vendor: "한국소방점검(주) 02-1234-5678", lastDoneAt: kstDay(340) }), // 25일 뒤 도래 — 임박
+        mk({ presetKey: "elevator_self", name: "승강기 자체점검", legalBasis: "승강기 안전관리법 제31조", cycleType: "MONTHLY", leadDays: 7, vendor: "한국엘리베이터", lastDoneAt: elevatorLast }),
+        mk({ presetKey: "elevator_regular", name: "승강기 정기검사", legalBasis: "승강기 안전관리법 제32조", cycleType: "ANNUAL", leadDays: 30, vendor: "한국승강기안전공단", lastDoneAt: kstDay(120) }),
+        mk({ presetKey: "tank_cleaning", name: "저수조 청소", legalBasis: "수도법 제33조, 같은 법 시행규칙 제22조의3", cycleType: "SEMIANNUAL", leadDays: 30, vendor: "맑은물환경", lastDoneAt: tankLast }),
+        mk({ presetKey: "playground_monthly", name: "어린이놀이시설 안전점검", legalBasis: "어린이놀이시설 안전관리법 제15조", cycleType: "MONTHLY", leadDays: 7 }), // 기준일 없음 — needsAnchor
+      ],
+    });
+
+    // 완료 기록 2건 — 항목과 lastDoneAt이 맞아야 현황판·서류철이 말이 된다
+    const items = await db.inspectionItem.findMany({
+      where: { tenantId: tenant.id },
+      select: { id: true, presetKey: true },
+    });
+    const idOf = (k: string) => items.find((i) => i.presetKey === k)!.id;
+    await db.document.createMany({
+      data: [
+        {
+          tenantId: tenant.id,
+          moduleId: "facilities",
+          docNo: `점검-${year}-0002`,
+          type: "inspection",
+          title: `승강기 자체점검 (${ymdOf(elevatorLast)})`,
+          content: "승강기 자체점검\n승강기 안전관리법 제31조\n결과: 정상",
+          status: "final",
+          createdById: director.id,
+          meta: { itemId: idOf("elevator_self"), itemName: "승강기 자체점검", legalBasis: "승강기 안전관리법 제31조", doneAt: ymdOf(elevatorLast), performedBy: "한국엘리베이터", result: "정상", findings: "", actions: "", cost: 0, vendor: "한국엘리베이터" },
+        },
+        {
+          tenantId: tenant.id,
+          moduleId: "facilities",
+          docNo: `점검-${year}-0003`,
+          type: "inspection",
+          title: `저수조 청소 (${ymdOf(tankLast)})`,
+          content: "저수조 청소\n수도법 제33조\n결과: 지적사항",
+          status: "final",
+          createdById: director.id,
+          meta: { itemId: idOf("tank_cleaning"), itemName: "저수조 청소", legalBasis: "수도법 제33조, 같은 법 시행규칙 제22조의3", doneAt: ymdOf(tankLast), performedBy: "맑은물환경", result: "지적사항", findings: "저수조 내부 사다리 부식", actions: "차기 청소 시 사다리 교체 예정", cost: 450000, vendor: "맑은물환경" },
+        },
+      ],
     });
   }
 

@@ -1,4 +1,5 @@
 import {
+  ClipboardCheck,
   ClipboardList,
   FileText,
   FileWarning,
@@ -18,6 +19,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   FileText,
   MessageSquareWarning,
   Wrench,
+  ClipboardCheck,
   ClipboardList,
   Stamp,
   HardHat,

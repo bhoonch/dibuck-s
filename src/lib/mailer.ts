@@ -269,6 +269,32 @@ export async function sendTrainingDue(
   );
 }
 
+// ── 법정점검 기한 경과 안내 ────────────────────────────────────
+/**
+ * 기한이 지난 법정점검 — 과태료 위험은 앱에 접속하지 않아도 닿아야 한다.
+ * 인앱 알림·현황판 빨강과 별개로 소장에게 메일 1회(회차 키로 중복 방지).
+ */
+export async function sendInspectionOverdue(
+  to: string,
+  name: string,
+  itemName: string,
+  dueYmd: string,
+  daysOver: number,
+) {
+  await send(
+    to,
+    `[디벅] ${itemName} 기한이 ${daysOver}일 지났습니다`,
+    layout(
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(itemName)}</b>의 법정 기한(${dueYmd.replace(/-/g, ". ")}.)이
+       <b>${daysOver}일</b> 지났습니다. 미실시 상태가 계속되면 과태료 대상이 될 수 있습니다.</p>
+       <p>이미 점검을 마쳤다면 실시 기록만 남겨 주세요 — 기록을 저장하면 다음
+       도래일이 자동으로 계산됩니다.</p>`,
+      { label: "점검 기록 남기기", url: `${APP_URL}/modules/facilities`, danger: true },
+    ),
+  );
+}
+
 /**
  * 채용 시 교육 미이수 — 반기 마감이 아니라 **입사일** 기준이라 사람마다 시점이 다르다.
  * 법 문언은 "작업 배치 전"이라 유예를 길게 잡을 수 없다.

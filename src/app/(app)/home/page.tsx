@@ -52,7 +52,9 @@ export default async function HomePage() {
     approval: { tenantId, type: { in: APPROVAL_TYPES }, status: "pending" },
     contract: { tenantId, type: "contract", dueDate: { gte: now, lte: days(30) } },
     complaint: { tenantId, type: "complaint", status: "open" },
-    inspection: { tenantId, type: "inspection", dueDate: { gte: now, lte: days(7) } },
+    // 작업지시(scheduled)만 — 완료 기록(final)이 할 일로 남으면 안 된다.
+    // gte 하한이 없는 이유: 기한이 지난 점검일수록 할 일에서 사라지면 안 된다.
+    inspection: { tenantId, type: "inspection", status: "scheduled", dueDate: { lte: days(7) } },
   };
 
   const [
@@ -236,17 +238,25 @@ export default async function HomePage() {
       // 입사가 오래된 사람일수록 위로 — 마감 지난 항목처럼 다룬다
       sortKey: now.getTime() - p.daysSinceHire * 86400000,
     })),
-    ...inspections.map((d) => ({
-      id: d.id,
-      title: d.title,
-      meta: `점검 ${ymdKst(d.dueDate!)}`,
-      tag: `D-${dday(d.dueDate!)}`,
-      dot: "bg-sky-600",
-      tagStyle: "bg-sky-50 text-sky-600",
-      cta: "준비",
-      href: "/documents?type=inspection",
-      sortKey: d.dueDate!.getTime(),
-    })),
+    ...inspections.map((d) => {
+      const over = d.dueDate! < now;
+      return {
+        id: d.id,
+        title: d.title,
+        meta: `점검 ${ymdKst(d.dueDate!)}`,
+        // 기한 경과는 D-0이 아니라 지연으로 보여야 손이 간다
+        tag: over ? "지연" : `D-${dday(d.dueDate!)}`,
+        dot: over ? "bg-red-600" : "bg-sky-600",
+        tagStyle: over ? "bg-red-50 text-red-700" : "bg-sky-50 text-sky-600",
+        cta: "준비",
+        // 모듈 문서는 작업지시 화면으로 직행 — 데모 시드처럼 모듈 밖 문서는 문서함으로
+        href:
+          d.moduleId === "facilities"
+            ? `/modules/facilities/${d.id}`
+            : "/documents?type=inspection",
+        sortKey: d.dueDate!.getTime(),
+      };
+    }),
   ]
     .sort((a, b) => a.sortKey - b.sortKey)
     .slice(0, 8);

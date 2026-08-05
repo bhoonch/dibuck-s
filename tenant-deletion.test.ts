@@ -29,6 +29,7 @@ const T = "test-tenant-purge";
 async function cleanup() {
   await db.payment.deleteMany({ where: { tenantId: T } });
   await db.billing.deleteMany({ where: { tenantId: T } });
+  await db.inspectionItem.deleteMany({ where: { tenantId: T } });
   await db.tenant.deleteMany({ where: { id: T } });
 }
 
@@ -38,6 +39,15 @@ async function main() {
     data: { id: T, name: "탈퇴테스트단지", deleteRequestedAt: ago(31) },
   });
   await db.billing.create({ data: { tenantId: T, customerKey: "ck-purge" } });
+  // 점검 항목도 purge 대상 — TrainingStaff 때처럼 빠뜨리면 FK가 tenant 삭제를 막는다
+  await db.inspectionItem.create({
+    data: {
+      tenantId: T,
+      name: "승강기 자체점검",
+      legalBasis: "승강기 안전관리법 제31조",
+      cycleType: "MONTHLY",
+    },
+  });
   await db.payment.create({
     data: {
       tenantId: T,
@@ -53,6 +63,7 @@ async function main() {
   assert.equal(await purgeExpiredTenants(new Date(now)), 1, "유예가 끝난 단지는 지워진다");
   assert.equal(await db.tenant.findUnique({ where: { id: T } }), null);
   assert.equal(await db.billing.findUnique({ where: { tenantId: T } }), null);
+  assert.equal(await db.inspectionItem.count({ where: { tenantId: T } }), 0);
   assert.equal(
     await db.payment.count({ where: { tenantId: T } }),
     1,

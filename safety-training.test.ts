@@ -217,7 +217,7 @@ const nhLog = (date: string, hours: unknown, who: { id: string; name: string }[]
 // 입사일 없는 사람은 결과에 아예 없다 — 도입 전 입사자를 미이수로 띄우면 알림이 죽는다
 assert.deepEqual(newHireProgress(now, [], [경리, 기전]), []);
 // 8시간 미만이면 미이수, 채우면 이수
-let nh = newHireProgress(now, [nhLog("2026-07-21", 4, [신입])], [기전, 신입]);
+const nh = newHireProgress(now, [nhLog("2026-07-21", 4, [신입])], [기전, 신입]);
 assert.deepEqual(
   nh.map((x) => [x.name, x.hours, x.required, x.done]),
   [["정신입", 4, 8, false]],

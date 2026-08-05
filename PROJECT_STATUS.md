@@ -298,7 +298,7 @@
 - 법정 점검주기 프리셋(소방·승강기·저수조) → 주기 도래 시 **자동 작업지시 생성** → 점검일지
 - 산업안전보건 교육 등록·참석 서명·법정 기한을 같은 모듈에서 → **교육일지 절반은 `safety-training`으로 출시 완료**
 - 문서함 채번·보관과 묶어 **"지자체 감사 나와도 3분 만에 뽑는 서류철"** 로 패키징
-- **남은 절반(법정점검 대장)의 개발 프롬프트 작성 완료 (2026-08-05)** — `docs/superpowers/specs/2026-08-05-legal-inspection-prompt.md`. 새 세션에 그대로 주면 착수 가능. 핵심 결정: `facilities` 모듈 재정의(id 유지, 이름 "법정점검 대장" 가칭, 20,000원), 카탈로그(상수)→InspectionItem(앵커일)→Document(점검 기록) 3계층, 다음 도래일은 저장 없이 순수 함수 계산, **LLM 없음**(정형 문서라 결정적 코드), 크론 `/api/cron/inspection`이 작업지시 자동 생성 → 홈 할 일 위젯 "점검 예정" 연동, 감사 서류철(binder)에 교육일지 행 포함으로 병합 완성. Phase 0 = 법령 원문 재확인(스펙의 주기 표는 계획용)
+- **남은 절반(법정점검 대장) 구현 완료 (2026-08-05)** — 스펙 `docs/superpowers/specs/2026-08-05-legal-inspection-prompt.md` 그대로. `facilities` 모듈 재정의(id 유지, 이름 **"법정점검 대장"** 사용자 확정, 20,000원, `isActive: true`, 아이콘 ClipboardCheck — Wrench는 repairs 몫으로 비움). 카탈로그(`src/lib/inspection/catalog.ts`, 13항목+마법사 질문 8개, 법령 재확인 완료 — 출처는 스펙 부록)→InspectionItem(앵커일 스냅샷)→Document(점검 기록, `점검-` 즉시 채번) 3계층. 주기 엔진은 순수 함수(`schedule.ts`) + `npx tsx inspection.test.ts`(윤년·말일·KST 경계). 화면: 현황판(지연/임박/기준일 필요/정상)·설정 마법사·항목 관리·기록 작성(즉시 확정)·A4 점검일지(1장 실측 통과)·감사 서류철(교육일지 행 포함). 크론 `/api/cron/inspection`이 D-lead·D-7 알림 + 작업지시(status `scheduled` — pending을 쓰면 문서함 라벨 "결재 대기"가 거짓이라 라벨 `예정` 신설) 생성, 기한 경과 시 소장 메일. 기록 완성 → `lastDoneAt` 조건부 롤오버(앞으로만) + 작업지시 자동 마감. 홈 위젯 "점검 예정"은 scheduled만 센다. **LLM 없음**. purge에 InspectionItem 포함(테스트). 크론 스케줄러 등록은 미완(training과 함께 배포 체크리스트)
 - **"설비 이력"(수리 이력)은 별도 모듈로 분리 확정 (2026-08-05, 사용자 결정)** — `docs/superpowers/specs/2026-08-05-repairs-ledger-prompt.md`. 소장 고통 4위(노후 단지 수선 수요 — 인력 부족 이유 1위 63.7%) 대응. 분리 근거: 구매 동기(과태료 방지 vs 인수인계·예산 설득)와 대상(전 단지 vs 노후 단지)이 다르고, 노후 소규모 단지가 수선만 골라 구독할 수 있어야 한다. 핵심 결정: 신규 id `repairs`(가칭, 가격은 구현 시 확정), Equipment 테이블(마스터)+수선 기록=Document(`수선-` 즉시 채번 — 초안 단계 없음), 설비 미지정 수선 허용(기록 문턱 최소화), 모바일 한 손 입력 요구, 반복 고장 집계는 순수 함수, A4 설비 이력 카드=인수인계 출력물, LLM·법령 조사 없음. **Wrench 아이콘은 repairs가 가져가고 facilities 설명에서 "수리 이력"을 제거**(먼저 구현되는 세션이 수행)
 
 ### 5. 전자결재 *(기존 7위 → 5위)*
@@ -361,6 +361,12 @@
 두 가지를 본다: ① **정기교육** — 반기 마감 D-30·D-7, 단지 단위(직군 전원 기준) ② **채용 시 교육** — 입사 후 7일·30일, **사람 단위**라 반기 회차와 무관하게 매일 확인한다.
 
 회차 중복은 `Notification.type`의 키(`training_due_2026H2_D30` / `training_newhire_{staffId}_D30`)로 막는다. 회차 판정이 "당일"이 아니라 "임계를 처음 넘긴 때"라 크론이 하루 빠져도 안내가 사라지지 않는다.
+
+**크론 세 번째 — 법정점검 도래·지연 안내:** `/api/cron/inspection` (같은 `CRON_SECRET`, GET·POST 둘 다). 구독 단지의 활성 항목마다 도래일(마지막 실시일+법정 주기)을 계산해 **D-{leadDays}·D-7**에 인앱 알림 + 작업지시 문서(status `scheduled`, 홈 "점검 예정" 위젯)를 만들고, **기한 경과** 시 인앱 알림 + 마스터 메일을 보낸다. 회차 키 `inspection_{itemId}_{dueYmd}_{D30|D7|overdue}` — 기록이 저장되면 도래일이 굴러 키가 바뀌고 다음 주기의 안내가 새로 열린다.
+
+```
+0 4 * * *  curl -H "Authorization: Bearer $CRON_SECRET" https://.../api/cron/inspection
+```
 
 **채용 시 교육의 대상은 `TrainingStaff.hiredAt`으로만 정해진다 — 비어 있으면 판정에서 아예 빠진다.** 디벅 도입 전 입사자를 전부 미이수로 띄우면 알림이 그날로 무의미해지기 때문이다. 새로 뽑은 사람만 입사일을 넣으면 자동으로 대상이 되고, 마이그레이션·백필이 필요 없다. 정기교육 시간을 감하는 규정은 적용하지 않는다(법 조문 해석은 코드가 하지 않는다 — 전결 한도와 같은 원칙). 일용·1주 이하 기간제 1시간 기준도 구분하지 않는다(8시간 단일 — 많이 요구하는 쪽이라 안전한 오차).
 
@@ -505,7 +511,7 @@
 - 카카오 로그인은 `.env`에 `KAKAO_REST_API_KEY`(+선택 `KAKAO_CLIENT_SECRET`)를 넣어야 활성화 — 없으면 로그인 페이지에서 버튼 숨김
 - 메일 발송은 `.env`에 `SMTP_HOST`·`SMTP_USER`·`SMTP_PASS`(+선택 `SMTP_PORT`·`SMTP_SECURE`·`SMTP_FROM`)를 넣어야 활성화 — 없으면 비밀번호 셀프 재설정 UI가 숨고 수동 재설정 안내로 대체된다. **배포 시 `APP_URL`을 실제 도메인으로** (메일 링크가 이 값을 쓴다)
 - 결제는 `.env`에 `TOSS_SECRET_KEY`·`NEXT_PUBLIC_TOSS_CLIENT_KEY`를 넣어야 활성화 — 없으면 설정 > 결제가 "결제 준비 중" 안내로 대체된다. 심사 전에도 **토스 테스트 키로 전 흐름을 확인할 수 있다**
-- 크론 인증용 `CRON_SECRET` 필수 — 없으면 `/api/cron/billing`·`/api/cron/training`이 401로 막힌다(fail closed). **배포 시 새 값으로 바꿀 것**
+- 크론 인증용 `CRON_SECRET` 필수 — 없으면 `/api/cron/billing`·`/api/cron/training`·`/api/cron/inspection`이 401로 막힌다(fail closed). **배포 시 새 값으로 바꿀 것**
 - AI 초안 생성은 `.env`에 `ANTHROPIC_API_KEY` — 없으면 기안·품의 모듈의 **생성만** "준비 중"으로 막히고 폼·판정·문서 열람은 그대로 돈다. 개발 키는 발급 완료(2026-07-27). 키는 조직 단위 자격증명이라 **모듈마다 나누지 않는다** — 나누는 기준은 프로젝트(placelink ↔ 디벅)와 환경(개발 ↔ 운영). 콘솔 워크스페이스별 지출 한도를 걸어 두는 게 만료일보다 실효가 크다
 - 순수 로직 검증: `npx tsx metrics.test.ts` (MRR·체험 제외) / `npx tsx announcements.test.ts` (공지 대상 판정) / `npx tsx dates.test.ts` (KST 날짜·이메일 정규화) / `npx tsx rate-limit.test.ts` (시도 횟수 제한) / `npx tsx password-reset.test.ts` (재설정 토큰 상태) / `npx tsx billing.test.ts` (청구 계산·크론 판정) / `npx tsx gian-rules.test.ts` (금액·문서분류·결재선·한글금액) / `npx tsx approval-flow.test.ts` (외부 서명 토큰 fail-closed) / `npx tsx safety-training.test.ts` (교육시간 파싱·인원별 누적·안내 회차)
 - DB 필요: `npx tsx modules.test.ts` (모듈 노출·잠금 규칙) / `npx tsx billing-run.test.ts` (청구 상태 전이) / `npx tsx approval-run.test.ts` (상신→반려→재상신→순차 승인→외부 토큰→완료)
