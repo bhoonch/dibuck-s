@@ -26,9 +26,12 @@ const titles: [prefix: string, title: string][] = [
 export function AppHeader({
   unread,
   notifications,
+  menu,
 }: {
   unread: number;
   notifications: PanelNotification[];
+  /** 모바일 햄버거(MobileNav) — 데스크톱에선 SideNav이 상주하므로 md 미만에서만 보인다 */
+  menu?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -46,14 +49,16 @@ export function AppHeader({
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b bg-card/85 px-6 backdrop-blur-sm">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b bg-card/85 px-4 backdrop-blur-sm md:gap-4 md:px-6">
+      {menu}
       {/* 페이지마다 자기 h1(PageHeader)이 있다 — 헤더 바 제목까지 h1이면 문서에 h1이 둘 */}
       <div className="text-lg font-semibold tracking-tight">{title}</div>
       <div className="ml-auto flex items-center gap-2.5">
+        {/* 검색은 폰에서 숨긴다 — 문서함(드로어 메뉴)에 같은 검색이 있고, w-80이 화면을 다 먹는다 */}
         <form
           action="/documents"
           title="검색하면 문서함에서 결과를 보여줍니다"
-          className="flex h-9 w-80 items-center gap-2 rounded-md border bg-background px-2.5"
+          className="hidden h-9 w-80 items-center gap-2 rounded-md border bg-background px-2.5 md:flex"
         >
           <Search className="size-4 shrink-0 text-gray-400" />
           <input

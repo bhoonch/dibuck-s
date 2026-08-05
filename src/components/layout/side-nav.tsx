@@ -32,6 +32,7 @@ export function SideNav({
   docCount,
   modules,
   impersonating = false,
+  className,
 }: {
   tenantName: string;
   tenantMeta: string;
@@ -41,6 +42,8 @@ export function SideNav({
   modules: NavModule[];
   /** 관리자가 테스트로 사용자 화면을 보는 중 — 하단에 콘솔 복귀 버튼을 띄운다 */
   impersonating?: boolean;
+  /** 데스크톱 상주 인스턴스는 max-md:hidden — 모바일에선 드로어(MobileNav)가 대신 띄운다 */
+  className?: string;
 }) {
   const pathname = usePathname();
   const subscribed = modules.filter((m) => m.subscribed);
@@ -91,7 +94,12 @@ export function SideNav({
   ];
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col border-r bg-sidebar">
+    <aside
+      className={cn(
+        "sticky top-0 flex h-dvh w-60 shrink-0 flex-col border-r bg-sidebar",
+        className,
+      )}
+    >
       <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-4">
         <div className="flex size-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
           디

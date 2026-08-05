@@ -9,6 +9,7 @@ import { roleLabels } from "@/lib/labels";
 import { graceDaysLeft } from "@/lib/tenant-deletion";
 import { cancelTenantDeletion } from "@/app/account/actions";
 import { SideNav } from "@/components/layout/side-nav";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { AppHeader } from "@/components/layout/app-header";
 
 export default async function AppLayout({
@@ -199,37 +200,50 @@ export default async function AppLayout({
         </div>
       )}
       <div className="flex min-h-dvh">
-        <SideNav
-          impersonating={!!session.impersonating}
-          tenantName={tenant.name}
-          tenantMeta={tenantMeta || "단지 정보를 입력해 주세요"}
-          userName={session.name}
-          userRole={me?.title ?? roleLabels[session.role]}
-          docCount={docCount}
-          modules={modules.map((m) => ({
-            id: m.id,
-            name: m.name,
-            route: m.route,
-            subscribed: m.subscribed,
-            badge: moduleBadges[m.id],
-          }))}
-        />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AppHeader
-            unread={unread}
-            notifications={recentNotifications.map((n) => ({
-              id: n.id,
-              title: n.title,
-              body: n.body,
-              link: n.link,
-              read: !!n.readAt,
-              createdAt: n.createdAt.toISOString(),
-            }))}
-          />
-          <main className="w-full max-w-[1440px] flex-1 p-6 lg:px-10 lg:py-8">
-            {children}
-          </main>
-        </div>
+        {(() => {
+          // 데스크톱 상주 사이드바와 모바일 드로어가 같은 내용을 그린다 — 두 벌 유지 금지
+          const navProps = {
+            impersonating: !!session.impersonating,
+            tenantName: tenant.name,
+            tenantMeta: tenantMeta || "단지 정보를 입력해 주세요",
+            userName: session.name,
+            userRole: me?.title ?? roleLabels[session.role],
+            docCount,
+            modules: modules.map((m) => ({
+              id: m.id,
+              name: m.name,
+              route: m.route,
+              subscribed: m.subscribed,
+              badge: moduleBadges[m.id],
+            })),
+          };
+          return (
+            <>
+              <SideNav {...navProps} className="max-md:hidden" />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <AppHeader
+                  unread={unread}
+                  menu={
+                    <MobileNav>
+                      <SideNav {...navProps} />
+                    </MobileNav>
+                  }
+                  notifications={recentNotifications.map((n) => ({
+                    id: n.id,
+                    title: n.title,
+                    body: n.body,
+                    link: n.link,
+                    read: !!n.readAt,
+                    createdAt: n.createdAt.toISOString(),
+                  }))}
+                />
+                <main className="w-full max-w-[1440px] flex-1 p-4 sm:p-6 lg:px-10 lg:py-8">
+                  {children}
+                </main>
+              </div>
+            </>
+          );
+        })()}
       </div>
     </>
   );

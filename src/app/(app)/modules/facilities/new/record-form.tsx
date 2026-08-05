@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { ChevronLeft, FileText, Loader2, Paperclip, X } from "lucide-react";
+import { Camera, ChevronLeft, FileText, Loader2, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -127,6 +127,7 @@ export function RecordForm({
   );
   const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const pick = (o: ItemOption) => {
     setItemId(o.id);
@@ -230,6 +231,7 @@ export function RecordForm({
                 value={doneAt}
                 onChange={(e) => setDoneAt(e.target.value)}
                 required
+                className="max-sm:h-11"
               />
             </div>
             <div>
@@ -242,24 +244,37 @@ export function RecordForm({
                 value={performedBy}
                 onChange={(e) => setPerformedBy(e.target.value)}
                 placeholder="자체"
+                className="max-sm:h-11"
               />
             </div>
           </div>
 
           <div>
             <span className="mb-1 block text-sm font-medium">결과</span>
-            <div className="flex gap-4">
-              {(["정상", "지적사항"] as const).map((r) => (
-                <label key={r} className="flex cursor-pointer items-center gap-1.5 text-sm">
-                  <input
-                    type="radio"
-                    checked={result === r}
-                    onChange={() => setResult(r)}
-                    className="size-4 accent-blue-700"
-                  />
-                  {r}
-                </label>
-              ))}
+            {/* 라디오 대신 큰 토글 두 개 — 현장 폰 입력(시안 D)의 핵심 타깃. 데스크톱에서도 손해가 없다 */}
+            <div className="grid max-w-sm grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setResult("정상")}
+                className={`h-12 rounded-lg text-sm font-bold transition-colors ${
+                  result === "정상"
+                    ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border border-gray-300 bg-card text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                정상
+              </button>
+              <button
+                type="button"
+                onClick={() => setResult("지적사항")}
+                className={`h-12 rounded-lg text-sm font-bold transition-colors ${
+                  result === "지적사항"
+                    ? "border-2 border-amber-500 bg-amber-50 text-amber-700"
+                    : "border border-gray-300 bg-card text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                지적사항
+              </button>
             </div>
           </div>
 
@@ -307,7 +322,7 @@ export function RecordForm({
               name="cost"
               inputMode="numeric"
               placeholder="예: 350,000"
-              className="w-48"
+              className="w-48 max-sm:h-11"
               value={cost}
               onChange={(e) => {
                 const n = e.target.value.replace(/[^0-9]/g, "");
@@ -333,14 +348,36 @@ export function RecordForm({
                   e.target.value = "";
                 }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Paperclip className="size-4" /> 파일 선택
-              </Button>
+              {/* capture — 폰에서는 카메라가 바로 열린다. 현장 증빙의 대부분이 사진이다 */}
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  void addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 sm:hidden"
+                  onClick={() => cameraRef.current?.click()}
+                >
+                  <Camera className="size-4" /> 사진 촬영
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 sm:h-8 sm:px-3 sm:text-xs"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Paperclip className="size-4" /> 파일 선택
+                </Button>
+              </div>
               {files.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {files.map((f, i) => (
@@ -371,13 +408,19 @@ export function RecordForm({
           )}
 
           {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
-          <div className="flex items-center gap-3">
-            <Button type="submit" size="lg" disabled={pending}>
+          {/* 저장은 폰에서 하단 고정 — 긴 폼을 다 내려도 엄지 자리에 있다(시안 D) */}
+          <div className="flex items-center gap-3 max-sm:sticky max-sm:bottom-0 max-sm:-mx-6 max-sm:-mb-6 max-sm:bg-gradient-to-t max-sm:from-card max-sm:via-card max-sm:px-6 max-sm:py-4">
+            <Button
+              type="submit"
+              size="lg"
+              disabled={pending}
+              className="max-sm:h-12 max-sm:w-full"
+            >
               {pending && <Loader2 className="size-4 animate-spin" />}
               {edit ? "수정 저장" : "기록 저장"}
             </Button>
             {!edit && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground max-sm:hidden">
                 저장하면 문서번호가 부여되고 다음 도래일이 자동으로 이동합니다.
               </span>
             )}
