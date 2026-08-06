@@ -21,8 +21,10 @@ import {
   newHireMilestone,
   newHireOverdue,
   newHireProgress,
+  parseExtTrainings,
   parseHours,
   personProgress,
+  supervisorProgress,
   sectionsToText,
   textToAttendees,
   textToSections,
@@ -147,6 +149,16 @@ assert.equal(
   )?.hours,
   0,
 );
+// 반기를 인자로 지정하면 지난 반기도 집계된다 — 연간 보고서가 이 경로를 쓴다
+p = personProgress(now, [log("2026-05-10", 12, [기전])], roster, { year: 2026, half: 1 });
+assert.equal(p.find((x) => x.name === "박기전")?.done, true, "상반기 지정 집계");
+// 다른 연도를 지정하면 올해 실시분은 안 잡힌다
+assert.equal(
+  personProgress(now, [log("2026-07-15", 6, [경리])], roster, { year: 2025, half: 2 }).find(
+    (x) => x.name === "이경리",
+  )?.hours,
+  0,
+);
 // 옛 일지: staffId 없이 이름으로도 붙어야 한다(백필 못 한 동명이인 등)
 assert.equal(
   personProgress(
@@ -198,6 +210,71 @@ assert.equal(
 const fieldOnly = complianceOf(now, [], [기전]);
 assert.equal(fieldOnly.regularOffice, null);
 assert.equal(fieldOnly.regularField, false);
+
+// --- 관리감독자 (연 16시간 · 외부 이수 합산) ---
+const 소장 = {
+  id: "sv1",
+  name: "김소장",
+  position: "사무",
+  office: true,
+  supervisor: true,
+  extTrainings: [
+    { date: "2026-03-05", org: "안전보건교육원", hours: 12 },
+    { date: "2025-03-05", org: "안전보건교육원", hours: 16 }, // 작년 — 올해에 안 친다
+  ],
+};
+// 관리감독자는 반기 정기교육 집계에서 빠진다 — 두면 소장이 늘 "미이수"로 찍힌다
+assert.deepEqual(
+  personProgress(now, [log("2026-07-15", 6, [경리])], [경리, 소장]).map((x) => x.name),
+  ["이경리"],
+);
+// 연 16시간 = 앱 일지 + 외부 이수 합산. 연도 밖 외부 이수는 안 친다
+const svLog16 = {
+  courseType: "supervisor" as const,
+  date: "2026-06-01",
+  hours: 4,
+  attendees: [snap(소장 as never)],
+};
+let sv = supervisorProgress(2026, [svLog16], [경리, 소장]);
+assert.deepEqual(
+  sv.map((x) => [x.name, x.hours, x.extHours, x.done]),
+  [["김소장", 16, 12, true]],
+);
+// 외부 이수만으로는 12시간 — 미이수
+sv = supervisorProgress(2026, [], [소장]);
+assert.deepEqual([sv[0].hours, sv[0].done], [12, false]);
+// 관리감독자 표시가 없는 사람은 대상이 아니다
+assert.deepEqual(supervisorProgress(2026, [], [경리, 기전]), []);
+
+// complianceOf: 관리감독자가 표시돼 있으면 16시간 누적으로 판정한다
+assert.equal(
+  complianceOf(now, [{ ...svLog16, date: "2026-03-01" }], [소장]).supervisor,
+  true,
+  "4h 일지 + 12h 외부 = 16h 이수",
+);
+assert.equal(
+  complianceOf(now, [], [소장]).supervisor,
+  false,
+  "외부 12h뿐 — 16h 미달",
+);
+// 아무도 표시하지 않은 단지는 예전 기준(실시 여부)으로 떨어진다
+assert.equal(
+  complianceOf(now, [{ ...svLog16, date: "2026-03-01" }], roster).supervisor,
+  true,
+);
+
+// 외부 이수 파서 — 모양이 어긋난 항목은 조용히 버린다(집계를 깨뜨리지 않는다)
+assert.deepEqual(parseExtTrainings(null), []);
+assert.deepEqual(parseExtTrainings("문자열"), []);
+assert.deepEqual(
+  parseExtTrainings([
+    { date: "2026-03-05", org: "기관", hours: 8 },
+    { date: "잘못된날짜", org: "기관", hours: 8 },
+    { date: "2026-03-06", org: "기관", hours: 0 },
+    { date: "2026-03-07", hours: 8 },
+  ]),
+  [{ date: "2026-03-05", org: "기관", hours: 8 }],
+);
 
 // --- 채용 시 교육 (개인별 1회성) ---
 const 신입 = {

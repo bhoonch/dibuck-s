@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FilePlus2, Users } from "lucide-react";
+import { FileCheck2, FilePlus2, Users } from "lucide-react";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
@@ -13,6 +13,7 @@ import {
   newHireOverdue,
   newHireProgress,
   personProgress,
+  supervisorProgress,
   type NewHireProgress,
   type PersonProgress,
   type AttendeeSnap,
@@ -57,7 +58,15 @@ export default async function SafetyTrainingHomePage() {
     db.trainingStaff.findMany({
       where: { tenantId, active: true },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, position: true, office: true, hiredAt: true },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        office: true,
+        hiredAt: true,
+        supervisor: true,
+        extTrainings: true,
+      },
     }),
   ]);
 
@@ -88,6 +97,8 @@ export default async function SafetyTrainingHomePage() {
     newHireProgress(now, finalLogs, roster).map((p) => [p.id, p]),
   );
   const newHireDue = newHireOverdue([...newHire.values()]);
+  // 관리감독자(소장)는 반기 집계 대상이 아니다 — 연 16시간(외부 이수 포함)으로 따로 본다
+  const svs = supervisorProgress(c.half.year, finalLogs, roster);
   const missing = [
     c.regularOffice === false && "정기교육(사무직)",
     c.regularField === false && "정기교육(그 외 근로자)",
@@ -105,6 +116,11 @@ export default async function SafetyTrainingHomePage() {
         title="AI 안전교육일지"
         description="종류·주제를 고르고 참석자를 체크하면 교육 내용까지 채워진 법정 교육일지가 완성됩니다. 인쇄해 참석자 서명을 받아 보관하세요."
       >
+        <Button asChild variant="outline" size="lg">
+          <Link href="/modules/safety-training/report">
+            <FileCheck2 className="size-4" /> 연간 보고서
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="lg">
           <Link href="/modules/safety-training/staff">
             <Users className="size-4" /> 직원 명부
@@ -130,7 +146,7 @@ export default async function SafetyTrainingHomePage() {
             {/* 한 문장에 이어 붙이면 교육명·명단·안내가 뭉개진다 — 줄로 가른다 */}
             <span className="block">
               {missing.join(" · ")}
-              {missing.includes("관리감독자 교육") && " (관리감독자는 연 1회 기준)"}
+              {missing.includes("관리감독자 교육") && " (관리감독자는 연 16시간 기준)"}
             </span>
             <span className="block">
               {unfinished.length > 0 &&
@@ -159,8 +175,20 @@ export default async function SafetyTrainingHomePage() {
           />
           <SummaryStat
             label="관리감독자 교육"
-            value={c.supervisor ? "완료" : "미실시"}
-            note={`${c.half.year}년 · 연간 16시간 이상`}
+            value={
+              svs.length === 0
+                ? c.supervisor
+                  ? "완료"
+                  : "미실시"
+                : svs.length === 1
+                  ? `${formatHours(svs[0].hours) || "0시간"} / 16시간`
+                  : `${svs.filter((p) => p.done).length}/${svs.length}명 이수`
+            }
+            note={
+              svs.length > 0
+                ? `${c.half.year}년 · 외부 이수 포함`
+                : `${c.half.year}년 · 연간 16시간 이상`
+            }
           />
           <SummaryStat
             label="반기 마감"
@@ -182,7 +210,7 @@ export default async function SafetyTrainingHomePage() {
           <p className="mb-4 text-xs text-muted-foreground">
             완성된 정기교육 일지의 교육시간을 사람별로 더한 값입니다. 채용 시 교육
             ({LEGAL_HOURS.newHire})은 입사일을 넣은 직원에게만 별도로 표시되며, 정기교육
-            시간에 합산하지 않습니다.
+            시간에 합산하지 않습니다. 관리감독자는 연 16시간 기준이라 이 표에서 빠집니다.
           </p>
 
           {/* 손댈 일이 있는 건 미이수자뿐이라 그쪽만 펼쳐 둔다 — 명부가 40명이면

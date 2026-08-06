@@ -97,12 +97,16 @@ async function run(req: NextRequest) {
       }),
       db.trainingStaff.findMany({
         where: { tenantId, active: true },
+        // supervisor·extTrainings까지 읽어야 complianceOf가 연 16시간(외부 이수
+        // 포함)으로 판정한다 — 빼면 관리감독자 알림이 예전 기준으로 나간다
         select: {
           id: true,
           name: true,
           position: true,
           office: true,
           hiredAt: true,
+          supervisor: true,
+          extTrainings: true,
         },
       }),
     ]);

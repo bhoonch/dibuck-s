@@ -226,7 +226,7 @@ export function daysToHalfEnd(d: Date): number {
  * 명부에 고용형태 칸이 없어 구분하지 않는다. 많이 요구하는 쪽이라 안전한 오차고,
  * 대체 인력이 흔한 단지가 나오면 그때 명부에 칸을 늘릴 것.
  */
-export const REQUIRED_HOURS = { office: 6, field: 12, newHire: 8 } as const;
+export const REQUIRED_HOURS = { office: 6, field: 12, newHire: 8, supervisor: 16 } as const;
 
 /**
  * 채용 시 교육을 며칠 안에 하는 것으로 볼 것인가 — 안내 시점의 기준.
@@ -251,7 +251,28 @@ export type RosterMember = {
   office: boolean;
   /** 입사일 — null이면 채용 시 교육 판정에서 아예 빠진다(도입 전 입사자) */
   hiredAt?: Date | null;
+  /** 관리감독자(소장) — 정기교육이 반기 6/12h가 아니라 연 16h(별표 4)로 갈린다 */
+  supervisor?: boolean;
+  /** 외부 교육 이수 기록 — DB Json 그대로. 읽기는 parseExtTrainings가 한다 */
+  extTrainings?: unknown;
 };
+
+/** 외부 교육 이수 한 건 — 원본 증빙은 수료증(종이), 여기는 집계용 기록 */
+export type ExternalTraining = { date: string; org: string; hours: number };
+
+/** DB Json → 외부 이수 목록. 모양이 어긋난 항목은 조용히 버린다(집계를 깨뜨리지 않는다) */
+export function parseExtTrainings(v: unknown): ExternalTraining[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter(
+    (t): t is ExternalTraining =>
+      !!t &&
+      typeof t === "object" &&
+      typeof (t as ExternalTraining).date === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test((t as ExternalTraining).date) &&
+      typeof (t as ExternalTraining).org === "string" &&
+      parseHours((t as ExternalTraining).hours) !== null,
+  );
+}
 
 /** 한 사람의 채용 시 교육 이수 현황. 대상이 아닌 사람은 목록에 아예 없다 */
 export type NewHireProgress = RosterMember & {
@@ -283,7 +304,7 @@ export type Compliance = {
 };
 
 /** 참석자 스냅샷이 이 직원인가 — id가 있으면 id로, 옛 일지는 이름으로 떨어진다 */
-const isSamePerson = (
+export const isSamePerson = (
   a: Pick<AttendeeSnap, "name" | "staffId">,
   s: RosterMember,
 ) => (a.staffId ? a.staffId === s.id : a.name === s.name);
@@ -295,17 +316,23 @@ const isSamePerson = (
  * 시간을 읽을 수 없는 옛 일지는 0으로 친다 — 실제보다 적게 세는 쪽이라
  * "이수했는데 미이수로 보이는" 안전한 방향의 오차다(반대면 위반을 놓친다).
  * 채용 시·관리감독자 교육은 별도 요건이라 반기 누적에 넣지 않는다.
+ *
+ * **관리감독자는 여기서 아예 뺀다** — 별표 4에서 관리감독자의 정기교육은 반기
+ * 6/12시간이 아니라 연간 16시간이다. 여기 두면 소장이 관리감독자 교육을 다
+ * 받고도 "정기교육 미이수"로 찍힌다(거짓 기록). 판정은 supervisorProgress가 한다.
  */
 export function personProgress(
   now: Date,
   finalLogs: LogSummary[],
   roster: RosterMember[],
+  /** 집계할 반기 — 연간 보고서가 지난 연도 상·하반기를 지정한다. 기본은 지금 */
+  half: Half = halfOfKst(now),
 ): PersonProgress[] {
-  const { start, end } = halfRange(halfOfKst(now));
+  const { start, end } = halfRange(half);
   const inHalf = finalLogs.filter(
     (l) => l.courseType === "regular" && l.date >= start && l.date <= end,
   );
-  return roster.map((s) => {
+  return roster.filter((s) => !s.supervisor).map((s) => {
     const hours = inHalf.reduce(
       (sum, l) =>
         l.attendees.some((a) => isSamePerson(a, s))
@@ -372,11 +399,64 @@ export function newHireMilestone(daysSinceHire: number): number | null {
 export const newHireOverdue = (list: NewHireProgress[]) =>
   list.filter((p) => !p.done && p.daysSinceHire >= NEW_HIRE_GRACE_DAYS);
 
+/** 한 사람의 관리감독자 교육(연 16시간) 이수 현황 */
+export type SupervisorProgress = RosterMember & {
+  /** 그해 이수 시간 합계 = 앱의 관리감독자 일지 + 외부 이수 등록 */
+  hours: number;
+  /** 그중 외부 이수분 — 보고서가 "수료증 별도 보관"을 붙일 근거 */
+  extHours: number;
+  required: number;
+  done: boolean;
+};
+
+/**
+ * 관리감독자 교육 이수 — 연 단위 16시간 누적(별표 4). 관리감독자로 표시된
+ * 사람만 대상이고, 앱 일지 시간에 **외부 교육 이수 등록**을 합산한다.
+ * 관리감독자 교육은 등록기관 위탁·본사 집합교육이 관행이라 앱 일지가 없는
+ * 경우가 기본값이다 — 앱 일지만 세면 교육을 받고도 "미실시"로 찍힌다.
+ */
+export function supervisorProgress(
+  year: number,
+  finalLogs: LogSummary[],
+  roster: RosterMember[],
+): SupervisorProgress[] {
+  return roster
+    .filter((s) => s.supervisor)
+    .map((s) => {
+      const logHours = finalLogs.reduce(
+        (sum, l) =>
+          l.courseType === "supervisor" &&
+          l.date.startsWith(`${year}-`) &&
+          l.attendees.some((a) => isSamePerson(a, s))
+            ? sum + (parseHours(l.hours) ?? 0)
+            : sum,
+        0,
+      );
+      const extHours = parseExtTrainings(s.extTrainings).reduce(
+        (sum, t) =>
+          t.date.startsWith(`${year}-`) ? sum + (parseHours(t.hours) ?? 0) : sum,
+        0,
+      );
+      const hours = logHours + extHours;
+      return {
+        ...s,
+        hours,
+        extHours,
+        required: REQUIRED_HOURS.supervisor,
+        done: hours >= REQUIRED_HOURS.supervisor,
+      };
+    });
+}
+
 /**
  * 직군별 이행 판정 = 그 직군 **전원**이 법정 시간을 채웠는가.
  * 예전엔 "그 직군 참석자가 한 명이라도 있으면 완료"였다 — 사무직 6명 중
  * 한 명만 받아도 완료로 보였고, 1시간짜리 한 번이 6시간 요건을 통과했다.
- * 관리감독자 교육은 대상이 소장 한 명이라 실시 여부로만 본다(연 16시간).
+ *
+ * 관리감독자: 명부에 관리감독자로 표시된 사람이 있으면 **전원 연 16시간
+ * 누적**으로 판정한다(외부 이수 포함). 아무도 표시하지 않은 단지는 예전
+ * 기준(그해 실시 여부)으로 떨어진다 — 표시 전부터 "미실시" 경고를 바꾸면
+ * 기존 단지의 화면이 하루아침에 달라진다.
  */
 export function complianceOf(
   now: Date,
@@ -389,14 +469,18 @@ export function complianceOf(
     const group = progress.filter((p) => p.office === office);
     return group.length === 0 ? null : group.every((p) => p.done);
   };
+  const supervisors = supervisorProgress(half.year, finalLogs, roster);
   return {
     half,
     daysLeft: daysToHalfEnd(now),
     regularOffice: allDone(true),
     regularField: allDone(false),
-    supervisor: finalLogs.some(
-      (l) => l.courseType === "supervisor" && l.date.startsWith(`${half.year}-`),
-    ),
+    supervisor:
+      supervisors.length > 0
+        ? supervisors.every((p) => p.done)
+        : finalLogs.some(
+            (l) => l.courseType === "supervisor" && l.date.startsWith(`${half.year}-`),
+          ),
   };
 }
 

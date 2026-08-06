@@ -15,6 +15,7 @@ import {
   draftPlainText,
   formatHours,
   mergeAttendees,
+  parseExtTrainings,
   parseHours,
   textToAttendees,
   textToSections,
@@ -285,6 +286,8 @@ export async function addStaff(input: {
   position: string;
   /** 입사일 YYYY-MM-DD. 빈 값 = 채용 시 교육 판정 제외(도입 전 입사자) */
   hiredAt?: string;
+  /** 관리감독자(소장) — 정기교육이 반기 6/12h 대신 연 16h로 판정된다 */
+  supervisor?: boolean;
 }) {
   const gate = await requireStaffAdmin();
   if ("error" in gate) return gate;
@@ -302,6 +305,7 @@ export async function addStaff(input: {
       position,
       hiredAt: hiredAtOf(input.hiredAt),
       office: position === "사무",
+      supervisor: !!input.supervisor,
     },
   });
   staffPaths();
@@ -313,6 +317,7 @@ export async function updateStaff(input: {
   name: string;
   position: string;
   hiredAt?: string;
+  supervisor?: boolean;
 }) {
   const gate = await requireStaffAdmin();
   if ("error" in gate) return gate;
@@ -325,7 +330,41 @@ export async function updateStaff(input: {
   await db.trainingStaff.updateMany({
     where: { id: input.id, tenantId: gate.session.tenantId! },
     // 사무직 여부는 직종에서 자동 판정
-    data: { name, position, hiredAt: hiredAtOf(input.hiredAt), office: position === "사무" },
+    data: {
+      name,
+      position,
+      hiredAt: hiredAtOf(input.hiredAt),
+      office: position === "사무",
+      supervisor: !!input.supervisor,
+    },
+  });
+  staffPaths();
+  return {};
+}
+
+/** 외부 이수 등록 상한 — 연 1~2건이 정상이라 넉넉해도 폭주만 막으면 된다 */
+const EXT_TRAINING_LIMIT = 50;
+
+/**
+ * 외부 교육 이수 기록 저장 — 목록 전체를 받아 통째로 교체한다.
+ * 관리감독자 교육(연 16시간)은 등록기관 위탁·본사 집합교육이 관행이라 앱 일지가
+ * 없다. 원본 증빙은 수료증(종이)이고, 여기는 연 16시간 판정에 합산하는 집계용.
+ */
+export async function saveExtTrainings(
+  staffId: string,
+  items: { date: string; org: string; hours: number }[],
+) {
+  const gate = await requireStaffAdmin();
+  if ("error" in gate) return gate;
+  // 신뢰 경계 — 클라이언트가 보낸 목록을 파서로 거른 것만 저장한다
+  const clean = parseExtTrainings(items)
+    .map((t) => ({ ...t, org: t.org.trim().slice(0, 100) }))
+    .slice(0, EXT_TRAINING_LIMIT);
+  if (clean.length !== items.length)
+    return { error: "이수일(날짜)·교육시간(0보다 큰 숫자)을 확인해 주세요." };
+  await db.trainingStaff.updateMany({
+    where: { id: staffId, tenantId: gate.session.tenantId! },
+    data: { extTrainings: clean },
   });
   staffPaths();
   return {};
