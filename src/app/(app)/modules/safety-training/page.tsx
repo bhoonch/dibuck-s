@@ -127,15 +127,20 @@ export default async function SafetyTrainingHomePage() {
           <AttentionCard
             title={`${halfLabel(c.half)} 마감까지 ${c.daysLeft}일 — 법정 시간을 못 채운 교육이 있습니다`}
           >
-            {missing.join(" · ")}
-            {missing.includes("관리감독자 교육") && " (관리감독자는 연 1회 기준)"}
-            {unfinished.length > 0 &&
-              ` — 미이수 ${unfinished.length}명: ${unfinished
-                .slice(0, 6)
-                .map((p) => p.name)
-                .join(", ")}${unfinished.length > 6 ? ` 외 ${unfinished.length - 6}명` : ""}`}
-            . 미실시 시 과태료 대상이 될 수 있습니다. [새 교육일지]로 실시 기록을
-            남겨 주세요.
+            {/* 한 문장에 이어 붙이면 교육명·명단·안내가 뭉개진다 — 줄로 가른다 */}
+            <span className="block">
+              {missing.join(" · ")}
+              {missing.includes("관리감독자 교육") && " (관리감독자는 연 1회 기준)"}
+            </span>
+            <span className="block">
+              {unfinished.length > 0 &&
+                `미이수 ${unfinished.length}명: ${unfinished
+                  .slice(0, 6)
+                  .map((p) => p.name)
+                  .join(", ")}${unfinished.length > 6 ? ` 외 ${unfinished.length - 6}명` : ""} — `}
+              미실시 시 과태료 대상이 될 수 있습니다. [새 교육일지]로 실시 기록을
+              남겨 주세요.
+            </span>
           </AttentionCard>
         )
       )}

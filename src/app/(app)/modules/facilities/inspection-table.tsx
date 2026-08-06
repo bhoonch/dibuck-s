@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
+import { toneOf } from "@/lib/inspection/status";
 import { DataTable, type Column } from "@/components/ui/data-table";
 
 export type InspectionRow = {
@@ -59,11 +60,7 @@ const columns: Column<InspectionRow>[] = [
     render: (row) =>
       row.result ? (
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            row.result === "지적사항"
-              ? "bg-amber-50 text-amber-700"
-              : "bg-emerald-50 text-emerald-700"
-          }`}
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${toneOf(row.result).pill}`}
         >
           {row.result}
         </span>

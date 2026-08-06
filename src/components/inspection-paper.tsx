@@ -4,6 +4,9 @@
  * (본문 11.5pt), gian-paper 괘선 문법 재사용.
  */
 
+import { RESULT_HINT } from "@/lib/inspection/catalog";
+import { followupOf } from "@/lib/inspection/schedule";
+
 /** 공문서 날짜 표기 "2026. 08. 05." */
 const paperDate = (ymd: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? `${ymd.replace(/-/g, ". ")}.` : ymd;
@@ -18,7 +21,14 @@ export type InspectionPaperData = {
   doneAt: string;
   /** 수행 — "자체" 또는 업체·기관명 */
   performedBy: string;
-  result: string; // "정상" | "지적사항"
+  /** 대표 판정 — 기구별 판정이 있으면 그중 가장 나쁜 것 */
+  result: string;
+  /** 놀이기구별 판정(어린이놀이시설). 비어 있으면 대표 판정만 찍는다 */
+  units?: { name: string; result: string }[];
+  /** 이용금지 기구의 물리적 차단 조치 완료 여부 */
+  barrier?: boolean;
+  /** 법이 정한 점검 범위 문구 — 있으면 결과 절 아래에 찍는다 */
+  scope?: string;
   findings: string;
   actions: string;
   cost: number;
@@ -43,6 +53,9 @@ export function InspectionPaper({
 
   // 개조식 — 줄 단위. 사용자가 "1. ..." 기호를 직접 넣었으면 그대로 둔다
   const listOf = (text: string) => text.split(/\r?\n/).filter((l) => l.trim());
+
+  const units = (data.units ?? []).filter((u) => u.name.trim());
+  const followup = followupOf(data.result, data.doneAt);
 
   return (
     <article
@@ -84,12 +97,43 @@ export function InspectionPaper({
         </tbody>
       </table>
 
-      {/* 결과 — 정상이면 한 줄, 지적사항이면 내용·조치 개조식 */}
+      {/* 결과 — 기구별 판정이 있으면 표가 대장의 본체다 */}
       <section className="mt-[6mm]">
         <h3 className="mb-[1.5mm] text-[12pt] font-extrabold">점검 결과</h3>
-        <p className="pl-4 font-bold">
-          {data.result === "지적사항" ? "지적사항 있음" : "정상 (지적사항 없음)"}
-        </p>
+        {units.length > 0 ? (
+          <>
+            <table className="w-full border-collapse">
+              <tbody>
+                {units.map((u, i) => (
+                  <tr key={i}>
+                    <th className={`${th} w-[60mm] text-left`}>{u.name}</th>
+                    <td className={`${td} font-bold`}>
+                      {u.result}
+                      {RESULT_HINT[u.result] && (
+                        <span className="font-normal text-[9.5pt] text-[var(--gian-ink-soft)]">
+                          {"  "}— {RESULT_HINT[u.result]}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {data.barrier && (
+              <p className="mt-[2mm] pl-4">
+                이용금지 기구는 안전선·이용금지 표지판을 설치하여 이용을 차단하였음.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="pl-4 font-bold">
+            {data.result === "지적사항"
+              ? "지적사항 있음"
+              : data.result === "정상"
+                ? "정상 (지적사항 없음)"
+                : data.result}
+          </p>
+        )}
         {data.findings && (
           <div className="mt-[2mm] pl-4">
             <p className="font-bold">지적 내용</p>
@@ -113,6 +157,21 @@ export function InspectionPaper({
               ))}
             </div>
           </div>
+        )}
+        {/* 법정 후속 조치 — 기한이 종이에 남아야 감사에서 증빙이 된다 */}
+        {followup && (
+          <div className="mt-[2mm] pl-4">
+            <p className="font-bold">후속 조치</p>
+            <p className="pl-4">
+              {followup.title} 기한: {paperDate(followup.dueYmd)}
+              {followup.legal && " (어린이놀이시설 안전관리법 제15조)"}
+            </p>
+          </div>
+        )}
+        {data.scope && (
+          <p className="mt-[3mm] pl-4 text-[10pt] text-[var(--gian-ink-soft)]">
+            ※ 점검 범위: {data.scope}
+          </p>
         )}
       </section>
 

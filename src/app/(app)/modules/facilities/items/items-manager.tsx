@@ -6,6 +6,7 @@ import { CYCLE_CHOICES, cycleLabel, type Cycle } from "@/lib/inspection/catalog"
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { addCustomItem, setItemActive, updateItem } from "../actions";
 
 type ItemRow = {
@@ -57,23 +58,48 @@ function AddForm() {
     });
   };
 
+  // 라벨 없는 입력창 여섯 개는 무엇을 적으라는 건지 알 수 없다 — 공지완성 폼과 같은 Label+Input
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="항목 이름 (예: 물놀이시설 수질검사)" className="w-64" />
-        <Input value={legalBasis} onChange={(e) => setLegalBasis(e.target.value)} placeholder="근거 (선택)" className="w-48" />
-        <select value={cycleValue} onChange={(e) => setCycleValue(e.target.value)} className={selectCls} aria-label="주기">
-          {CYCLE_CHOICES.map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
-        <Input type="number" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} className="w-20" aria-label="리드타임(일)" min={0} max={90} />
-        <Input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="업체 (선택)" className="w-40" />
-        <Input type="date" value={lastDoneAt} onChange={(e) => setLastDoneAt(e.target.value)} className="w-40" aria-label="마지막 실시일 (선택)" />
-        <Button type="button" onClick={add} disabled={pending || !name.trim()}>
-          {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />} 추가
-        </Button>
+      <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <Label htmlFor="ci-name">항목 이름</Label>
+          <Input id="ci-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 물놀이시설 수질검사" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="ci-basis">근거 법령 (선택)</Label>
+          <Input id="ci-basis" value={legalBasis} onChange={(e) => setLegalBasis(e.target.value)} placeholder="예: 수도법 제33조" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="ci-cycle">점검 주기</Label>
+          <select id="ci-cycle" value={cycleValue} onChange={(e) => setCycleValue(e.target.value)} className={`${selectCls} mt-1.5 block w-full`}>
+            {CYCLE_CHOICES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="ci-lead">준비 알림 (도래 며칠 전)</Label>
+          <div className="mt-1.5 flex items-center gap-2">
+            <Input id="ci-lead" type="number" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} className="w-24" min={0} max={90} />
+            <span className="text-sm text-muted-foreground">일 전부터 알림</span>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="ci-vendor">점검 업체 (선택)</Label>
+          <Input id="ci-vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="예: ○○소방 02-000-0000" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="ci-last">마지막 실시일 (선택)</Label>
+          <Input id="ci-last" type="date" value={lastDoneAt} onChange={(e) => setLastDoneAt(e.target.value)} className="mt-1.5" />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            비우면 &ldquo;기준일 필요&rdquo;로 표시됩니다 — 첫 기록을 남기면 자동으로 채워집니다.
+          </p>
+        </div>
       </div>
+      <Button type="button" className="mt-4" onClick={add} disabled={pending || !name.trim()}>
+        {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />} 항목 추가
+      </Button>
       {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
     </div>
   );
@@ -91,9 +117,10 @@ function Row({ row }: { row: ItemRow }) {
 
   return (
     <div className={`flex flex-wrap items-center gap-2 py-2 ${row.active ? "" : "opacity-50"}`}>
-      <span className="w-56 shrink-0">
+      {/* 근거 조문("수도법 제33조, 같은 법 시행규칙 제22조의3")까지 한 줄 — w-56은 줄바꿈됐다 */}
+      <span className="w-96 shrink-0">
         <span className="block text-sm font-medium">{row.name}</span>
-        <span className="block text-xs text-muted-foreground">
+        <span className="block text-xs whitespace-nowrap text-muted-foreground">
           {cycleLabel({ type: row.cycleType, n: row.cycleN ?? undefined } as Cycle)}
           {row.legalBasis ? ` · ${row.legalBasis}` : ""}
         </span>
@@ -104,7 +131,10 @@ function Row({ row }: { row: ItemRow }) {
         <Input type="number" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} className="w-16" min={0} max={90} disabled={!row.active} aria-label="리드타임(일)" />
         일 전
       </span>
-      <Input type="date" value={lastDoneAt} onChange={(e) => setLastDoneAt(e.target.value)} className="w-40" disabled={!row.active} aria-label="마지막 실시일" />
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        기준일
+        <Input type="date" value={lastDoneAt} onChange={(e) => setLastDoneAt(e.target.value)} className="w-40" disabled={!row.active} aria-label="마지막 실시일" />
+      </span>
       {!row.active && (
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">비활성</span>
       )}

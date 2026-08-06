@@ -312,13 +312,13 @@ export function GianForm({
                 <div key={i} className="grid grid-cols-2 gap-2">
                   <input
                     name={`vendor${i}`}
-                    className={`${fieldInput} bg-[var(--gian-card)]`}
+                    className={`${fieldInput}`}
                     placeholder={`업체 ${i}${i === 3 ? " (선택)" : ""}`}
                   />
                   <input
                     name={`quote${i}`}
                     inputMode="numeric"
-                    className={`${fieldInput} bg-[var(--gian-card)] font-mono`}
+                    className={`${fieldInput} font-mono`}
                     placeholder="견적 금액 (원)"
                     value={quotes[i - 1]}
                     onChange={(e) =>

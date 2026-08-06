@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { PaperScale } from "@/components/paper-scale";
 import { PrintStyle } from "@/components/gian-paper";
 import { InspectionPaper } from "@/components/inspection-paper";
+import { CompleteActionButton } from "./complete-action-button";
 import { InspectionFiles } from "./inspection-files";
 import { PrintButton } from "./print-button";
 import { VoidButton } from "./void-button";
@@ -48,6 +49,12 @@ export default async function InspectionDocPage({
     actions?: string;
     cost?: number;
     kind?: string;
+    units?: { name: string; result: string }[];
+    barrier?: boolean;
+    scope?: string;
+    note?: string;
+    legal?: boolean;
+    sourceDocId?: string;
   };
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: tenantId },
@@ -55,10 +62,69 @@ export default async function InspectionDocPage({
   });
 
   const voided = doc.status === "void";
-  // 크론이 만든 작업지시 — 증빙이 아니라 할 일이다. 일지 대신 안내와 [기록 작성]을 보여준다
-  const workOrder = doc.status === "scheduled" || meta.kind === "workorder";
+  // 작업지시·조치 — 증빙이 아니라 할 일이다. 일지 대신 안내와 버튼을 보여준다
+  const action = meta.kind === "action";
+  const workOrder =
+    !action && (doc.status === "scheduled" || meta.kind === "workorder");
   const canEdit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
+
+  if (action)
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <Link
+          href="/modules/facilities"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" /> 현황판
+        </Link>
+        <Card className="p-6">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              doc.status === "scheduled" && meta.legal
+                ? "bg-red-50 text-red-700"
+                : (docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600")
+            }`}
+          >
+            {doc.status === "scheduled"
+              ? meta.legal
+                ? "법정 기한"
+                : "조치 예정"
+              : (docStatusLabels[doc.status] ?? doc.status)}
+          </span>
+          <h1 className="mt-2 text-lg font-semibold">{doc.title}</h1>
+          {doc.dueDate && (
+            <p className="mt-1 font-mono text-sm">기한 {ymdKst(doc.dueDate)}</p>
+          )}
+          {meta.note && (
+            <p className="mt-2 text-sm text-muted-foreground">{meta.note}</p>
+          )}
+          {meta.sourceDocId && (
+            <p className="mt-2 text-sm">
+              <Link
+                href={`/modules/facilities/${meta.sourceDocId}`}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                이 조치가 나온 점검일지 보기
+              </Link>
+            </p>
+          )}
+          {doc.status === "scheduled" && (
+            <>
+              <p className="mt-3 text-sm text-muted-foreground">
+                조치를 마치면 아래 버튼으로 닫아 주세요 — 다음 달 점검 기록을
+                남겨도 이 조치는 자동으로 닫히지 않습니다. 재검사에 합격해
+                이용금지를 해제했다면 관할 시·군·구청과 어린이놀이시설
+                안전관리시스템에도 결과를 업데이트하세요.
+              </p>
+              <div className="mt-4">
+                <CompleteActionButton docId={doc.id} />
+              </div>
+            </>
+          )}
+        </Card>
+      </div>
+    );
 
   if (workOrder)
     return (
@@ -136,6 +202,9 @@ export default async function InspectionDocPage({
                   doneAt: meta.doneAt ?? ymdKst(doc.createdAt),
                   performedBy: meta.performedBy ?? "자체",
                   result: meta.result ?? "정상",
+                  units: meta.units ?? [],
+                  barrier: meta.barrier ?? false,
+                  scope: meta.scope ?? "",
                   findings: meta.findings ?? "",
                   actions: meta.actions ?? "",
                   cost: meta.cost ?? 0,

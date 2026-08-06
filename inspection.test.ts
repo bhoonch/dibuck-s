@@ -4,14 +4,21 @@
  */
 import assert from "node:assert/strict";
 import {
+  addDaysYmd,
   addMonthsYmd,
   daysUntil,
   dueMilestone,
+  followupOf,
   nextDue,
   roundKey,
   statusOf,
   cycleToRow,
 } from "./src/lib/inspection/schedule";
+import {
+  needsFindings,
+  resultChoicesOf,
+  worstResult,
+} from "./src/lib/inspection/catalog";
 
 const kst = (ymd: string) => new Date(`${ymd}T12:00:00+09:00`);
 
@@ -83,5 +90,47 @@ assert.notEqual(
 // ── cycleToRow ──────────────────────────────────────────────────
 assert.deepEqual(cycleToRow({ type: "MONTHLY" }), { cycleType: "MONTHLY", cycleN: null });
 assert.deepEqual(cycleToRow({ type: "YEARS", n: 3 }), { cycleType: "YEARS", cycleN: 3 });
+
+// ── 판정: 놀이시설만 4단계, 대표 판정은 가장 나쁜 것 ─────────────
+const PG = resultChoicesOf("playground_monthly");
+const DEF = resultChoicesOf("fire_operation");
+assert.deepEqual(PG, ["양호", "요주의", "요수리", "이용금지"]);
+assert.deepEqual(DEF, ["정상", "지적사항"]);
+assert.deepEqual(resultChoicesOf(null), DEF); // 사용자 정의 항목
+
+// 목록·현황판이 읽는 대표 판정 — 좋은 쪽을 고르면 이용금지 기구가 숨는다
+assert.equal(worstResult(["양호", "이용금지", "요주의"], PG), "이용금지");
+assert.equal(worstResult(["양호", "요주의"], PG), "요주의");
+assert.equal(worstResult(["양호", "양호"], PG), "양호");
+assert.equal(worstResult([], PG), "양호"); // 기구가 없으면 첫 판정
+assert.equal(worstResult(["정상", "지적사항"], DEF), "지적사항");
+
+// 이상 없음만 지적 내용을 비울 수 있다
+assert.equal(needsFindings("양호"), false);
+assert.equal(needsFindings("정상"), false);
+assert.equal(needsFindings("요주의"), true); // 사용연한 경과도 무엇이 걸리는지 남아야 한다
+assert.equal(needsFindings("요수리"), true);
+assert.equal(needsFindings("이용금지"), true);
+
+// ── 후속 조치 기한 ──────────────────────────────────────────────
+assert.equal(addDaysYmd("2026-08-06", 30), "2026-09-05");
+assert.equal(addDaysYmd("2026-02-20", 30), "2026-03-22"); // 월 경계
+assert.equal(addDaysYmd("2024-02-20", 30), "2024-03-21"); // 윤년
+
+assert.equal(followupOf("양호", "2026-08-06"), null);
+assert.equal(followupOf("요주의", "2026-08-06"), null); // 사용연한 경과는 기한이 없다
+assert.equal(followupOf("지적사항", "2026-08-06"), null); // 놀이시설 밖에는 조치 기한이 없다
+
+// 이용금지 = 법정 1개월(어린이놀이시설 안전관리법 제15조)
+const ban = followupOf("이용금지", "2026-08-06")!;
+assert.equal(ban.dueYmd, "2026-09-06");
+assert.equal(ban.legal, true);
+assert.equal(ban.title, "안전진단 신청");
+assert.equal(followupOf("이용금지", "2026-01-31")!.dueYmd, "2026-02-28"); // 말일 잘림
+
+// 요수리 = 앱 기본 30일. legal:false여야 화면·일지가 "법정 기한"이라 말하지 않는다
+const fix = followupOf("요수리", "2026-08-06")!;
+assert.equal(fix.dueYmd, "2026-09-05");
+assert.equal(fix.legal, false);
 
 console.log("inspection OK");

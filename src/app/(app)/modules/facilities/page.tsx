@@ -12,13 +12,13 @@ import {
   statusOf,
   type InspectionStatus,
 } from "@/lib/inspection/schedule";
-import { STATUS_PILL, STATUS_RANK } from "@/lib/inspection/status";
+import { STATUS_PILL, STATUS_RANK, toneOf } from "@/lib/inspection/status";
+import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SummaryBox, SummaryStat } from "@/components/ui/summary-box";
 import { AttentionCard } from "@/components/attention-card";
-import { InspectionTable } from "./inspection-table";
 
 export default async function InspectionHomePage() {
   const session = await requireTenantSession();
@@ -30,19 +30,18 @@ export default async function InspectionHomePage() {
       where: { tenantId, active: true },
       orderBy: { createdAt: "asc" },
     }),
+    // 현황판은 "지금 할 일"만 — 전체 기록(검색·정렬)은 /records, 감사 대응은 서류철이 담당
     db.document.findMany({
       where: { tenantId, type: "inspection" },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 8,
       select: {
         id: true,
         docNo: true,
-        title: true,
         status: true,
         meta: true,
         dueDate: true,
         createdAt: true,
-        createdBy: { select: { name: true } },
       },
     }),
   ]);
@@ -150,12 +149,22 @@ export default async function InspectionHomePage() {
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                   {r.vendor ?? ""}
                 </span>
-                <span className="w-28 shrink-0 text-right font-mono text-xs tabular-nums">
-                  {r.due
-                    ? r.left! < 0
-                      ? `${r.due} (${-r.left!}일 지남)`
-                      : `${r.due} D-${r.left}`
-                    : "—"}
+                {/* 날짜는 배경, D-day가 주인공 — 붙여 쓰면 D-day가 날짜에 묻힌다 */}
+                <span className="w-24 shrink-0 text-right font-mono text-xs text-muted-foreground tabular-nums">
+                  {r.due ?? "—"}
+                </span>
+                <span
+                  className={`w-20 shrink-0 text-right font-mono text-sm font-bold tabular-nums ${
+                    r.left === null
+                      ? "text-muted-foreground"
+                      : r.left < 0
+                        ? "text-red-600"
+                        : r.status === "imminent"
+                          ? "text-amber-600"
+                          : "text-muted-foreground"
+                  }`}
+                >
+                  {r.left === null ? "" : r.left < 0 ? `${-r.left}일 지남` : `D-${r.left}`}
                 </span>
                 <span
                   className={`w-24 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium ${STATUS_PILL[r.status].cls}`}
@@ -171,25 +180,63 @@ export default async function InspectionHomePage() {
         )}
       </Card>
 
-      <InspectionTable
-        rows={docs.map((d) => {
-          const m = (d.meta ?? {}) as {
-            itemName?: string;
-            doneAt?: string;
-            result?: string;
-          };
-          return {
-            id: d.id,
-            docNo: d.docNo ?? "",
-            title: d.title,
-            itemName: m.itemName ?? "-",
-            doneAt: m.doneAt ?? (d.dueDate ? ymdKst(d.dueDate) : ymdKst(d.createdAt)),
-            result: m.result ?? "",
-            status: d.status,
-            author: d.createdBy?.name ?? "",
-          };
-        })}
-      />
+      <Card className="p-6">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">최근 기록</h2>
+          <Link
+            href="/modules/facilities/records"
+            className="text-sm font-medium text-blue-700 hover:underline"
+          >
+            전체 기록 보기 →
+          </Link>
+        </div>
+        {docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            아직 점검 기록이 없습니다 — 점검을 마쳤다면 [기록 작성]으로 남겨 주세요.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {docs.map((d) => {
+              const m = (d.meta ?? {}) as {
+                itemName?: string;
+                doneAt?: string;
+                result?: string;
+              };
+              return (
+                <li key={d.id}>
+                  <Link
+                    href={`/modules/facilities/${d.id}`}
+                    className="flex flex-wrap items-center gap-3 py-2 text-sm hover:bg-gray-50"
+                  >
+                    <span className="w-36 shrink-0 font-mono text-xs text-muted-foreground">
+                      {d.docNo || (docStatusLabels[d.status] ?? d.status)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {m.itemName ?? "-"}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {m.doneAt ?? (d.dueDate ? ymdKst(d.dueDate) : ymdKst(d.createdAt))}
+                    </span>
+                    {m.result ? (
+                      <span
+                        className={`w-16 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium ${toneOf(m.result).pill}`}
+                      >
+                        {m.result}
+                      </span>
+                    ) : (
+                      <span
+                        className={`w-16 shrink-0 rounded-full px-2 py-0.5 text-center text-xs font-medium ${docStatusStyles[d.status] ?? "bg-gray-100 text-gray-600"}`}
+                      >
+                        {docStatusLabels[d.status] ?? d.status}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

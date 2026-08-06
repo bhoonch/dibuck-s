@@ -10,7 +10,7 @@ import {
   nextDue,
   roundKey,
 } from "@/lib/inspection/schedule";
-import { kstDayStart } from "@/lib/utils";
+import { kstDayStart, ymdKst } from "@/lib/utils";
 
 /**
  * 법정점검 도래 안내 배치 — 하루 한 번.
@@ -26,6 +26,9 @@ import { kstDayStart } from "@/lib/utils";
  *    작업지시는 홈 할 일 위젯 "점검 예정"에 뜨고, 기록이 완성되면 자동으로 닫힌다.
  *  ② D-7 — 인앱 알림 1회 더 (leadDays가 7이면 회차가 하나로 합쳐진다).
  *  ③ 기한 경과 — 인앱 알림 + 소장 메일(trySend). 도래일마다 1회.
+ *  ④ 이상 판정 조치(kind: "action") — D-7·기한 경과. 어린이놀이시설 이용금지의
+ *    "1개월 이내 안전진단 신청"이 법정 기한이라 놓치면 과태료다. 조치는 항목 주기와
+ *    무관한 저장 기한(dueDate)이라 위 루프가 아니라 따로 훑는다.
  *
  * GET·POST 둘 다 받는다 — Vercel Cron과 curl 기본값은 GET이고, POST만 열어 두면
  * 매일 405만 나며 안내가 조용히 멈춘다(training 크론과 같은 이유).
@@ -66,7 +69,12 @@ async function ensureWorkOrder(
       tenantId,
       type: "inspection",
       status: "scheduled",
-      meta: { path: ["itemId"], equals: item.id },
+      // kind로 **긍정 필터** — 이상 판정의 조치(kind: "action")가 열려 있다고 해서
+      // 이번 주기의 점검 작업지시를 건너뛰면, 점검 자체가 할 일 목록에서 사라진다
+      AND: [
+        { meta: { path: ["itemId"], equals: item.id } },
+        { meta: { path: ["kind"], equals: "workorder" } },
+      ],
     },
     select: { id: true },
   });
@@ -94,7 +102,14 @@ async function run(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const now = new Date();
-  const result = { tenants: 0, notified: 0, workOrders: 0, overdue: 0, mails: 0 };
+  const result = {
+    tenants: 0,
+    notified: 0,
+    workOrders: 0,
+    overdue: 0,
+    actions: 0,
+    mails: 0,
+  };
 
   // 구독 중인 단지만 — 안 쓰는 모듈로 알림을 보내지 않는다
   const subs = await db.tenantModule.findMany({
@@ -159,6 +174,51 @@ async function run(req: NextRequest) {
         link: "/modules/facilities",
       });
       result.notified++;
+    }
+
+    // ④ 이상 판정 조치 — 기한이 저장값(dueDate)이라 항목 주기와 별개로 훑는다.
+    // 이용금지의 "1개월 안에 안전진단 신청"이 여기서 걸린다: 놓치면 과태료다.
+    const actions = await db.document.findMany({
+      where: {
+        tenantId,
+        type: "inspection",
+        status: "scheduled",
+        meta: { path: ["kind"], equals: "action" },
+      },
+      select: { id: true, title: true, dueDate: true, meta: true },
+    });
+    for (const a of actions) {
+      if (!a.dueDate) continue;
+      const dueYmd = ymdKst(a.dueDate);
+      const left = daysUntil(dueYmd, now);
+      // D-7과 기한 경과 두 회차만 — 조치는 사람이 [조치 완료]를 눌러야 닫힌다
+      if (left > 7) continue;
+      const tag = left < 0 ? "overdue" : 7;
+      const type = `inspection_action_${a.id}_${tag}`;
+      if (await alreadySent(tenantId, type)) continue;
+      const legal = (a.meta as { legal?: boolean })?.legal === true;
+      await notifyTenant({
+        tenantId,
+        roles: [Role.DIRECTOR, Role.ACCOUNTANT],
+        type,
+        title:
+          left < 0
+            ? `${a.title} — 기한이 ${-left}일 지났습니다`
+            : `${a.title} — D-${left}`,
+        body: legal
+          ? `법정 기한 ${dueYmd}. 안전검사기관에 안전진단을 신청하고 [조치 완료]를 눌러 주세요.`
+          : `기한 ${dueYmd}. 조치를 마치면 [조치 완료]를 눌러 주세요.`,
+        link: `/modules/facilities/${a.id}`,
+      });
+      result.actions++;
+      // 법정 기한을 넘긴 건은 메일로도 — 접속하지 않는 소장에게 닿아야 한다
+      if (left < 0 && legal)
+        for (const d of await directorsOf(tenantId)) {
+          await trySend(() =>
+            sendInspectionOverdue(d.email, d.name, a.title, dueYmd, -left),
+          );
+          result.mails++;
+        }
     }
   }
 

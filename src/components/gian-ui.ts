@@ -17,9 +17,14 @@ export const panelTitle =
 export const panelItem =
   "flex items-start gap-2 py-1.5 text-sm [&+&]:border-t [&+&]:border-[var(--gian-line)]";
 
-/** 목업 `.field input` — 입력칸 (공용 타이포) */
+/**
+ * 입력칸 — **프로젝트 표준 Input(shadcn)과 같은 토큰**(테두리 border-input,
+ * 배경 background, 포커스 ring). 예전엔 목업의 종이색+navy 포커스를 썼는데
+ * 다른 모듈 폼과 색이 달라 통일했다(2026-08-07 사용자 지시). 높이를 안 박는
+ * 이유: 이 클래스는 textarea에도 붙는다.
+ */
 export const fieldInput =
-  "w-full rounded-md border border-[var(--gian-line-strong)] bg-[var(--gian-paper)] px-3 py-2 text-sm text-[var(--gian-ink)] outline-offset-1 focus:outline-2 focus:outline-[var(--gian-navy)]";
+  "w-full min-w-0 rounded-lg border border-input bg-background px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
-/** 목업 `.field label` */
-export const fieldLabel = "mb-1.5 flex items-baseline gap-2 text-sm font-bold";
+/** 라벨 — 공용 Label(shadcn)과 같은 굵기(font-medium) */
+export const fieldLabel = "mb-1.5 flex items-baseline gap-2 text-sm font-medium";

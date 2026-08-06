@@ -6,6 +6,11 @@ import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { Role } from "@/generated/prisma/enums";
 import { ymdKst } from "@/lib/utils";
+import {
+  isPlayground,
+  resultChoicesOf,
+  PLAYGROUND_SCOPE,
+} from "@/lib/inspection/catalog";
 import { PageHeader } from "@/components/ui/page-header";
 import { RecordForm } from "../../new/record-form";
 
@@ -37,6 +42,9 @@ export default async function EditInspectionRecordPage({
     actions?: string;
     cost?: number;
     kind?: string;
+    units?: { name: string; result: string }[];
+    barrier?: boolean;
+    scope?: string;
   };
   // 폐기본·작업지시는 수정 화면이 없다 — 수정 경계는 액션이 다시 검사한다
   if (doc.status === "void" || doc.status === "scheduled" || meta.kind === "workorder")
@@ -44,10 +52,17 @@ export default async function EditInspectionRecordPage({
   if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
     redirect(`/modules/facilities/${doc.id}`);
 
-  const tenant = await db.tenant.findUniqueOrThrow({
-    where: { id: tenantId },
-    select: { name: true },
-  });
+  const [tenant, item] = await Promise.all([
+    db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { name: true } }),
+    // 판정어는 항목이 정한다(놀이시설만 4단계) — 기록 스냅샷에는 없으므로 항목에서 읽는다
+    meta.itemId
+      ? db.inspectionItem.findFirst({
+          where: { id: meta.itemId, tenantId },
+          select: { presetKey: true },
+        })
+      : null,
+  ]);
+  const byUnit = isPlayground(item?.presetKey);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -72,6 +87,9 @@ export default async function EditInspectionRecordPage({
             cycle: "",
             status: "ok",
             left: null,
+            resultChoices: resultChoicesOf(item?.presetKey),
+            units: byUnit ? (meta.units ?? []).map((u) => u.name) : null,
+            scope: meta.scope ?? (byUnit ? PLAYGROUND_SCOPE : ""),
           },
         ]}
         today={ymdKst(new Date())}
@@ -83,6 +101,8 @@ export default async function EditInspectionRecordPage({
           doneAt: meta.doneAt ?? ymdKst(doc.createdAt),
           performedBy: meta.performedBy ?? "자체",
           result: meta.result ?? "정상",
+          units: meta.units ?? [],
+          barrier: meta.barrier ?? false,
           findings: meta.findings ?? "",
           actions: meta.actions ?? "",
           cost: meta.cost ?? 0,

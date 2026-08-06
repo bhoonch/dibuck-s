@@ -1,20 +1,37 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { Camera, ChevronLeft, FileText, Loader2, Paperclip, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Camera,
+  ChevronLeft,
+  FileText,
+  Loader2,
+  Paperclip,
+  Plus,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PaperScale } from "@/components/paper-scale";
 import { InspectionPaper } from "@/components/inspection-paper";
-import { STATUS_PILL } from "@/lib/inspection/status";
-import type { InspectionStatus } from "@/lib/inspection/schedule";
+import { STATUS_PILL, toneOf } from "@/lib/inspection/status";
+import {
+  followupOf,
+  type InspectionStatus,
+} from "@/lib/inspection/schedule";
+import { RESULT_HINT, needsFindings, worstResult } from "@/lib/inspection/catalog";
 import {
   createInspectionRecord,
   saveInspectionRecord,
   type RecordState,
 } from "../actions";
+
+/** 놀이기구 한 대의 판정 — 놀이시설 항목에서만 쓴다 */
+export type Unit = { name: string; result: string };
 
 type ItemOption = {
   id: string;
@@ -27,6 +44,12 @@ type ItemOption = {
   status: InspectionStatus;
   /** 도래일까지 남은 일수 — 앵커 없으면 null */
   left: number | null;
+  /** 이 항목이 쓰는 판정어 — 놀이시설만 4단계 */
+  resultChoices: string[];
+  /** 기구별 판정을 받는가(놀이시설). 직전 기록의 기구 목록이 초기값으로 온다 */
+  units: string[] | null;
+  /** 법이 정한 점검 범위 문구 — 일지 하단에 찍는다. 없으면 "" */
+  scope: string;
 };
 
 /** 수정 모드 — 항목은 고정, 파일은 문서 화면의 첨부 패널이 담당한다 */
@@ -39,6 +62,8 @@ export type EditDefaults = {
   findings: string;
   actions: string;
   cost: number;
+  units: Unit[];
+  barrier: boolean;
   /** 이미 붙어 있는 첨부 이름 — 미리보기 첨부 목록용 */
   attachmentNames: string[];
 };
@@ -67,6 +92,32 @@ async function shrinkImage(file: File): Promise<File> {
 }
 
 const kb = (n: number) => `${Math.max(1, Math.round(n / 1024))}KB`;
+
+/** 판정어의 뜻 — 오른쪽 열(lg+)과 폰의 접이식이 같은 문장을 쓴다 */
+function ResultLegend({
+  choices,
+  className = "",
+}: {
+  choices: string[];
+  className?: string;
+}) {
+  const rows = choices.filter((c) => RESULT_HINT[c]);
+  if (rows.length === 0) return null;
+  return (
+    <dl className={`space-y-1 text-xs text-muted-foreground ${className}`}>
+      {rows.map((c) => (
+        <div key={c} className="flex gap-1.5">
+          <dt className="shrink-0 font-medium text-foreground">{c}</dt>
+          <dd>{RESULT_HINT[c]}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** 항목이 기구별 판정을 받으면 직전 기록의 기구 목록을 그대로 깔아 준다 — 다음 달엔 탭만 */
+const unitsFrom = (o?: ItemOption): Unit[] =>
+  o?.units ? o.units.map((name) => ({ name, result: o.resultChoices[0] })) : [];
 
 /** 카드의 D-day 문구 — 지연은 지난 일수로 말한다 */
 const dueText = (o: ItemOption) =>
@@ -113,12 +164,21 @@ export function RecordForm({
   const item = items.find((it) => it.id === itemId);
 
   // ② 입력값 — 미리보기가 실시간으로 읽는다
+  const initial = items.find((it) => it.id === initialId);
   const [doneAt, setDoneAt] = useState(edit?.doneAt ?? today);
   const [performedBy, setPerformedBy] = useState(
-    edit?.performedBy ??
-      (items.find((it) => it.id === initialId)?.vendor || "자체"),
+    edit?.performedBy ?? (initial?.vendor || "자체"),
   );
-  const [result, setResult] = useState<string>(edit?.result ?? "정상");
+  // 기구별 판정(놀이시설) — 항목이 정한다. 그 외 항목은 빈 배열이고 단일 판정을 쓴다
+  const [units, setUnits] = useState<Unit[]>(
+    edit?.units?.length
+      ? edit.units
+      : unitsFrom(initial),
+  );
+  const [single, setSingle] = useState<string>(
+    edit?.result ?? initial?.resultChoices[0] ?? "정상",
+  );
+  const [barrier, setBarrier] = useState(edit?.barrier ?? false);
   const [findings, setFindings] = useState(edit?.findings ?? "");
   const [actions, setActions] = useState(edit?.actions ?? "");
   // 천단위 콤마는 표시용 — 서버(parseWon)가 숫자만 걸러 읽는다
@@ -132,7 +192,22 @@ export function RecordForm({
   const pick = (o: ItemOption) => {
     setItemId(o.id);
     setPerformedBy(o.vendor || "자체");
+    setUnits(unitsFrom(o));
+    setSingle(o.resultChoices[0]);
   };
+
+  const addUnit = (name: string) =>
+    setUnits((p) => [...p, { name, result: item!.resultChoices[0] }]);
+
+  // 기구별 판정은 가장 나쁜 것이 기록 대표 판정 — 서버도 같은 규칙으로 다시 계산한다
+  const byUnit = !!item?.units;
+  const result = byUnit
+    ? worstResult(
+        units.map((u) => u.result),
+        item!.resultChoices,
+      )
+    : single;
+  const followup = followupOf(result, doneAt);
 
   const addFiles = async (list: FileList | null) => {
     if (!list) return;
@@ -193,14 +268,16 @@ export function RecordForm({
       ) : (
         <input type="hidden" name="itemId" value={item.id} />
       )}
-      {/* 라디오·비용은 제어 상태라 hidden으로 실어 보낸다 — 화면 요소는 미리보기용 */}
+      {/* 판정·기구는 제어 상태라 hidden으로 실어 보낸다 — 화면 요소는 미리보기용 */}
       <input type="hidden" name="result" value={result} />
+      {byUnit && <input type="hidden" name="units" value={JSON.stringify(units)} />}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* 프로젝트 표준 폼(공지완성과 동일): Card + Label + Input — 모듈별 폼 스타일을 만들지 않는다 */}
         <Card className="space-y-4 p-6">
           <div>
-            <span className="mb-1 flex items-center justify-between text-sm font-medium">
-              점검 항목
+            <span className="mb-1 flex items-center justify-between">
+              <Label>점검 항목</Label>
               {!edit && !preselect && (
                 <button
                   type="button"
@@ -221,9 +298,7 @@ export function RecordForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm font-medium" htmlFor="doneAt">
-                실시일자
-              </label>
+              <Label htmlFor="doneAt">실시일자</Label>
               <Input
                 id="doneAt"
                 name="doneAt"
@@ -231,59 +306,168 @@ export function RecordForm({
                 value={doneAt}
                 onChange={(e) => setDoneAt(e.target.value)}
                 required
-                className="max-sm:h-11"
+                className="mt-1.5 max-sm:h-11"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium" htmlFor="performedBy">
-                수행 (자체 또는 업체·기관명)
-              </label>
+              <Label htmlFor="performedBy">수행</Label>
               <Input
                 id="performedBy"
                 name="performedBy"
                 value={performedBy}
                 onChange={(e) => setPerformedBy(e.target.value)}
                 placeholder="자체"
-                className="max-sm:h-11"
+                autoComplete="off"
+                className="mt-1.5 max-sm:h-11"
               />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                자체 점검이면 &ldquo;자체&rdquo;, 업체·기관이 했으면 그 이름을 적으세요.
+              </p>
             </div>
           </div>
 
-          <div>
-            <span className="mb-1 block text-sm font-medium">결과</span>
-            {/* 라디오 대신 큰 토글 두 개 — 현장 폰 입력(시안 D)의 핵심 타깃. 데스크톱에서도 손해가 없다 */}
-            <div className="grid max-w-sm grid-cols-2 gap-2">
-              <button
+          {/* 판정 — 라디오 대신 큰 토글. 현장 폰 입력(시안 D)의 핵심 타깃 */}
+          {byUnit ? (
+            <div>
+              <Label>놀이기구별 판정</Label>
+              {/* 직전 기록의 기구 목록이 미리 깔린다 — 남은 입력이 아니라 불러온 목록임을 말한다 */}
+              {!edit && units.length > 0 && (item.units?.length ?? 0) > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  지난 기록의 놀이기구 목록을 불러왔습니다 — 판정은 초기화되어
+                  있으니 이번 달 결과만 누르면 됩니다.
+                </p>
+              )}
+              <div className="mt-1.5 space-y-1.5">
+                {units.map((u, i) => (
+                  <div key={i} className="rounded-lg border p-2.5">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={u.name}
+                        onChange={(e) =>
+                          setUnits((p) =>
+                            p.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
+                          )
+                        }
+                        placeholder="기구 이름 (예: 조합놀이대, 그네)"
+                        autoComplete="off"
+                        className="h-8 min-w-0 flex-1 max-sm:h-10"
+                        // 새 행이 목록 끝에 생기므로 커서를 데려간다. 마운트 시점에만
+                        // 걸려서 다음 달 목록(이름이 이미 있음)에는 안 걸린다
+                        autoFocus={!u.name && i === units.length - 1}
+                      />
+                      <button
+                        type="button"
+                        aria-label="기구 삭제"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => setUnits((p) => p.filter((_, j) => j !== i))}
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                    {/* 판정만 폰에서 크게 유지한다 — 현장에서 엄지로 누르는 유일한 입력이다 */}
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                      {item.resultChoices.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() =>
+                            setUnits((p) =>
+                              p.map((x, j) => (j === i ? { ...x, result: c } : x)),
+                            )
+                          }
+                          className={`h-8 rounded-lg text-xs font-bold transition-colors max-sm:h-11 max-sm:text-sm ${
+                            u.result === c ? toneOf(c).on : toneOf(c).off
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* 목록 끝 — 담는 동작이 일어나는 자리. 첨부의 [파일 선택]과 같은 규격 */}
+              <Button
                 type="button"
-                onClick={() => setResult("정상")}
-                className={`h-12 rounded-lg text-sm font-bold transition-colors ${
-                  result === "정상"
-                    ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
-                    : "border border-gray-300 bg-card text-gray-500 hover:bg-gray-50"
-                }`}
+                variant="outline"
+                className="mt-1.5 h-11 sm:h-8 sm:px-3 sm:text-xs"
+                onClick={() => addUnit("")}
               >
-                정상
-              </button>
-              <button
-                type="button"
-                onClick={() => setResult("지적사항")}
-                className={`h-12 rounded-lg text-sm font-bold transition-colors ${
-                  result === "지적사항"
-                    ? "border-2 border-amber-500 bg-amber-50 text-amber-700"
-                    : "border border-gray-300 bg-card text-gray-500 hover:bg-gray-50"
-                }`}
-              >
-                지적사항
-              </button>
+                <Plus className="size-4" /> 놀이기구 추가
+              </Button>
+              {units.length === 0 && (
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  그네·미끄럼틀처럼 놀이기구를 한 대씩 넣고 판정해 주세요. 다음
+                  달부터는 이 목록이 그대로 나옵니다.
+                </p>
+              )}
+              {/* 판정 기준은 오른쪽 열로 뺐다 — 폼이 길어지면 기구 목록이 밀린다.
+                  오른쪽 열이 없는 화면(lg 미만)에서는 접어서 여기 남긴다:
+                  요주의·요수리를 구분할 근거가 현장에서 사라지면 안 된다 */}
+              <details className="mt-1.5 lg:hidden">
+                <summary className="cursor-pointer text-xs text-muted-foreground">
+                  판정 기준 보기
+                </summary>
+                <ResultLegend choices={item.resultChoices} className="mt-1" />
+              </details>
             </div>
-          </div>
+          ) : (
+            <div>
+              <Label className="mb-1.5">결과</Label>
+              <div className="grid max-w-sm grid-cols-2 gap-2">
+                {item.resultChoices.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setSingle(c)}
+                    className={`h-12 rounded-lg text-sm font-bold transition-colors ${
+                      single === c ? toneOf(c).on : toneOf(c).off
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {result === "지적사항" && (
+          {/* 후속 조치 — 이용금지는 법정 1개월, 요수리는 앱 기본 30일 */}
+          {followup && (
+            <div
+              className={`rounded-lg border p-3 text-sm ${
+                followup.legal
+                  ? "border-red-200 bg-red-50/60 text-red-800"
+                  : "border-amber-200 bg-amber-50/60 text-amber-800"
+              }`}
+            >
+              <p className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle className="size-4 shrink-0" />
+                {followup.title} — {followup.dueYmd}까지
+              </p>
+              <p className="mt-1 text-xs">{followup.note}</p>
+              <p className="mt-1 text-xs">
+                저장하면 이 기한의 작업지시가 자동으로 만들어지고, 기한이 다가오면
+                알려 드립니다.
+              </p>
+              {result === "이용금지" && (
+                <label className="mt-2 flex items-center gap-2 font-medium">
+                  <input
+                    type="checkbox"
+                    name="barrier"
+                    checked={barrier}
+                    onChange={(e) => setBarrier(e.target.checked)}
+                    className="size-4"
+                  />
+                  안전선·이용금지 표지판을 설치해 이용을 차단했습니다
+                </label>
+              )}
+            </div>
+          )}
+
+          {needsFindings(result) && (
             <>
               <div>
-                <label className="mb-1 block text-sm font-medium" htmlFor="findings">
-                  지적 내용
-                </label>
+                <Label htmlFor="findings">지적 내용</Label>
                 <Textarea
                   id="findings"
                   name="findings"
@@ -291,6 +475,7 @@ export function RecordForm({
                   value={findings}
                   onChange={(e) => setFindings(e.target.value)}
                   placeholder={"한 줄에 하나씩 적어 주세요.\n예) 지하 1층 소화전 표시등 불량"}
+                  className="mt-1.5"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
                   업체 보고서가 있으면 요지만 적고 파일을 첨부하세요 — 일지에는
@@ -298,9 +483,7 @@ export function RecordForm({
                 </p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium" htmlFor="actions">
-                  조치 계획
-                </label>
+                <Label htmlFor="actions">조치 계획</Label>
                 <Textarea
                   id="actions"
                   name="actions"
@@ -308,21 +491,21 @@ export function RecordForm({
                   value={actions}
                   onChange={(e) => setActions(e.target.value)}
                   placeholder={"예) 표시등 교체 — 8월 중 업체 발주"}
+                  className="mt-1.5"
                 />
               </div>
             </>
           )}
 
           <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="cost">
-              비용 (선택, 원)
-            </label>
+            <Label htmlFor="cost">비용 (선택, 원)</Label>
             <Input
               id="cost"
               name="cost"
               inputMode="numeric"
               placeholder="예: 350,000"
-              className="w-48 max-sm:h-11"
+              autoComplete="off"
+              className="mt-1.5 w-48 max-sm:h-11"
               value={cost}
               onChange={(e) => {
                 const n = e.target.value.replace(/[^0-9]/g, "");
@@ -334,9 +517,7 @@ export function RecordForm({
           {/* 첨부는 저장과 한 요청 — 수정 모드에서는 문서 화면의 첨부 패널이 담당 */}
           {!edit && (
             <div>
-              <span className="mb-1 block text-sm font-medium">
-                첨부 (선택) — 성적서·검사필증·업체 보고서
-              </span>
+              <Label className="mb-1.5">첨부 (선택) — 성적서·검사필증·업체 보고서</Label>
               <input
                 ref={fileRef}
                 type="file"
@@ -429,6 +610,12 @@ export function RecordForm({
 
         {/* 라이브 미리보기 — 입력하는 대로 A4가 채워진다. 인쇄는 문서 화면 몫 */}
         <aside className="hidden lg:sticky lg:top-5 lg:block">
+          {byUnit && (
+            <Card className="mb-3 p-4">
+              <h4 className="mb-1.5 text-sm font-semibold">판정 기준</h4>
+              <ResultLegend choices={item.resultChoices} />
+            </Card>
+          )}
           <p className="mb-2 text-xs font-medium text-muted-foreground">
             A4 미리보기 — 저장하면 이 일지가 만들어집니다
           </p>
@@ -442,8 +629,11 @@ export function RecordForm({
                 doneAt,
                 performedBy: performedBy || "자체",
                 result,
-                findings: result === "지적사항" ? findings : "",
-                actions: result === "지적사항" ? actions : "",
+                units: byUnit ? units.filter((u) => u.name.trim()) : [],
+                barrier,
+                scope: item.scope,
+                findings: needsFindings(result) ? findings : "",
+                actions: needsFindings(result) ? actions : "",
                 cost: Number(cost.replace(/[^0-9]/g, "")) || 0,
                 attachmentNames: [
                   ...(edit?.attachmentNames ?? []),

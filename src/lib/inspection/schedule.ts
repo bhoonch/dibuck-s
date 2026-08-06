@@ -112,6 +112,50 @@ export function roundKey(
   return `inspection_${itemId}_${dueYmd}_${typeof tag === "number" ? `D${tag}` : "overdue"}`;
 }
 
+/** "YYYY-MM-DD" + n일 */
+export function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
+/** 이상 판정에 딸린 후속 조치 — 없으면 null */
+export type FollowupAction = {
+  title: string;
+  dueYmd: string;
+  /** 법이 정한 기한인가 — 화면·일지가 문구를 달리 쓴다 */
+  legal: boolean;
+  note: string;
+};
+
+/**
+ * 판정 → 후속 조치 기한. 순수 함수(`npx tsx inspection.test.ts`).
+ *
+ * **이용금지는 법정 기한이다** — 어린이놀이시설 안전관리법 제15조: 안전점검 결과
+ * 어린이에게 위해를 가할 우려가 있으면 이용을 금지하고 **1개월 이내**에
+ * 안전검사기관에 안전진단을 신청해야 한다(해당 시설을 철거하는 경우는 생략).
+ *
+ * **요수리는 법에 기한이 없다** — 30일은 앱이 정한 기본값이고, 화면도 그렇게
+ * 말한다(법 조문 해석은 코드가 하지 않는다 — 없는 기한을 법정 기한인 척하지 않는다).
+ */
+export function followupOf(result: string, doneAtYmd: string): FollowupAction | null {
+  if (result === "이용금지")
+    return {
+      title: "안전진단 신청",
+      dueYmd: addMonthsYmd(doneAtYmd, 1),
+      legal: true,
+      note: "이용금지 조치 후 1개월 이내에 안전검사기관에 안전진단을 신청해야 합니다 (어린이놀이시설 안전관리법 제15조). 해당 시설을 철거하는 경우에는 신청을 생략할 수 있습니다.",
+    };
+  if (result === "요수리")
+    return {
+      title: "수리·보수",
+      dueYmd: addDaysYmd(doneAtYmd, 30),
+      legal: false,
+      note: "빠른 시일 안에 부품 교체·수리를 마쳐 주세요. 30일은 법정 기한이 아니라 이 앱이 잡아 둔 기본 기한입니다.",
+    };
+  return null;
+}
+
 /** 카탈로그 Cycle → InspectionItem 저장 형태 */
 export function cycleToRow(cycle: Cycle): { cycleType: string; cycleN: number | null } {
   return { cycleType: cycle.type, cycleN: cycle.type === "YEARS" ? (cycle.n ?? 1) : null };

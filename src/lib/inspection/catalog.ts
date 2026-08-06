@@ -178,6 +178,61 @@ export const INSPECTION_CATALOG: CatalogItem[] = [
 export const catalogItemOf = (key: string) =>
   INSPECTION_CATALOG.find((c) => c.key === key);
 
+// ── 점검 결과 판정 ──────────────────────────────────────────────
+/**
+ * 어린이놀이시설 월 점검만 4단계 판정을 쓴다.
+ *
+ * 이 항목의 법정 서식은 **안전점검 실시대장**(어린이놀이시설 안전관리법 시행규칙
+ * 별지 제16호서식, 최종 기재일부터 3년 보관)이고 우리 점검일지가 그 대장을
+ * 대신한다 — 서식이 쓰는 판정어를 그대로 써야 감사에서 설명이 필요 없다.
+ * 판정은 **놀이기구 단위**다: 미끄럼틀만 이용금지인데 단지 전체를 이용금지로
+ * 적으면 대장이 사실과 다르다.
+ *
+ * (월 점검 결과를 cpf.go.kr에 입력하라는 조항은 확인되지 않았다. 법이 요구하는
+ *  것은 대장 기록·보관이다 — 지자체가 별도로 시스템 등록을 요구할 수는 있다.)
+ *
+ * 나머지 12개 항목은 법이 정한 판정어가 없어 2단계 그대로.
+ */
+const PLAYGROUND_RESULTS = ["양호", "요주의", "요수리", "이용금지"];
+const DEFAULT_RESULTS = ["정상", "지적사항"];
+
+/** 서버 검증용 — 폼이 무엇을 보내든 이 목록 밖의 판정은 저장하지 않는다 */
+export const ALL_RESULTS = [...DEFAULT_RESULTS, ...PLAYGROUND_RESULTS];
+
+export const isPlayground = (presetKey?: string | null) =>
+  presetKey === "playground_monthly";
+
+export const resultChoicesOf = (presetKey?: string | null): string[] =>
+  isPlayground(presetKey) ? PLAYGROUND_RESULTS : DEFAULT_RESULTS;
+
+/** 판정어의 뜻(행정안전부 안전점검 기준) — 입력 폼과 A4가 같은 문장을 쓴다 */
+export const RESULT_HINT: Record<string, string> = {
+  양호: "위해·위험을 발생시킬 요소가 없음",
+  요주의: "위해·위험 요소는 없으나 제조업체가 정한 사용연한이 지남",
+  요수리: "틈·헐거움·날카로움이 생길 가능성이 있거나, 더럽거나 안전표시가 훼손됨",
+  이용금지: "틈·헐거움·날카로움이 있거나 위해가 발생함",
+};
+
+/** 이상 없음 판정만 지적 내용을 비울 수 있다 — 요주의도 무엇이 걸리는지 남아야 대장이 산다 */
+export const needsFindings = (result: string) =>
+  result !== "정상" && result !== "양호";
+
+/**
+ * 기구별 판정 → 기록 대표 판정. 가장 나쁜 것이 이긴다 —
+ * 현황판·문서함·검색은 대표 판정 하나만 읽으므로, 여기서 좋은 쪽을 고르면
+ * "이용금지 기구가 있는 기록"이 목록에서 양호로 보인다.
+ */
+export function worstResult(results: string[], choices: string[]): string {
+  return results.reduce(
+    (worst, r) => (choices.indexOf(r) > choices.indexOf(worst) ? r : worst),
+    choices[0],
+  );
+}
+
+/** 법 제15조제1항이 정한 점검 범위 — 놀이시설 일지 하단에 그대로 찍는다 */
+export const PLAYGROUND_SCOPE =
+  "연결상태, 노후정도, 변형상태, 청결상태, 안전수칙 등의 표시상태, 부대시설의 파손 상태 및 위험물질의 존재 여부";
+
 /** "월 1회" · "2년 1회" — 화면·문서 공용 표기 */
 export function cycleLabel(cycle: Cycle): string {
   switch (cycle.type) {
@@ -259,7 +314,7 @@ export const WIZARD_QUESTIONS: {
   {
     key: "playground",
     question: "어린이 놀이터가 있나요?",
-    hint: "월 1회 안전점검과 2년 1회 정기시설검사가 켜집니다.",
+    hint: "월 1회 안전점검과 2년 1회 정기시설검사가 켜집니다. 월 점검 결과는 안전점검 실시대장으로 3년간 보관해야 합니다 — 여기서 만드는 점검일지가 그 대장입니다.",
     itemKeys: ["playground_monthly", "playground_facility"],
     defaultOn: true,
   },

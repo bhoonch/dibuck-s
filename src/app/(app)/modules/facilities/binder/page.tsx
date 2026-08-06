@@ -155,7 +155,15 @@ export default async function BinderPage({
             <tbody>
               {items.map((it) => (
                 <tr key={it.id}>
-                  <td className={`${td} text-left font-medium`}>{it.name}</td>
+                  <td className={`${td} text-left font-medium`}>
+                    {/* 항목명 = 연간 일괄 출력 입구. 화면에서는 링크, 인쇄물에는 평문 */}
+                    <Link
+                      href={`/modules/facilities/binder/${it.id}?year=${year}`}
+                      className="hover:text-blue-700 hover:underline print:no-underline"
+                    >
+                      {it.name}
+                    </Link>
+                  </td>
                   <td className={td}>
                     {cycleLabel({ type: it.cycleType, n: it.cycleN ?? undefined } as Cycle)}
                   </td>
@@ -212,6 +220,11 @@ export default async function BinderPage({
           </table>
           <p className="mt-2 text-xs text-muted-foreground">
             ✓ = 완료 기록(클릭하면 일지) · 미이행 = 기한이 지난 도래분.
+            <span className="print:hidden">
+              {" "}
+              <b>항목 이름을 누르면 그 항목의 연간 일지를 한 번에 인쇄</b>할 수
+              있습니다 — 감사·지도점검의 &ldquo;실시대장 제출&rdquo; 대응용.
+            </span>{" "}
             과거에 기록 없이 지나간 회차는 표시되지 않습니다 — 기록이 쌓일수록
             서류철이 정확해집니다.
           </p>
