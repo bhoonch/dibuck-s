@@ -10,6 +10,7 @@ import { noticeDueYmd, type MeetingMeta } from "@/lib/minutes";
 import type { ExternalApprover } from "@/lib/gian/rules";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { PaperScale } from "@/components/paper-scale";
 import { PrintStyle } from "@/components/gian-paper";
 import { PrintFitOnePage } from "@/components/print-fit";
@@ -35,8 +36,14 @@ export default async function MeetingDocPage({
 
   const meta = doc.meta as MeetingMeta;
 
-  // 소집 단계(meta.minutes 없음)만 이 태스크의 몫 — 회의록 작성 화면은 Task 4
+  // 초안 단계(meta.minutes 있음) — 완성·서명·공고 파생은 다음 태스크
   if (meta.minutes) {
+    const decisionStyles: Record<string, string> = {
+      가결: "bg-green-50 text-green-700",
+      부결: "bg-red-50 text-red-700",
+      보류: "bg-amber-50 text-amber-700",
+      없음: "bg-gray-100 text-gray-600",
+    };
     return (
       <div className="mx-auto max-w-[794px]">
         <Link
@@ -46,9 +53,50 @@ export default async function MeetingDocPage({
           <ChevronLeft className="size-4" />
           목록
         </Link>
-        <Card className="p-6 text-sm text-muted-foreground">
-          회의록 작성 화면은 준비 중입니다.
+        <PageHeader
+          title={doc.title}
+          description="회의록 초안입니다. 내용을 확인하고 완성하세요."
+        />
+        <Card className="space-y-4 p-6">
+          {meta.minutes.map((a) => (
+            <div
+              key={a.order}
+              className="space-y-1.5 border-b border-[var(--gian-line)] pb-4 last:border-0 last:pb-0"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold">
+                  {a.order}. {a.title}
+                </p>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${decisionStyles[a.decision] ?? "bg-gray-100 text-gray-600"}`}
+                >
+                  {a.decision}
+                  {(a.votesFor !== null || a.votesAgainst !== null) &&
+                    ` (찬 ${a.votesFor ?? 0} · 반 ${a.votesAgainst ?? 0})`}
+                </span>
+              </div>
+              {a.discussion.length > 0 ? (
+                <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">
+                  {a.discussion.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  논의 요지가 비어 있습니다.
+                </p>
+              )}
+            </div>
+          ))}
         </Card>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/modules/minutes/${doc.id}/edit`}>수정</Link>
+          </Button>
+          <Button disabled title="다음 업데이트에서 제공됩니다">
+            회의록 완성
+          </Button>
+        </div>
       </div>
     );
   }

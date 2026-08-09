@@ -1,13 +1,18 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { RedirectType, redirect } from "next/navigation";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
+import { rateLimit } from "@/lib/rate-limit";
+import { aiEnabled, generateMinutesDraft } from "@/lib/minutes-ai";
 import {
+  DECISIONS,
   DEFAULT_NOTICE_DAYS,
   type Attendee,
   type MeetingMeta,
+  type MinutesAgenda,
 } from "@/lib/minutes";
 
 const MODULE_ID = "minutes";
@@ -143,4 +148,157 @@ export async function createMeeting(
     }
   }
   redirect(`/modules/minutes/${doc.id}`, RedirectType.replace);
+}
+
+/** 단지당 일일 생성 한도 — 공지문·기안 모듈과 같은 셀프서비스 남용 방지 */
+const DAILY_LIMIT = 30;
+
+export type GenerateMinutesState =
+  | { error: string }
+  | { agendas: MinutesAgenda[]; needsClarification: string[] }
+  | undefined;
+
+/**
+ * 회의록 AI 초안 — 문서를 만드는 입구가 아니라 상태를 바꾸는 입구라, 호출자를
+ * 믿지 않고 여기서 다시 draft 여부를 검사한다(완성 후 재생성 금지 — 불변 원칙).
+ * draft인 동안은 몇 번이든 다시 만들 수 있다(일일 한도 안에서). 성공하면
+ * meta.minutes·meta.rawText를 저장하지만 문서 status는 그대로 draft다.
+ */
+export async function generateMinutes(
+  _prev: GenerateMinutesState,
+  formData: FormData,
+): Promise<GenerateMinutesState> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const docId = String(formData.get("docId") ?? "");
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "draft")
+    return { error: "완성된 회의록은 다시 만들 수 없습니다." };
+
+  if (!aiEnabled())
+    return {
+      error: "AI 초안은 준비 중입니다. 아래에서 직접 입력할 수 있습니다.",
+    };
+
+  const meta = doc.meta as MeetingMeta;
+  if (meta.agenda.length === 0) return { error: "안건이 없습니다." };
+
+  if (rateLimit(`minutes:${tenantId}`, DAILY_LIMIT, 24 * 60 * 60 * 1000) <= 0)
+    return {
+      error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.`,
+    };
+
+  const rawText = String(formData.get("rawText") ?? "");
+
+  let result: { agendas: MinutesAgenda[]; needsClarification: string[] };
+  try {
+    result = await generateMinutesDraft({
+      agenda: meta.agenda.map((a) => ({ order: a.order, title: a.title })),
+      rawText,
+      meetingLabel: doc.title,
+    });
+  } catch (e) {
+    return {
+      error:
+        e instanceof Error && e.message.includes("실패")
+          ? e.message
+          : "초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    };
+  }
+
+  await db.document.update({
+    where: { id: doc.id },
+    data: { meta: { ...meta, minutes: result.agendas, rawText } },
+  });
+  revalidatePath(`/modules/minutes/${doc.id}`);
+  revalidatePath(`/modules/minutes/${doc.id}/edit`);
+  return { agendas: result.agendas, needsClarification: result.needsClarification };
+}
+
+const MINUTES_DECISIONS = new Set<string>([...DECISIONS, "없음"]);
+
+/** JSON에서 온 값을 0 이상 숫자 또는 null로 — 그 밖의 값(음수·문자열 등)은 "invalid" */
+function readVotes(v: unknown): number | null | "invalid" {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : "invalid";
+}
+
+export type SaveMinutesState = { error?: string } | undefined;
+
+/**
+ * 회의록 손 입력·수정 저장 — LLM 없이도 전부 손으로 채울 수 있다(수용 기준 8).
+ * 안건 목록(순서·제목)은 앵커라 서버가 meta.agenda에서 다시 채운다 —
+ * 제출된 title은 신뢰하지 않는다. discussion 줄은 trim 후 빈 줄을 뺀다.
+ */
+export async function saveMinutesDraft(
+  _prev: SaveMinutesState,
+  formData: FormData,
+): Promise<SaveMinutesState> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const docId = String(formData.get("docId") ?? "");
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "draft")
+    return { error: "완성된 회의록은 수정할 수 없습니다." };
+
+  const meta = doc.meta as MeetingMeta;
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("agendas") ?? "[]"));
+  } catch {
+    return { error: "안건 정보를 읽을 수 없습니다." };
+  }
+  if (!Array.isArray(raw) || raw.length !== meta.agenda.length)
+    return { error: "안건 개수가 맞지 않습니다." };
+
+  const titleByOrder = new Map(meta.agenda.map((a) => [a.order, a.title]));
+  const agendas: MinutesAgenda[] = [];
+  for (const entry of raw) {
+    const e = entry as Record<string, unknown> | null;
+    const order = Number(e?.order);
+    const title = titleByOrder.get(order);
+    if (!e || !Number.isFinite(order) || title === undefined)
+      return { error: "안건 정보를 읽을 수 없습니다." };
+
+    const decision = String(e.decision ?? "");
+    if (!MINUTES_DECISIONS.has(decision))
+      return { error: "의결 결과 값이 올바르지 않습니다." };
+
+    const discussion = Array.isArray(e.discussion)
+      ? e.discussion.map((l) => String(l).trim()).filter(Boolean)
+      : [];
+
+    const votesFor = readVotes(e.votesFor);
+    const votesAgainst = readVotes(e.votesAgainst);
+    if (votesFor === "invalid" || votesAgainst === "invalid")
+      return { error: "찬반 수는 0 이상의 숫자여야 합니다." };
+
+    agendas.push({
+      order,
+      title,
+      discussion,
+      decision: decision as MinutesAgenda["decision"],
+      votesFor,
+      votesAgainst,
+    });
+  }
+  // 순서 중복·누락 방어 — 길이만 맞고 같은 order가 두 번 오면 다른 안건이 빈다
+  if (new Set(agendas.map((a) => a.order)).size !== meta.agenda.length)
+    return { error: "안건 정보가 올바르지 않습니다." };
+  agendas.sort((a, b) => a.order - b.order);
+
+  await db.document.update({
+    where: { id: doc.id },
+    data: { meta: { ...meta, minutes: agendas } },
+  });
+  revalidatePath(`/modules/minutes/${doc.id}`);
+  redirect(`/modules/minutes/${docId}`);
 }
