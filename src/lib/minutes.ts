@@ -98,3 +98,61 @@ export function signProgress(steps: { status: string }[]) {
   const signed = steps.filter((s) => s.status === "approved").length;
   return { signed, total: steps.length, allSigned: steps.length > 0 && signed === steps.length };
 }
+
+/** JSON에서 온 값을 0 이상 숫자 또는 null로 — 그 밖의 값(음수·문자열 등)은 "invalid" */
+function readVotes(v: unknown): number | null | "invalid" {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : "invalid";
+}
+
+export type AnchorMismatch = "count" | "entry" | "decision" | "votes" | "duplicate";
+
+/**
+ * 회의록 안건 배열을 meta.agenda(앵커)에 맞춰 검증·정규화한다. 손 입력 저장
+ * (saveMinutesDraft)과 LLM 초안(generateMinutes) 둘 다 이걸 거친다 — LLM
+ * 출력도 스키마가 형태만 강제할 뿐 안건 개수·순서·제목 동일성은 보장하지
+ * 않으므로, 저장 전 여기서 다시 앵커와 대조한다.
+ * 제목은 항상 meta.agenda에서 order로 재유도한다 — 제출된(모델이든 클라이언트든)
+ * title은 신뢰하지 않는다. 개수·order 집합이 meta.agenda와 다르면 거부한다.
+ */
+export function normalizeMinutesAgendas(
+  raw: unknown,
+  agenda: AgendaItem[],
+): { agendas: MinutesAgenda[] } | { fail: AnchorMismatch } {
+  if (!Array.isArray(raw) || raw.length !== agenda.length) return { fail: "count" };
+
+  const titleByOrder = new Map(agenda.map((a) => [a.order, a.title]));
+  const decisionValues = new Set<string>([...DECISIONS, "없음"]);
+  const agendas: MinutesAgenda[] = [];
+  for (const entry of raw) {
+    const e = entry as Record<string, unknown> | null;
+    const order = Number(e?.order);
+    const title = titleByOrder.get(order);
+    if (!e || !Number.isFinite(order) || title === undefined) return { fail: "entry" };
+
+    const decision = String(e.decision ?? "");
+    if (!decisionValues.has(decision)) return { fail: "decision" };
+
+    const discussion = Array.isArray(e.discussion)
+      ? e.discussion.map((l) => String(l).trim()).filter(Boolean)
+      : [];
+
+    const votesFor = readVotes(e.votesFor);
+    const votesAgainst = readVotes(e.votesAgainst);
+    if (votesFor === "invalid" || votesAgainst === "invalid") return { fail: "votes" };
+
+    agendas.push({
+      order,
+      title,
+      discussion,
+      decision: decision as MinutesAgenda["decision"],
+      votesFor,
+      votesAgainst,
+    });
+  }
+  // 순서 중복·누락 방어 — 길이만 맞고 같은 order가 두 번 오면 다른 안건이 빈다
+  if (new Set(agendas.map((a) => a.order)).size !== agenda.length) return { fail: "duplicate" };
+  agendas.sort((a, b) => a.order - b.order);
+  return { agendas };
+}

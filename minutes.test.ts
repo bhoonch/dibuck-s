@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   proposeAgenda, signTokenState, minutesHash, noticeDueYmd, signProgress,
+  normalizeMinutesAgendas,
 } from "./src/lib/minutes";
 
 // ── proposeAgenda: 미완료 의결 → 이행 보고 안건, 순서는 이어 붙는다 ──
@@ -52,5 +53,62 @@ assert.deepEqual(
 );
 assert.deepEqual(signProgress([{ status: "approved" }]), { signed: 1, total: 1, allSigned: true });
 assert.deepEqual(signProgress([]), { signed: 0, total: 0, allSigned: false }); // 0명 = 완료 아님
+
+// ── normalizeMinutesAgendas: 안건 앵커 검증 — saveMinutesDraft·generateMinutes 공용 ──
+const anchor = [{ order: 1, title: "승강기 재계약 건" }, { order: 2, title: "CCTV 증설 안건" }];
+
+// 개수 불일치 거부(모델이 안건을 빼거나 더한 경우)
+assert.deepEqual(
+  normalizeMinutesAgendas([{ order: 1, title: "승강기 재계약 건", discussion: [], decision: "없음", votesFor: null, votesAgainst: null }], anchor),
+  { fail: "count" },
+);
+
+// order 불일치 거부(개수는 맞지만 안건이 안 걸림 — 예: order 1,1)
+assert.deepEqual(
+  normalizeMinutesAgendas(
+    [
+      { order: 1, title: "승강기 재계약 건", discussion: [], decision: "없음", votesFor: null, votesAgainst: null },
+      { order: 1, title: "승강기 재계약 건", discussion: [], decision: "없음", votesFor: null, votesAgainst: null },
+    ],
+    anchor,
+  ),
+  { fail: "duplicate" },
+);
+
+// 제목 정규화 — 모델이 제목을 살짝 바꿔도 앵커 제목(meta.agenda)이 이긴다
+const normalized = normalizeMinutesAgendas(
+  [
+    { order: 1, title: "승강기 재계약(안)", discussion: ["표결 진행"], decision: "가결", votesFor: 6, votesAgainst: 2 },
+    { order: 2, title: "CCTV 증설", discussion: [], decision: "없음", votesFor: null, votesAgainst: null },
+  ],
+  anchor,
+);
+assert.ok("agendas" in normalized);
+if ("agendas" in normalized) {
+  assert.equal(normalized.agendas[0].title, "승강기 재계약 건"); // 앵커 제목으로 되돌아감
+  assert.equal(normalized.agendas[1].title, "CCTV 증설 안건");
+}
+
+// 의결·찬반 값 검증
+assert.deepEqual(
+  normalizeMinutesAgendas(
+    [
+      { order: 1, title: "x", discussion: [], decision: "가결", votesFor: -1, votesAgainst: 0 },
+      { order: 2, title: "x", discussion: [], decision: "없음", votesFor: null, votesAgainst: null },
+    ],
+    anchor,
+  ),
+  { fail: "votes" },
+);
+assert.deepEqual(
+  normalizeMinutesAgendas(
+    [
+      { order: 1, title: "x", discussion: [], decision: "찬성", votesFor: null, votesAgainst: null },
+      { order: 2, title: "x", discussion: [], decision: "없음", votesFor: null, votesAgainst: null },
+    ],
+    anchor,
+  ),
+  { fail: "decision" },
+);
 
 console.log("minutes.test.ts OK");

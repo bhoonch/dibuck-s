@@ -69,6 +69,9 @@ export function MinutesEditor({
   );
   // AI 생성 결과가 오면 그걸로 갈아 끼운다 — 실패하거나 아직 안 눌렀으면 손 입력을 안 건드린다.
   // 렌더 중 이전 값과 비교해 반영(React 권장 패턴) — effect로 하면 불필요한 리렌더가 한 번 더 생긴다.
+  // genState.agendas는 이미 서버(generateMinutes → normalizeMinutesAgendas)가
+  // meta.agenda로 검증·정규화한 뒤 돌려준 값이다 — 여기서 다시 안건 개수·제목을
+  // 맞춰 넣을 필요가 없다(앵커 위반 콘텐츠는 애초에 여기 도달하지 않는다).
   const [syncedGenState, setSyncedGenState] = useState(genState);
   if (genState !== syncedGenState) {
     setSyncedGenState(genState);

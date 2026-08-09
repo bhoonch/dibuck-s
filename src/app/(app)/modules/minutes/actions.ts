@@ -8,8 +8,9 @@ import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateMinutesDraft } from "@/lib/minutes-ai";
 import {
-  DECISIONS,
   DEFAULT_NOTICE_DAYS,
+  normalizeMinutesAgendas,
+  type AnchorMismatch,
   type Attendee,
   type MeetingMeta,
   type MinutesAgenda,
@@ -209,22 +210,20 @@ export async function generateMinutes(
     };
   }
 
+  // JSON 스키마는 형태만 강제한다 — 안건 개수·순서·제목이 입력 앵커와 같은지는
+  // 여기서 다시 검사해야 한다(모델이 안건을 더하거나 빼거나 제목을 바꿀 수 있다).
+  // saveMinutesDraft와 같은 정규화를 태워, 제목도 meta.agenda 기준으로 되돌린다.
+  const validated = normalizeMinutesAgendas(result.agendas, meta.agenda);
+  if ("fail" in validated)
+    return { error: "AI 초안이 안건 구성과 맞지 않습니다. 다시 시도해 주세요." };
+
   await db.document.update({
     where: { id: doc.id },
-    data: { meta: { ...meta, minutes: result.agendas, rawText } },
+    data: { meta: { ...meta, minutes: validated.agendas, rawText } },
   });
   revalidatePath(`/modules/minutes/${doc.id}`);
   revalidatePath(`/modules/minutes/${doc.id}/edit`);
-  return { agendas: result.agendas, needsClarification: result.needsClarification };
-}
-
-const MINUTES_DECISIONS = new Set<string>([...DECISIONS, "없음"]);
-
-/** JSON에서 온 값을 0 이상 숫자 또는 null로 — 그 밖의 값(음수·문자열 등)은 "invalid" */
-function readVotes(v: unknown): number | null | "invalid" {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : "invalid";
+  return { agendas: validated.agendas, needsClarification: result.needsClarification };
 }
 
 export type SaveMinutesState = { error?: string } | undefined;
@@ -256,48 +255,22 @@ export async function saveMinutesDraft(
   } catch {
     return { error: "안건 정보를 읽을 수 없습니다." };
   }
-  if (!Array.isArray(raw) || raw.length !== meta.agenda.length)
-    return { error: "안건 개수가 맞지 않습니다." };
 
-  const titleByOrder = new Map(meta.agenda.map((a) => [a.order, a.title]));
-  const agendas: MinutesAgenda[] = [];
-  for (const entry of raw) {
-    const e = entry as Record<string, unknown> | null;
-    const order = Number(e?.order);
-    const title = titleByOrder.get(order);
-    if (!e || !Number.isFinite(order) || title === undefined)
-      return { error: "안건 정보를 읽을 수 없습니다." };
-
-    const decision = String(e.decision ?? "");
-    if (!MINUTES_DECISIONS.has(decision))
-      return { error: "의결 결과 값이 올바르지 않습니다." };
-
-    const discussion = Array.isArray(e.discussion)
-      ? e.discussion.map((l) => String(l).trim()).filter(Boolean)
-      : [];
-
-    const votesFor = readVotes(e.votesFor);
-    const votesAgainst = readVotes(e.votesAgainst);
-    if (votesFor === "invalid" || votesAgainst === "invalid")
-      return { error: "찬반 수는 0 이상의 숫자여야 합니다." };
-
-    agendas.push({
-      order,
-      title,
-      discussion,
-      decision: decision as MinutesAgenda["decision"],
-      votesFor,
-      votesAgainst,
-    });
+  const result = normalizeMinutesAgendas(raw, meta.agenda);
+  if ("fail" in result) {
+    const messages: Record<AnchorMismatch, string> = {
+      count: "안건 개수가 맞지 않습니다.",
+      entry: "안건 정보를 읽을 수 없습니다.",
+      decision: "의결 결과 값이 올바르지 않습니다.",
+      votes: "찬반 수는 0 이상의 숫자여야 합니다.",
+      duplicate: "안건 정보가 올바르지 않습니다.",
+    };
+    return { error: messages[result.fail] };
   }
-  // 순서 중복·누락 방어 — 길이만 맞고 같은 order가 두 번 오면 다른 안건이 빈다
-  if (new Set(agendas.map((a) => a.order)).size !== meta.agenda.length)
-    return { error: "안건 정보가 올바르지 않습니다." };
-  agendas.sort((a, b) => a.order - b.order);
 
   await db.document.update({
     where: { id: doc.id },
-    data: { meta: { ...meta, minutes: agendas } },
+    data: { meta: { ...meta, minutes: result.agendas } },
   });
   revalidatePath(`/modules/minutes/${doc.id}`);
   redirect(`/modules/minutes/${docId}`);
