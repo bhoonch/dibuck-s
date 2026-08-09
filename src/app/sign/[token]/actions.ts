@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { normalizeName } from "@/lib/gian/approval";
 import { signTokenState, minutesHash, type MeetingMeta } from "@/lib/minutes";
 
 export type SignMinutesState = { error?: string; done?: boolean } | undefined;
@@ -26,6 +27,8 @@ export async function signMinutes(
   if (signTokenState(step, step?.document.status) !== "valid")
     return { error: "서명할 수 없는 링크입니다." };
   if (typedName.length < 2) return { error: "성명을 2자 이상 입력해 주세요." };
+  if (normalizeName(typedName) !== normalizeName(step!.name))
+    return { error: "서명자 성명이 참석자 명단과 다릅니다. 본인 성명을 입력해 주세요." };
 
   const doc = step!.document;
   const meta = doc.meta as MeetingMeta;

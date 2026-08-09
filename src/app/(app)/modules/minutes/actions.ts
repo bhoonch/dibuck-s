@@ -233,10 +233,15 @@ export async function generateMinutes(
   if ("fail" in validated)
     return { error: "AI 초안이 안건 구성과 맞지 않습니다. 다시 시도해 주세요." };
 
-  await db.document.update({
-    where: { id: doc.id },
+  // LLM 호출(수십 초) 동안 다른 탭이 완성·서명까지 끝낼 수 있다 — 그 사이 status가
+  // draft를 벗어났으면 이 쓰기는 버린다. 무조건 update면 지연된 쓰기가 서명된
+  // final 문서의 meta.minutes를 덮어써 서명 docHash와 문서가 어긋난다(증거력 붕괴).
+  const updated = await db.document.updateMany({
+    where: { id: doc.id, status: "draft" },
     data: { meta: { ...meta, minutes: validated.agendas, rawText } },
   });
+  if (updated.count === 0)
+    return { error: "완성된 회의록은 수정할 수 없습니다." };
   revalidatePath(`/modules/minutes/${doc.id}`);
   revalidatePath(`/modules/minutes/${doc.id}/edit`);
   return { agendas: validated.agendas, needsClarification: result.needsClarification };
@@ -284,10 +289,14 @@ export async function saveMinutesDraft(
     return { error: messages[result.fail] };
   }
 
-  await db.document.update({
-    where: { id: doc.id },
+  // 검사(위 status draft 확인)와 쓰기 사이 다른 탭이 완성·서명을 끝낼 수 있다 —
+  // 조건부 updateMany로 그 경합을 다시 막는다(generateMinutes와 동형).
+  const updated = await db.document.updateMany({
+    where: { id: doc.id, status: "draft" },
     data: { meta: { ...meta, minutes: result.agendas } },
   });
+  if (updated.count === 0)
+    return { error: "완성된 회의록은 수정할 수 없습니다." };
   revalidatePath(`/modules/minutes/${doc.id}`);
   redirect(`/modules/minutes/${docId}`);
 }
@@ -322,6 +331,8 @@ export async function finalizeMinutes(
     return { error: "이미 완성됐거나 폐기된 회의록입니다." };
 
   const meta = doc.meta as MeetingMeta;
+  if (!meta.minutes?.length)
+    return { error: "회의록을 작성한 뒤 완성할 수 있습니다." };
   const orderSet = new Set((meta.minutes ?? []).map((a) => a.order));
   const decisionSet = new Set<string>(DECISIONS);
   const followupSet = new Set<string>(FOLLOWUPS);

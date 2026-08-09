@@ -49,6 +49,9 @@ export const newToken = () => crypto.randomBytes(32).toString("hex");
 export const tokenExpiry = () =>
   new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
+/** 공백·중점을 지운 이름 비교 — "이 대표"와 "이대표"를 같게 본다. approve·sign 서명 공용 */
+export const normalizeName = (s: string) => s.replace(/[\s·]/g, "");
+
 /**
  * 결재 차례 안내 — 내부는 인앱 알림, 외부는 메일(SMTP가 켜져 있고 이메일이 있을 때).
  * DB 상태 전이는 호출 전에 트랜잭션으로 끝나 있다 — 여기가 실패해도 문서는 멈추지 않고,

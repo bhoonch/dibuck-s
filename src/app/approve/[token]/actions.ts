@@ -2,14 +2,11 @@
 
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
-import { actOnStep, tokenState } from "@/lib/gian/approval";
+import { actOnStep, normalizeName, tokenState } from "@/lib/gian/approval";
 
 export type SignState =
   | { error?: string; done?: "approve" | "reject" }
   | undefined;
-
-/** 공백·중점을 지운 이름 비교 — "이 대표"와 "이대표"를 같게 본다 */
-const normalizeName = (s: string) => s.replace(/[\s·]/g, "");
 
 /**
  * 외부 결재자(회장·감사) 서명 — 로그인 없이 토큰이 곧 권한이다.

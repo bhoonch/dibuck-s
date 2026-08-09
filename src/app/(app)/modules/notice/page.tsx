@@ -15,8 +15,8 @@ export default async function NoticeHomePage() {
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, "notice"))) redirect("/subscriptions");
 
-  // 한 단지의 공지 대장은 하나 — 결재 파생 공고문(moduleId: approvals)도 같은 채번을
-  // 쓰므로 함께 싣는다. 그쪽 문서는 열람만 하고 수정·폐기는 원 품의 화면이 담당한다.
+  // 한 단지의 공지 대장은 하나 — 파생 공고문(moduleId: approvals 또는 minutes)도 같은
+  // 채번을 쓰므로 함께 싣는다. 그쪽 문서는 열람만 하고 수정·폐기는 원본 화면이 담당한다.
   const docs = await db.document.findMany({
     where: { tenantId, type: "notice" },
     orderBy: { createdAt: "desc" },
@@ -38,10 +38,11 @@ export default async function NoticeHomePage() {
   const sources = sourceIds.length
     ? await db.document.findMany({
         where: { id: { in: sourceIds } },
-        select: { id: true, docNo: true },
+        select: { id: true, docNo: true, moduleId: true },
       })
     : [];
   const srcNo = new Map(sources.map((s) => [s.id, s.docNo]));
+  const srcModuleId = new Map(sources.map((s) => [s.id, s.moduleId]));
 
   return (
     <div className="space-y-6">
@@ -69,10 +70,12 @@ export default async function NoticeHomePage() {
             status: d.status,
             author: d.createdBy?.name ?? "",
             date: ymdKst(d.createdAt),
-            href: derived ? `/modules/approvals/${d.id}` : `/modules/notice/${d.id}`,
+            // 파생 문서(approvals·minutes)는 원본과 같은 moduleId를 쓴다 —
+            // approvals 하드코딩은 minutes 파생 공고문을 404로 보냈다.
+            href: derived ? `/modules/${d.moduleId}/${d.id}` : `/modules/notice/${d.id}`,
             source: d.sourceDocId
               ? {
-                  href: `/modules/approvals/${d.sourceDocId}`,
+                  href: `/modules/${srcModuleId.get(d.sourceDocId) ?? "approvals"}/${d.sourceDocId}`,
                   docNo: srcNo.get(d.sourceDocId) ?? "원본 품의",
                 }
               : null,

@@ -57,7 +57,7 @@ export default async function ApproverInboxPage({
       token: true,
       actedAt: true,
       document: {
-        select: { id: true, docNo: true, title: true, createdAt: true },
+        select: { id: true, docNo: true, title: true, createdAt: true, type: true },
       },
     },
     orderBy: { document: { createdAt: "desc" } },
@@ -74,7 +74,21 @@ export default async function ApproverInboxPage({
     (s) => s.status === "approved" || s.status === "rejected",
   );
 
-  const row = (s: (typeof steps)[number], action: string) => {
+  // 회의록 서명 스텝은 결재(approve)가 아니라 서명(sign) 흐름이다 — 결재 어휘·링크를
+  // 그대로 쓰면 /approve/token으로 나가 막다른 길이 된다(회장이 서명 링크를 잃어버렸을 때
+  // 여기서 다시 찾는 것이 이 화면의 목적).
+  const row = (s: (typeof steps)[number], isPending: boolean) => {
+    const isMinutes = s.document.type === "minutes";
+    const action = isMinutes ? "서명하기" : "결재하기";
+    const badgeLabel = isMinutes
+      ? s.status === "approved"
+        ? "서명 완료"
+        : "서명 대기"
+      : s.status === "approved"
+        ? "승인함"
+        : s.status === "rejected"
+          ? "반려함"
+          : (docStatusLabels[s.status] ?? s.status);
     const body = (
       <>
         <div className="min-w-0 flex-1">
@@ -88,15 +102,12 @@ export default async function ApproverInboxPage({
             docStatusStyles[s.status === "approved" ? "final" : s.status] ?? ""
           }`}
         >
-          {s.status === "approved"
-            ? "승인함"
-            : s.status === "rejected"
-              ? "반려함"
-              : (docStatusLabels[s.status] ?? s.status)}
+          {badgeLabel}
         </span>
       </>
     );
     const box = "flex items-center gap-3 rounded-lg border bg-card p-4";
+    const href = isMinutes ? `/sign/${s.token}` : `/approve/${s.token}`;
     return (
       <li key={s.id}>
         {/*
@@ -105,10 +116,10 @@ export default async function ApproverInboxPage({
           기록은 보여주되 열지는 못한다고 적는다(빈 줄로 감추면 "내 결재가 사라졌다"가 된다).
         */}
         {s.token ? (
-          <Link href={`/approve/${s.token}`} className={`${box} hover:bg-muted`}>
+          <Link href={href} className={`${box} hover:bg-muted`}>
             {body}
             <span className="shrink-0 text-sm text-primary underline underline-offset-2">
-              {action}
+              {isPending ? action : "열람"}
             </span>
           </Link>
         ) : (
@@ -139,14 +150,14 @@ export default async function ApproverInboxPage({
             지금 결재할 문서가 없습니다.
           </p>
         ) : (
-          <ul className="space-y-2">{myTurn.map((s) => row(s, "결재하기"))}</ul>
+          <ul className="space-y-2">{myTurn.map((s) => row(s, true))}</ul>
         )}
       </section>
 
       {past.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-bold">지난 결재 {past.length}건</h2>
-          <ul className="space-y-2">{past.map((s) => row(s, "열람"))}</ul>
+          <ul className="space-y-2">{past.map((s) => row(s, false))}</ul>
         </section>
       )}
 
