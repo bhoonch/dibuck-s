@@ -165,9 +165,8 @@ export default async function NoticeDocPage({
         {/* "지금 채워야 할 것"은 격자 위 전체 폭 — 오른쪽은 상태·설정 자리라 섞지 않는다 */}
         {!voided && meta.draft.needsClarification.length > 0 && (
           <AttentionCard className="mb-4" title="게시 전 확인이 필요합니다">
-            {meta.draft.needsClarification.join(" · ")}
-            <br />
-            [내용 수정]에서 고칠 수 있습니다.
+            {meta.draft.needsClarification.join(" · ")}. [내용 수정]에서 고칠 수
+            있습니다.
           </AttentionCard>
         )}
 

@@ -5,6 +5,7 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/notice-ai";
+import { ymdKst } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { NoticeForm } from "./notice-form";
 
@@ -13,10 +14,24 @@ export default async function NewNoticePage() {
   if (!(await isSubscribed(session.tenantId!, "notice")))
     redirect("/subscriptions");
 
-  const tenant = await db.tenant.findUniqueOrThrow({
-    where: { id: session.tenantId! },
-    select: { phone: true },
-  });
+  const [tenant, recent] = await Promise.all([
+    db.tenant.findUniqueOrThrow({
+      where: { id: session.tenantId! },
+      select: { phone: true },
+    }),
+    // 복제 후보 — 반복 공지(단수·소독 등)는 재생성보다 복사가 빠르다. 폐기본 제외
+    db.document.findMany({
+      where: {
+        tenantId: session.tenantId!,
+        type: "notice",
+        moduleId: "notice",
+        status: { not: "void" },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, title: true, createdAt: true },
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -36,7 +51,15 @@ export default async function NewNoticePage() {
           AI 문안 생성이 아직 활성화되지 않았습니다. 준비 후 이용할 수 있습니다.
         </div>
       )}
-      <NoticeForm defaultContact={tenant.phone ?? ""} aiReady={aiEnabled()} />
+      <NoticeForm
+        defaultContact={tenant.phone ?? ""}
+        aiReady={aiEnabled()}
+        recentPosts={recent.map((d) => ({
+          id: d.id,
+          title: d.title,
+          date: ymdKst(d.createdAt),
+        }))}
+      />
     </div>
   );
 }

@@ -145,9 +145,8 @@ export default async function TrainingDocPage({
 
         {!voided && meta.draft.needsClarification.length > 0 && (
           <AttentionCard className="mb-4" title="완성 전 확인이 필요합니다">
-            {meta.draft.needsClarification.join(" · ")}
-            <br />
-            [내용 수정]에서 고칠 수 있습니다.
+            {meta.draft.needsClarification.join(" · ")}. [내용 수정]에서 고칠 수
+            있습니다.
           </AttentionCard>
         )}
 
