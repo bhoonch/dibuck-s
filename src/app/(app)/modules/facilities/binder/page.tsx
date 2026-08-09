@@ -55,11 +55,16 @@ export default async function BinderPage({
       where: { tenantId, type: "safety_training", status: "final" },
       select: { id: true, meta: true, createdAt: true },
     }),
-    db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { name: true } }),
+    db.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { name: true },
+    }),
   ]);
 
   // 항목별 × 월별 셀 — 기록(meta.doneAt)이 원본, 항목 매칭은 meta.itemId
-  const grid = new Map<string, Cell[]>(items.map((it) => [it.id, Array.from({ length: 12 }, () => ({}) as Cell)]));
+  const grid = new Map<string, Cell[]>(
+    items.map((it) => [it.id, Array.from({ length: 12 }, () => ({}) as Cell)]),
+  );
   for (const r of records) {
     const m = (r.meta ?? {}) as { itemId?: string; doneAt?: string };
     const doneAt = m.doneAt ?? ymdKst(r.createdAt);
@@ -73,7 +78,8 @@ export default async function BinderPage({
   // 미이행 도래분 — 현재 도래일이 지났고 그 달이 선택 연도에 있으면 빨강
   for (const it of items) {
     const due = nextDue(it);
-    if (!due || daysUntil(due, now) >= 0 || !due.startsWith(`${year}-`)) continue;
+    if (!due || daysUntil(due, now) >= 0 || !due.startsWith(`${year}-`))
+      continue;
     const cell = grid.get(it.id)![Number(due.slice(5, 7)) - 1];
     if (!cell.doc) cell.missed = true;
   }
@@ -88,7 +94,10 @@ export default async function BinderPage({
     const cells =
       trainingRows.get(label) ??
       trainingRows
-        .set(label, Array.from({ length: 12 }, () => ({}) as Cell))
+        .set(
+          label,
+          Array.from({ length: 12 }, () => ({}) as Cell),
+        )
         .get(label)!;
     cells[Number(date.slice(5, 7)) - 1].doc ??= {
       id: d.id,
@@ -136,7 +145,10 @@ export default async function BinderPage({
           )}
         </div>
 
-        <div id="binder-sheet" className="overflow-x-auto rounded-lg border bg-card p-4 print:overflow-visible print:rounded-none print:border-0 print:p-0">
+        <div
+          id="binder-sheet"
+          className="overflow-x-auto rounded-lg border bg-card p-4 print:overflow-visible print:rounded-none print:border-0 print:p-0"
+        >
           <h2 className="mb-3 text-center text-base font-bold">
             {tenant.name} 법정점검·교육 이행 대장 ({year}년)
           </h2>
@@ -165,7 +177,10 @@ export default async function BinderPage({
                     </Link>
                   </td>
                   <td className={td}>
-                    {cycleLabel({ type: it.cycleType, n: it.cycleN ?? undefined } as Cycle)}
+                    {cycleLabel({
+                      type: it.cycleType,
+                      n: it.cycleN ?? undefined,
+                    } as Cycle)}
                   </td>
                   {grid.get(it.id)!.map((cell, i) => (
                     <td
@@ -173,7 +188,10 @@ export default async function BinderPage({
                       className={`${td} ${cell.missed ? "bg-red-50 font-bold text-red-600 print:bg-transparent" : ""}`}
                     >
                       {cell.doc ? (
-                        <Link href={cell.doc.href} className="block font-bold text-emerald-700 hover:underline">
+                        <Link
+                          href={cell.doc.href}
+                          className="block font-bold text-emerald-700 hover:underline"
+                        >
                           ✓
                         </Link>
                       ) : cell.missed ? (
@@ -187,19 +205,27 @@ export default async function BinderPage({
               ))}
               {trainingRows.size > 0 && (
                 <tr>
-                  <td colSpan={14} className={`${td} bg-gray-50 text-left text-xs font-semibold text-muted-foreground print:bg-transparent`}>
+                  <td
+                    colSpan={14}
+                    className={`${td} bg-gray-50 text-left text-xs font-semibold text-muted-foreground print:bg-transparent`}
+                  >
                     안전보건교육 (교육일지 모듈)
                   </td>
                 </tr>
               )}
               {[...trainingRows].map(([label, cells]) => (
                 <tr key={label}>
-                  <td className={`${td} text-left font-medium`}>{label} 일지</td>
+                  <td className={`${td} text-left font-medium`}>
+                    {label} 일지
+                  </td>
                   <td className={td}>—</td>
                   {cells.map((cell, i) => (
                     <td key={i} className={td}>
                       {cell.doc ? (
-                        <Link href={cell.doc.href} className="block font-bold text-emerald-700 hover:underline">
+                        <Link
+                          href={cell.doc.href}
+                          className="block font-bold text-emerald-700 hover:underline"
+                        >
                           ✓
                         </Link>
                       ) : (
@@ -211,8 +237,12 @@ export default async function BinderPage({
               ))}
               {items.length === 0 && trainingRows.size === 0 && (
                 <tr>
-                  <td colSpan={14} className={`${td} py-8 text-muted-foreground`}>
-                    표시할 항목이 없습니다 — [설정 마법사]로 점검 항목을 켜 주세요.
+                  <td
+                    colSpan={14}
+                    className={`${td} py-8 text-muted-foreground`}
+                  >
+                    표시할 항목이 없습니다 — [설정 마법사]로 점검 항목을 켜
+                    주세요.
                   </td>
                 </tr>
               )}
@@ -227,6 +257,10 @@ export default async function BinderPage({
             </span>{" "}
             과거에 기록 없이 지나간 회차는 표시되지 않습니다 — 기록이 쌓일수록
             서류철이 정확해집니다.
+          </p>
+          {/* 인쇄물 하단 명의 — 제출용 서류라 종이만 봐도 어느 단지 것인지 보이게 */}
+          <p className="mt-6 hidden text-center text-sm font-bold print:block">
+            {tenant.name} 관리사무소
           </p>
         </div>
       </div>

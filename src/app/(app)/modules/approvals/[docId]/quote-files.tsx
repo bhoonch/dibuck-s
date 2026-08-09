@@ -177,8 +177,9 @@ export function QuoteFiles({
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       {editable && suggested.length > 0 && (
         <p className="mt-2 text-xs text-[var(--gian-ink-soft)]">
-          이런 서류를 보통 붙입니다: {suggested.join(" ")} — 올린 파일이
-          인쇄물의 붙임 목록이 됩니다.
+          이런 서류를 보통 붙입니다: {suggested.join(" ")}
+          <br />
+          올린 파일이 인쇄물의 붙임 목록이 됩니다.
         </p>
       )}
     </div>

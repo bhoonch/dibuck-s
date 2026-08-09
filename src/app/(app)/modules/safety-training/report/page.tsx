@@ -46,13 +46,20 @@ export default async function TrainingReportPage({
 }) {
   const session = await requireTenantSession();
   const tenantId = session.tenantId!;
-  if (!(await isSubscribed(tenantId, "safety-training"))) redirect("/subscriptions");
+  if (!(await isSubscribed(tenantId, "safety-training")))
+    redirect("/subscriptions");
 
   const [docs, roster, tenant] = await Promise.all([
     db.document.findMany({
       where: { tenantId, type: "safety_training", status: "final" },
       orderBy: { createdAt: "asc" },
-      select: { id: true, docNo: true, title: true, meta: true, createdAt: true },
+      select: {
+        id: true,
+        docNo: true,
+        title: true,
+        meta: true,
+        createdAt: true,
+      },
     }),
     // 비활성(퇴사자)도 읽는다 — 지난 연도 보고서엔 그해 근무했던 퇴사자가 나와야 한다
     db.trainingStaff.findMany({
@@ -69,7 +76,10 @@ export default async function TrainingReportPage({
         extTrainings: true,
       },
     }),
-    db.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { name: true } }),
+    db.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { name: true },
+    }),
   ]);
 
   const sessions = docs.map((d) => {
@@ -89,7 +99,12 @@ export default async function TrainingReportPage({
   const todayYmd = ymdKst(now);
   const sp = await searchParams;
   const year = /^\d{4}$/.test(sp.year ?? "") ? sp.year! : todayYmd.slice(0, 4);
-  const years = [...new Set([todayYmd.slice(0, 4), ...sessions.map((s) => s.date.slice(0, 4))])]
+  const years = [
+    ...new Set([
+      todayYmd.slice(0, 4),
+      ...sessions.map((s) => s.date.slice(0, 4)),
+    ]),
+  ]
     .sort()
     .reverse();
 
@@ -98,8 +113,12 @@ export default async function TrainingReportPage({
   const h2: Half = { year: +year, half: 2 };
   // 아직 시작 안 한 반기는 판정하지 않는다 — 0시간을 미이수로 찍으면 거짓 기록이다
   const started = (h: Half) => halfRange(h).start <= todayYmd;
-  const p1 = new Map(personProgress(now, yearSessions, roster, h1).map((p) => [p.id, p]));
-  const p2 = new Map(personProgress(now, yearSessions, roster, h2).map((p) => [p.id, p]));
+  const p1 = new Map(
+    personProgress(now, yearSessions, roster, h1).map((p) => [p.id, p]),
+  );
+  const p2 = new Map(
+    personProgress(now, yearSessions, roster, h2).map((p) => [p.id, p]),
+  );
   // 채용 시 교육은 개인별 1회성 — 보고서에는 그해 입사자만 싣는다
   const newHire = new Map(
     newHireProgress(now, sessions, roster)
@@ -107,9 +126,13 @@ export default async function TrainingReportPage({
       .map((p) => [p.id, p]),
   );
   // 관리감독자(소장)는 반기 6/12h가 아니라 연 16시간 — 앱 일지 + 외부 이수 합산
-  const sv = new Map(supervisorProgress(+year, yearSessions, roster).map((p) => [p.id, p]));
+  const sv = new Map(
+    supervisorProgress(+year, yearSessions, roster).map((p) => [p.id, p]),
+  );
   const extOf = (s: (typeof roster)[number]) =>
-    parseExtTrainings(s.extTrainings).filter((t) => t.date.startsWith(`${year}-`));
+    parseExtTrainings(s.extTrainings).filter((t) =>
+      t.date.startsWith(`${year}-`),
+    );
   const attendedOf = (s: (typeof roster)[number]) =>
     yearSessions.filter((l) => l.attendees.some((a) => isSamePerson(a, s)));
 
@@ -120,20 +143,35 @@ export default async function TrainingReportPage({
 
   // 직군 판정은 현재 활성 명부 기준 — 지난 연도의 당시 명부는 알 수 없다(하단 각주 명기)
   // 관리감독자는 반기 집계 대상이 아니라 직군 판정에서도 뺀다
-  const judge = (byId: Map<string, PersonProgress>, office: boolean, h: Half) => {
+  const judge = (
+    byId: Map<string, PersonProgress>,
+    office: boolean,
+    h: Half,
+  ) => {
     if (!started(h)) return "—";
     const g = rows.filter(
       (r) => r.staff.active && !r.staff.supervisor && r.staff.office === office,
     );
     if (g.length === 0) return "해당 없음";
-    return g.every((r) => byId.get(r.staff.id)?.done) ? "전원 이수" : "미이수 있음";
+    return g.every((r) => byId.get(r.staff.id)?.done)
+      ? "전원 이수"
+      : "미이수 있음";
   };
-  const supervisorLogs = yearSessions.filter((l) => l.courseType === "supervisor");
-  const supervisorHours = supervisorLogs.reduce((sum, l) => sum + (parseHours(l.hours) ?? 0), 0);
+  const supervisorLogs = yearSessions.filter(
+    (l) => l.courseType === "supervisor",
+  );
+  const supervisorHours = supervisorLogs.reduce(
+    (sum, l) => sum + (parseHours(l.hours) ?? 0),
+    0,
+  );
   const svList = [...sv.values()];
   const nhList = [...newHire.values()];
 
-  const personCell = (p: PersonProgress | undefined, active: boolean, h: Half) => {
+  const personCell = (
+    p: PersonProgress | undefined,
+    active: boolean,
+    h: Half,
+  ) => {
     if (!p || !started(h)) return { text: "—", badge: "" };
     return {
       text: `${formatHours(p.hours) || "0시간"} / ${p.required}시간`,
@@ -141,7 +179,8 @@ export default async function TrainingReportPage({
     };
   };
 
-  const th = "border border-gray-400 bg-gray-50 px-2 py-1.5 text-xs font-semibold";
+  const th =
+    "border border-gray-400 bg-gray-50 px-2 py-1.5 text-xs font-semibold";
   const td = "border border-gray-400 px-2 py-1.5 text-xs";
 
   return (
@@ -166,7 +205,9 @@ export default async function TrainingReportPage({
                   size="sm"
                   variant={y === year ? "default" : "outline"}
                 >
-                  <Link href={`/modules/safety-training/report?year=${y}`}>{y}년</Link>
+                  <Link href={`/modules/safety-training/report?year=${y}`}>
+                    {y}년
+                  </Link>
                 </Button>
               ))}
             </nav>
@@ -175,8 +216,9 @@ export default async function TrainingReportPage({
             </span>
           </div>
           <p className="mb-4 text-sm text-muted-foreground">
-            감사·점검 때 그대로 인쇄해 제출하는 확인 문서입니다. 완성된 교육일지에서 열
-            때마다 집계하며, 각 행의 문서번호가 서명된 원본 일지의 증빙 연결입니다.
+            감사·점검 때 그대로 인쇄해 제출하는 확인 문서입니다. 완성된
+            교육일지에서 열 때마다 집계하며, 각 행의 문서번호가 서명된 원본
+            일지의 증빙 연결입니다.
           </p>
         </div>
 
@@ -211,8 +253,12 @@ export default async function TrainingReportPage({
                 <tr>
                   <td className={td}>정기교육 · 그 외 근로자</td>
                   <td className={td}>{LEGAL_HOURS.regularField}</td>
-                  <td className={`${td} text-center`}>{judge(p1, false, h1)}</td>
-                  <td className={`${td} text-center`}>{judge(p2, false, h2)}</td>
+                  <td className={`${td} text-center`}>
+                    {judge(p1, false, h1)}
+                  </td>
+                  <td className={`${td} text-center`}>
+                    {judge(p2, false, h2)}
+                  </td>
                 </tr>
                 <tr>
                   <td className={td}>관리감독자 교육</td>
@@ -239,8 +285,9 @@ export default async function TrainingReportPage({
               </tbody>
             </table>
             <p className="mt-1 text-[11px] text-gray-500">
-              ※ 직군 판정은 현재 재직 중인 직원 명부 기준입니다. 퇴사자는 아래 집계표에
-              이수 시간으로만 표시하며, 퇴사일을 알 수 없어 미이수로 판정하지 않습니다.
+              ※ 직군 판정은 현재 재직 중인 직원 명부 기준입니다. 퇴사자는 아래
+              집계표에 이수 시간으로만 표시하며, 퇴사일을 알 수 없어 미이수로
+              판정하지 않습니다.
             </p>
           </section>
 
@@ -248,15 +295,21 @@ export default async function TrainingReportPage({
           <section>
             <h3 className="mb-2 text-sm font-bold">2. 근로자별 이수 집계</h3>
             {rows.length === 0 ? (
-              <p className="text-sm text-gray-500">직원 명부가 비어 있습니다.</p>
+              <p className="text-sm text-gray-500">
+                직원 명부가 비어 있습니다.
+              </p>
             ) : (
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
                     <th className={th}>성명</th>
                     <th className={th}>직종</th>
-                    <th className={th} colSpan={2}>정기교육 · 상반기</th>
-                    <th className={th} colSpan={2}>정기교육 · 하반기</th>
+                    <th className={th} colSpan={2}>
+                      정기교육 · 상반기
+                    </th>
+                    <th className={th} colSpan={2}>
+                      정기교육 · 하반기
+                    </th>
                     <th className={th}>채용 시</th>
                     <th className={th}>참석 회차</th>
                   </tr>
@@ -272,17 +325,24 @@ export default async function TrainingReportPage({
                         <tr key={s.id}>
                           <td className={`${td} font-medium`}>
                             {s.name}
-                            {!s.active && <span className="ml-1 text-gray-500">(퇴사)</span>}
+                            {!s.active && (
+                              <span className="ml-1 text-gray-500">(퇴사)</span>
+                            )}
                           </td>
                           <td className={`${td} text-center`}>관리감독자</td>
                           <td className={`${td} text-center`} colSpan={4}>
                             연간 {formatHours(svp.hours) || "0시간"} / 16시간
-                            {svp.extHours > 0 && ` (외부 ${formatHours(svp.extHours)} 포함)`}
+                            {svp.extHours > 0 &&
+                              ` (외부 ${formatHours(svp.extHours)} 포함)`}
                             {" — "}
                             {svp.done ? "이수" : s.active ? "미이수" : "퇴사"}
                           </td>
                           <td className={`${td} text-center`}>
-                            {nh ? (nh.done ? "이수" : `${nh.hours}/${nh.required}h`) : "—"}
+                            {nh
+                              ? nh.done
+                                ? "이수"
+                                : `${nh.hours}/${nh.required}h`
+                              : "—"}
                           </td>
                           <td className={`${td} text-center tabular-nums`}>
                             {attended.length + ext.length}회
@@ -296,17 +356,29 @@ export default async function TrainingReportPage({
                       <tr key={s.id}>
                         <td className={`${td} font-medium`}>
                           {s.name}
-                          {!s.active && <span className="ml-1 text-gray-500">(퇴사)</span>}
+                          {!s.active && (
+                            <span className="ml-1 text-gray-500">(퇴사)</span>
+                          )}
                         </td>
                         <td className={`${td} text-center`}>{s.position}</td>
-                        <td className={`${td} text-right tabular-nums`}>{c1.text}</td>
+                        <td className={`${td} text-right tabular-nums`}>
+                          {c1.text}
+                        </td>
                         <td className={`${td} text-center`}>{c1.badge}</td>
-                        <td className={`${td} text-right tabular-nums`}>{c2.text}</td>
+                        <td className={`${td} text-right tabular-nums`}>
+                          {c2.text}
+                        </td>
                         <td className={`${td} text-center`}>{c2.badge}</td>
                         <td className={`${td} text-center`}>
-                          {nh ? (nh.done ? "이수" : `${nh.hours}/${nh.required}h`) : "—"}
+                          {nh
+                            ? nh.done
+                              ? "이수"
+                              : `${nh.hours}/${nh.required}h`
+                            : "—"}
                         </td>
-                        <td className={`${td} text-center tabular-nums`}>{attended.length}회</td>
+                        <td className={`${td} text-center tabular-nums`}>
+                          {attended.length}회
+                        </td>
                       </tr>
                     );
                   })}
@@ -321,23 +393,33 @@ export default async function TrainingReportPage({
               3. 개인별 교육 이수 기록
             </h3>
             <div className="space-y-6">
-              {rows.map(({ staff: s, attended, ext }) => (
-                <div key={s.id} className="print:break-before-page">
+              {/* 첫 사람은 구역 제목과 같은 페이지 — 전원에 걸면 제목만 남은 빈 쪽이 생긴다 */}
+              {rows.map(({ staff: s, attended, ext }, i) => (
+                <div
+                  key={s.id}
+                  className={i === 0 ? undefined : "print:break-before-page"}
+                >
                   <div className="mb-1.5 flex items-baseline gap-2 border-b border-gray-400 pb-1">
                     <span className="text-sm font-bold">{s.name}</span>
                     <span className="text-xs text-gray-600">
                       {s.supervisor ? "관리감독자" : s.position}
                     </span>
                     {s.hiredAt && (
-                      <span className="text-xs text-gray-600">입사 {ymdKst(s.hiredAt)}</span>
+                      <span className="text-xs text-gray-600">
+                        입사 {ymdKst(s.hiredAt)}
+                      </span>
                     )}
-                    {!s.active && <span className="text-xs text-gray-600">퇴사</span>}
+                    {!s.active && (
+                      <span className="text-xs text-gray-600">퇴사</span>
+                    )}
                     <span className="ml-auto text-xs text-gray-600">
                       {year}년 참석 {attended.length + ext.length}회
                     </span>
                   </div>
                   {attended.length + ext.length === 0 ? (
-                    <p className="text-xs text-gray-500">{year}년 참석 기록이 없습니다.</p>
+                    <p className="text-xs text-gray-500">
+                      {year}년 참석 기록이 없습니다.
+                    </p>
                   ) : (
                     <table className="w-full border-collapse">
                       <thead>
@@ -352,7 +434,9 @@ export default async function TrainingReportPage({
                       <tbody>
                         {attended.map((l) => (
                           <tr key={l.id}>
-                            <td className={`${td} text-center tabular-nums`}>{l.date}</td>
+                            <td className={`${td} text-center tabular-nums`}>
+                              {l.date}
+                            </td>
                             <td className={`${td} text-center`}>
                               {courseTypeOf(l.courseType)?.label ?? "-"}
                             </td>
@@ -364,18 +448,30 @@ export default async function TrainingReportPage({
                                 {l.title}
                               </Link>
                             </td>
-                            <td className={`${td} text-center`}>{formatHours(l.hours)}</td>
-                            <td className={`${td} text-center`}>{l.docNo || "-"}</td>
+                            <td className={`${td} text-center`}>
+                              {formatHours(l.hours)}
+                            </td>
+                            <td className={`${td} text-center`}>
+                              {l.docNo || "-"}
+                            </td>
                           </tr>
                         ))}
                         {/* 외부 이수 — 원본 증빙이 앱 밖(수료증)이라 문서번호 대신 보관처를 적는다 */}
                         {ext.map((t, i) => (
                           <tr key={`ext-${i}`}>
-                            <td className={`${td} text-center tabular-nums`}>{t.date}</td>
-                            <td className={`${td} text-center`}>관리감독자(외부)</td>
+                            <td className={`${td} text-center tabular-nums`}>
+                              {t.date}
+                            </td>
+                            <td className={`${td} text-center`}>
+                              관리감독자(외부)
+                            </td>
                             <td className={td}>{t.org}</td>
-                            <td className={`${td} text-center`}>{formatHours(t.hours)}</td>
-                            <td className={`${td} text-center`}>수료증 별도 보관</td>
+                            <td className={`${td} text-center`}>
+                              {formatHours(t.hours)}
+                            </td>
+                            <td className={`${td} text-center`}>
+                              수료증 별도 보관
+                            </td>
                           </tr>
                         ))}
                       </tbody>

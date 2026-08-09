@@ -1,26 +1,27 @@
 "use server";
 
-import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { addDocPhoto, setDocPhotoCaption } from "@/lib/doc-photos";
 import { assignDocNo, createDocument } from "@/lib/documents";
-import { MAX_FILE_BYTES } from "@/lib/gian/attachments";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateNoticePost } from "@/lib/notice-ai";
 import {
   draftPlainText,
-  MAX_NOTICE_PHOTOS,
-  NOTICE_CAPTION_MAX,
   noticeTypeOf,
   textToItems,
   type NoticeKind,
   type NoticePostDraft,
 } from "@/lib/notice-catalog";
-import { DEFAULT_PLACES, DEFAULT_POST_TO, mergePlaces } from "@/lib/gian/notice";
+import {
+  DEFAULT_PLACES,
+  DEFAULT_POST_TO,
+  mergePlaces,
+} from "@/lib/gian/notice";
 import { ymdKst } from "@/lib/utils";
 
 const MODULE_ID = "notice";
@@ -45,12 +46,19 @@ async function ownedPost(
   session: Awaited<ReturnType<typeof requireNotice>>,
 ) {
   const doc = await db.document.findFirst({
-    where: { id: docId, tenantId: session.tenantId!, type: "notice", moduleId: MODULE_ID },
+    where: {
+      id: docId,
+      tenantId: session.tenantId!,
+      type: "notice",
+      moduleId: MODULE_ID,
+    },
   });
   if (!doc) return { error: "문서를 찾을 수 없습니다." as const };
   // 문서 수정·폐기의 공통 경계 — 작성자 본인 또는 마스터
   if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
-    return { error: "수정·폐기는 작성자 또는 마스터만 할 수 있습니다." as const };
+    return {
+      error: "수정·폐기는 작성자 또는 마스터만 할 수 있습니다." as const,
+    };
   return { doc };
 }
 
@@ -64,14 +72,19 @@ export async function generateNoticeAction(
   const session = await requireNotice();
   const tenantId = session.tenantId!;
   if (!aiEnabled())
-    return { error: "AI 초안 생성이 아직 활성화되지 않았습니다. 운영팀에 문의해 주세요." };
+    return {
+      error:
+        "AI 초안 생성이 아직 활성화되지 않았습니다. 운영팀에 문의해 주세요.",
+    };
 
   const typeKey = String(formData.get("typeKey") ?? "");
   const type = noticeTypeOf(typeKey);
   if (!type) return { error: "게시물 유형을 선택해 주세요." };
   // 격은 카탈로그가 정한다 — 자유 입력만 폼의 토글을 따른다
   const kind: NoticeKind =
-    type.key === "free" && formData.get("kind") === "official" ? "official" : type.kind;
+    type.key === "free" && formData.get("kind") === "official"
+      ? "official"
+      : type.kind;
   const when = String(formData.get("when") ?? "").trim();
   const where = String(formData.get("where") ?? "").trim();
   const detail = String(formData.get("detail") ?? "").trim();
@@ -80,7 +93,9 @@ export async function generateNoticeAction(
     return { error: "일시·대상·내용 중 한 가지는 입력해 주세요." };
 
   if (rateLimit(`notice:${tenantId}`, DAILY_LIMIT, 24 * 60 * 60 * 1000) <= 0)
-    return { error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.` };
+    return {
+      error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.`,
+    };
 
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: tenantId },
@@ -100,9 +115,10 @@ export async function generateNoticeAction(
     });
   } catch (e) {
     return {
-      error: e instanceof Error && e.message.includes("실패")
-        ? e.message
-        : "초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      error:
+        e instanceof Error && e.message.includes("실패")
+          ? e.message
+          : "초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     };
   }
 
@@ -145,7 +161,9 @@ export async function saveNoticePostBody(formData: FormData) {
 
   const meta = (found.doc.meta ?? {}) as { draft?: NoticePostDraft };
   const title =
-    String(formData.get("title") ?? "").trim() || meta.draft?.title || found.doc.title;
+    String(formData.get("title") ?? "").trim() ||
+    meta.draft?.title ||
+    found.doc.title;
   const draft: NoticePostDraft = {
     title,
     intro: String(formData.get("intro") ?? "").trim(),
@@ -265,34 +283,63 @@ export async function uploadNoticePhoto(
   if (found.doc.status === "void")
     return { error: "폐기된 게시물은 수정할 수 없습니다." };
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0)
-    return { error: "사진을 선택해 주세요." };
-  // A4에 <img>로 찍혀야 한다 — PDF는 종이에 못 싣는다
-  if (!file.type.startsWith("image/"))
-    return { error: "사진(이미지 파일)만 실을 수 있습니다." };
-  if (file.size > MAX_FILE_BYTES)
-    return { error: "3MB 이하만 올릴 수 있습니다. 폰으로 찍은 사진은 자동으로 줄어듭니다." };
-
-  const count = await db.documentAttachment.count({
-    where: { documentId: found.doc.id },
-  });
-  if (count >= MAX_NOTICE_PHOTOS)
-    return { error: `사진은 ${MAX_NOTICE_PHOTOS}장까지 실을 수 있습니다.` };
-
-  const buf = Buffer.from(await file.arrayBuffer());
-  await db.documentAttachment.create({
-    data: {
-      documentId: found.doc.id,
-      name: file.name,
-      mime: file.type,
-      size: buf.byteLength,
-      sha256: crypto.createHash("sha256").update(buf).digest("hex"),
-      data: buf,
-    },
-  });
+  const r = await addDocPhoto(found.doc.id, formData.get("file"));
+  if (r) return r;
   revalidatePath(`/modules/notice/${found.doc.id}`);
   return undefined;
+}
+
+/**
+ * 복제 — 단수·소독처럼 철마다 반복되는 공지는 지난 문서를 복사해 날짜만
+ * 고친다. AI 재생성(대기 10~30초, 일일 한도)을 태우지 않는 경로.
+ * 작성은 전 직원이 하므로 남의 문서도 복제할 수 있다(새 문서는 내 소유).
+ * 사진은 현장 기록이라 복사하지 않는다 — 캡션 맵도 따라가지 않는다.
+ */
+export async function copyNoticePost(docId: string) {
+  const session = await requireNotice();
+  const src = await db.document.findFirst({
+    where: {
+      id: docId,
+      tenantId: session.tenantId!,
+      type: "notice",
+      moduleId: MODULE_ID,
+    },
+  });
+  if (!src) return; // 화면 밖 직접 호출 — 조용히 무시 (saveNoticePostBody와 동일)
+  const meta = (src.meta ?? {}) as {
+    form?: object;
+    draft?: NoticePostDraft;
+    kind?: NoticeKind;
+    place?: string;
+    postTo?: string;
+  };
+  const doc = await createDocument({
+    tenantId: session.tenantId!,
+    moduleId: MODULE_ID,
+    type: "notice",
+    title: src.title,
+    content: src.content,
+    status: "draft",
+    numberOnSubmit: true,
+    createdById: session.userId,
+    meta: {
+      ...(meta.form ? { form: meta.form } : {}),
+      draft: meta.draft ?? {
+        title: src.title,
+        intro: "",
+        items: [],
+        bodyLines: src.content.split("\n").filter(Boolean),
+        closing: "",
+        needsClarification: [],
+      },
+      kind: meta.kind ?? "guide",
+      postedDate: ymdKst(new Date()),
+      place: meta.place ?? DEFAULT_PLACES.join(", "),
+      postTo: meta.postTo ?? DEFAULT_POST_TO,
+    },
+  });
+  revalidatePath("/modules/notice");
+  redirect(`/modules/notice/${doc.id}`);
 }
 
 /** 사진 삭제 — 업로드와 같은 경계. meta.captions의 죽은 키는 무해해서 지우지 않는다 */
@@ -328,15 +375,7 @@ export async function saveNoticePhotoCaption(
   if (found.doc.status === "void")
     return { error: "폐기된 게시물은 수정할 수 없습니다." };
 
-  const meta = (found.doc.meta ?? {}) as { captions?: Record<string, string> };
-  const captions = {
-    ...meta.captions,
-    [attachmentId]: caption.trim().slice(0, NOTICE_CAPTION_MAX),
-  };
-  await db.document.update({
-    where: { id: found.doc.id },
-    data: { meta: { ...(found.doc.meta as object), captions } },
-  });
+  await setDocPhotoCaption(found.doc, attachmentId, caption);
   revalidatePath(`/modules/notice/${found.doc.id}`);
   return undefined;
 }

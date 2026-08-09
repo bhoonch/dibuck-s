@@ -66,8 +66,9 @@ export function InspectionFiles({
       </div>
       {files.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          성적서·검사필증 사진이나 PDF를 올려 주세요 — 일지의 첨부 목록에
-          실립니다.
+          성적서·검사필증 사진이나 PDF를 올려 주세요.
+          <br />
+          일지의 첨부 목록에 실립니다.
         </p>
       ) : (
         <ul className="mt-2 space-y-1">

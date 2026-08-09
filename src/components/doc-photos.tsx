@@ -5,29 +5,39 @@ import { Camera, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { MAX_NOTICE_PHOTOS, NOTICE_CAPTION_MAX } from "@/lib/notice-catalog";
+import { MAX_DOC_PHOTOS, PHOTO_CAPTION_MAX } from "@/lib/photo-sheet";
 import { tryShrinkImage } from "@/lib/shrink-image";
-import {
-  deleteNoticePhoto,
-  saveNoticePhotoCaption,
-  uploadNoticePhoto,
-} from "../actions";
 
 export type PhotoRow = { id: string; caption: string };
+type ActionResult = { error?: string } | undefined;
 
 /**
  * 사진 패널 — 올리면 용지의 사진대지 칸에 바로 실린다. 캡션은 칸 하단 문구.
- * 생성 폼이 아니라 여기(문서 화면)에 두는 이유: 초안을 본 뒤에야 어떤 사진을
+ * 공지문·교육일지가 각자의 서버 액션(소유권 경계 포함)을 넘겨서 같이 쓴다.
+ * 생성 폼이 아니라 문서 화면에 두는 이유: 초안을 본 뒤에야 어떤 사진을
  * 어디에 실을지 판단이 서고, AI 실패 경로에 업로드가 얽히지 않는다.
  */
-export function NoticePhotos({
+export function DocPhotos({
   docId,
   photos,
   editable,
+  emptyText,
+  captionPlaceholder,
+  uploadAction,
+  deleteAction,
+  captionAction,
 }: {
   docId: string;
   photos: PhotoRow[];
   editable: boolean;
+  emptyText: React.ReactNode;
+  captionPlaceholder: string;
+  uploadAction: (prev: ActionResult, fd: FormData) => Promise<ActionResult>;
+  deleteAction: (attachmentId: string) => Promise<ActionResult>;
+  captionAction: (
+    attachmentId: string,
+    caption: string,
+  ) => Promise<ActionResult>;
 }) {
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
@@ -36,7 +46,7 @@ export function NoticePhotos({
   const upload = (file: File) => {
     setError(undefined);
     startTransition(async () => {
-      // 견적서와 달리 원본 통과가 없다 — A4에 못 찍는 형식(HEIC 등)은 빈 박스로 인쇄된다
+      // 다운로드형 첨부와 달리 원본 통과가 없다 — A4에 못 찍는 형식(HEIC 등)은 빈 박스로 인쇄된다
       const shrunk = await tryShrinkImage(file, 1200);
       if (!shrunk) {
         setError(
@@ -47,7 +57,7 @@ export function NoticePhotos({
       const fd = new FormData();
       fd.set("docId", docId);
       fd.set("file", shrunk);
-      const r = await uploadNoticePhoto(undefined, fd);
+      const r = await uploadAction(undefined, fd);
       if (r?.error) setError(r.error);
     });
   };
@@ -74,7 +84,7 @@ export function NoticePhotos({
             <Button
               variant="outline"
               size="xs"
-              disabled={pending || photos.length >= MAX_NOTICE_PHOTOS}
+              disabled={pending || photos.length >= MAX_DOC_PHOTOS}
               onClick={() => inputRef.current?.click()}
             >
               {pending ? (
@@ -82,17 +92,14 @@ export function NoticePhotos({
               ) : (
                 <Camera className="size-3" />
               )}
-              올리기 {photos.length}/{MAX_NOTICE_PHOTOS}
+              올리기 {photos.length}/{MAX_DOC_PHOTOS}
             </Button>
           </>
         )}
       </div>
       {photos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          현장 사진을 올리면 용지 하단에 실립니다.
-          <br />
-          설명 문구도 붙일 수 있습니다.
-        </p>
+        // 다른 패널의 빈 상태·힌트 문구와 같은 xs — 카드 제목 sm + 본문 xs 문법
+        <p className="text-xs text-muted-foreground">{emptyText}</p>
       ) : (
         <ul className="space-y-2.5">
           {photos.map((p) => (
@@ -107,15 +114,15 @@ export function NoticePhotos({
                 {editable ? (
                   <Input
                     defaultValue={p.caption}
-                    maxLength={NOTICE_CAPTION_MAX}
-                    placeholder="사진 설명 (예: 놀이터 그네 보수 전)"
+                    maxLength={PHOTO_CAPTION_MAX}
+                    placeholder={captionPlaceholder}
                     className="h-8 text-xs"
                     onBlur={(e) => {
                       const v = e.target.value.trim();
                       if (v === p.caption) return;
                       setError(undefined);
                       startTransition(async () => {
-                        const r = await saveNoticePhotoCaption(p.id, v);
+                        const r = await captionAction(p.id, v);
                         if (r?.error) setError(r.error);
                       });
                     }}
@@ -134,7 +141,7 @@ export function NoticePhotos({
                   onClick={() => {
                     setError(undefined);
                     startTransition(async () => {
-                      const r = await deleteNoticePhoto(p.id);
+                      const r = await deleteAction(p.id);
                       if (r?.error) setError(r.error);
                     });
                   }}

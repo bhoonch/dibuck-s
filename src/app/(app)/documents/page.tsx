@@ -7,7 +7,13 @@ import { ymdKst } from "@/lib/utils";
 import { waitingOnLabel } from "@/lib/gian/rules";
 
 /** 문서 상세 화면(/modules/{id}/[docId])이 있는 모듈 — 전부 같은 경로 규칙을 쓴다 */
-const LINKABLE_MODULES = new Set(["approvals", "dunning", "notice", "safety-training"]);
+const LINKABLE_MODULES = new Set([
+  "approvals",
+  "dunning",
+  "notice",
+  "safety-training",
+  "facilities",
+]);
 
 /** 기간 필터의 기준 시각. 0·NaN이면 기간 제한 없음 */
 function daysAgo(n: number) {

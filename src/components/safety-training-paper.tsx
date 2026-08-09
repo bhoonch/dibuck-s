@@ -4,6 +4,7 @@ import {
   type AttendeeSnap,
   type TrainingDraft,
 } from "@/lib/safety-training";
+import { PhotoSheet } from "@/components/photo-sheet";
 
 /** 공문서 날짜 표기 "2026. 08. 03." — 폼의 YYYY-MM-DD를 그대로 바꾼다 */
 const paperDate = (ymd: string) =>
@@ -26,6 +27,7 @@ export function SafetyTrainingPaper({
   targetCount,
   absentReason,
   office,
+  photos = [],
   id = "a4-sheet",
 }: {
   docNo: string;
@@ -44,6 +46,8 @@ export function SafetyTrainingPaper({
   absentReason?: string;
   /** 하단 확인란 명의 (예: "행복아파트 관리사무소장") */
   office: string;
+  /** 교육 사진 사진대지 — docPhotoRows()가 만든 렌더 행. 없으면 종전과 동일 */
+  photos?: { id: string; caption: string }[];
   id?: string;
 }) {
   const line = "border border-[var(--gian-doc-line)]";
@@ -65,7 +69,7 @@ export function SafetyTrainingPaper({
     <article
       id={id}
       // 행간 1.5 — 참석자 12명·주제 2개 회차가 A4 한 장에 앉는 한계선(헤드리스 실측값)
-      className="flex w-full max-w-[210mm] shrink-0 flex-col bg-[var(--gian-card)] px-[16mm] pt-[18mm] pb-[12mm] text-[11.5pt] leading-[1.5] text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none"
+      className="flex w-full max-w-[210mm] shrink-0 flex-col bg-[var(--gian-card)] px-[16mm] pt-[18mm] pb-[12mm] text-[11.5pt] leading-[1.5] text-[var(--gian-ink)] shadow-[var(--gian-shadow)] lg:min-h-[297mm] lg:w-[210mm] [border:1.5px_solid_var(--gian-doc-line)] print:min-h-0 print:border-0 print:p-0 print:shadow-none print:[zoom:var(--print-fit,1)]"
     >
       <h2 className="mb-1.5 text-center text-[17pt] font-extrabold tracking-[.3em] indent-[.3em] text-balance">
         안전보건교육 일지
@@ -102,7 +106,10 @@ export function SafetyTrainingPaper({
                   {" "}
                   · 미참석 {absent}명
                   {absentReason && (
-                    <span className="text-[var(--gian-ink-soft)]"> ({absentReason})</span>
+                    <span className="text-[var(--gian-ink-soft)]">
+                      {" "}
+                      ({absentReason})
+                    </span>
                   )}
                 </>
               )}
@@ -125,7 +132,10 @@ export function SafetyTrainingPaper({
             <div className="pl-4">
               {/* 행잉 인던트 — 줄이 넘어가면 "가. " 기호 폭(1.6em)만큼 들여 본문끼리 정렬 */}
               {sec.lines.map((l, j) => (
-                <p key={j} className="-indent-[1.6em] pl-[1.6em] whitespace-pre-wrap">
+                <p
+                  key={j}
+                  className="-indent-[1.6em] pl-[1.6em] whitespace-pre-wrap"
+                >
                   {l}
                 </p>
               ))}
@@ -133,14 +143,17 @@ export function SafetyTrainingPaper({
           </div>
         ))}
         {draft.closing && (
-          <p className="-indent-[1.6em] pl-[calc(1rem+1.6em)]">※ {draft.closing}</p>
+          <p className="-indent-[1.6em] pl-[calc(1rem+1.6em)]">
+            ※ {draft.closing}
+          </p>
         )}
       </section>
 
       {/* 참석자 서명 표 — 인쇄 후 자필 서명. 쪽이 나뉘어도 행 중간은 자르지 않는다 */}
       <section className="mt-[4mm]">
         <h3 className="mb-[1.5mm] text-[12pt] font-extrabold">
-          참석자 명단 <span className="font-normal">(총 {attendees.length}명)</span>
+          참석자 명단{" "}
+          <span className="font-normal">(총 {attendees.length}명)</span>
         </h3>
         <table className="w-full border-collapse">
           <thead>
@@ -162,6 +175,9 @@ export function SafetyTrainingPaper({
         </table>
       </section>
 
+      {/* 교육 실시 증빙 사진 — 참석자 표 아래·확인란 위 */}
+      <PhotoSheet photos={photos} />
+
       {/* 확인란은 내용이 짧아도 용지 맨 아래 — 여백이 위가 아니라 가운데로 간다 */}
       <div className="flex-1" />
       <div className="mt-[5mm] break-inside-avoid text-center">
@@ -171,7 +187,10 @@ export function SafetyTrainingPaper({
             소장이 강사라 강사 서명 줄을 따로 두면 같은 사람이 두 번 찍게 된다 */}
         <div className="mt-[3mm] ml-auto w-fit text-right">
           <p className="font-bold">
-            {office} <span className="font-normal text-[var(--gian-ink-soft)]">(인)</span>
+            {office}{" "}
+            <span className="font-normal text-[var(--gian-ink-soft)]">
+              (인)
+            </span>
           </p>
         </div>
       </div>

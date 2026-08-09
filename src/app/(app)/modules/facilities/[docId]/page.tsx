@@ -9,6 +9,7 @@ import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import { ymdKst } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AttentionCard } from "@/components/attention-card";
 import { PaperScale } from "@/components/paper-scale";
 import { PrintStyle } from "@/components/gian-paper";
 import { InspectionPaper } from "@/components/inspection-paper";
@@ -62,6 +63,33 @@ export default async function InspectionDocPage({
   });
 
   const voided = doc.status === "void";
+  /*
+   * 디벅 기록은 정부 시스템 보고를 대신하지 않는다 — 여기 적었다고 끝난 줄
+   * 알면 사용자가 과태료를 문다. 별도 보고 의무가 있는 항목만 안내한다.
+   */
+  const GOV_REPORT_HINTS: Record<string, [string, string]> = {
+    playground_monthly: [
+      "점검 결과는 행정안전부 어린이놀이시설 안전관리시스템(cpf.go.kr)에도 입력해야 합니다.",
+      "디벅 기록은 시스템 입력을 대신하지 않습니다.",
+    ],
+    fire_operation: [
+      "자체점검 결과보고서는 점검이 끝난 날부터 15일 이내에 관할 소방서에 제출해야 합니다.",
+      "디벅 기록은 소방서 보고를 대신하지 않습니다.",
+    ],
+    fire_comprehensive: [
+      "자체점검 결과보고서는 점검이 끝난 날부터 15일 이내에 관할 소방서에 제출해야 합니다.",
+      "디벅 기록은 소방서 보고를 대신하지 않습니다.",
+    ],
+  };
+  const item = meta.itemId
+    ? await db.inspectionItem.findUnique({
+        where: { id: meta.itemId },
+        select: { presetKey: true },
+      })
+    : null;
+  const govHint = item?.presetKey
+    ? GOV_REPORT_HINTS[item.presetKey]
+    : undefined;
   // 작업지시·조치 — 증빙이 아니라 할 일이다. 일지 대신 안내와 버튼을 보여준다
   const action = meta.kind === "action";
   const workOrder =
@@ -149,7 +177,9 @@ export default async function InspectionDocPage({
           </p>
           {meta.itemId && doc.status === "scheduled" && (
             <Button asChild className="mt-4">
-              <Link href={`/modules/facilities/new?item=${meta.itemId}`}>기록 작성</Link>
+              <Link href={`/modules/facilities/new?item=${meta.itemId}`}>
+                기록 작성
+              </Link>
             </Button>
           )}
         </Card>
@@ -175,7 +205,9 @@ export default async function InspectionDocPage({
               점검일지
             </span>
             {doc.docNo && (
-              <span className="text-sm text-[var(--gian-ink-soft)]">{doc.docNo}</span>
+              <span className="text-sm text-[var(--gian-ink-soft)]">
+                {doc.docNo}
+              </span>
             )}
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${docStatusStyles[doc.status] ?? "bg-gray-100 text-gray-600"}`}
@@ -184,11 +216,15 @@ export default async function InspectionDocPage({
             </span>
             {!voided && canEdit && (
               <Button asChild variant="outline" className="ml-auto">
-                <Link href={`/modules/facilities/${doc.id}/edit`}>내용 수정</Link>
+                <Link href={`/modules/facilities/${doc.id}/edit`}>
+                  내용 수정
+                </Link>
               </Button>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">{!voided && <PrintButton />}</div>
+          <div className="flex flex-wrap gap-2">
+            {!voided && <PrintButton />}
+          </div>
         </div>
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
@@ -217,24 +253,31 @@ export default async function InspectionDocPage({
           </div>
           {/* 오른쪽은 이 문서에 대한 판단 자리 — sticky (교육일지와 동일) */}
           <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
+            {!voided && govHint && (
+              <AttentionCard title="별도 보고 의무가 있습니다">
+                {govHint[0]}
+                <br />
+                {govHint[1]}
+              </AttentionCard>
+            )}
             {!voided && (
-              <InspectionFiles
-                docId={doc.id}
-                files={doc.attachmentFiles}
-              />
+              <InspectionFiles docId={doc.id} files={doc.attachmentFiles} />
             )}
             {voided ? (
               <Card className="p-4 text-sm text-muted-foreground">
-                폐기된 기록입니다. 기록으로만 남아 있습니다 — 실시일이 잘못됐다면
-                새 기록을 만들고 [항목 관리]에서 기준일을 확인하세요.
+                폐기된 기록입니다. 기록으로만 남아 있습니다.
+                <br />
+                실시일이 잘못됐다면 새 기록을 만들고 [항목 관리]에서 기준일을
+                확인하세요.
               </Card>
             ) : (
               <Card className="p-4">
                 <h4 className="mb-1.5 text-sm font-semibold">보관 안내</h4>
                 <p className="text-sm text-muted-foreground">
-                  인쇄해 서명을 받아 서류철에 보관하세요. 성적서·검사필증을
-                  첨부해 두면 감사 때 이 화면과 [감사 서류철]에서 바로 꺼낼 수
-                  있습니다.
+                  인쇄해 서명을 받아 서류철에 보관하세요.
+                  <br />
+                  성적서·검사필증을 첨부해 두면 감사 때 이 화면과 [감사
+                  서류철]에서 바로 꺼낼 수 있습니다.
                 </p>
                 {canEdit && (
                   <div className="mt-3">

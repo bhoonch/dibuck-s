@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { addDocPhoto, setDocPhotoCaption } from "@/lib/doc-photos";
 import { assignDocNo, createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
@@ -43,12 +44,19 @@ async function ownedLog(
   session: Awaited<ReturnType<typeof requireTraining>>,
 ) {
   const doc = await db.document.findFirst({
-    where: { id: docId, tenantId: session.tenantId!, type: TYPE, moduleId: MODULE_ID },
+    where: {
+      id: docId,
+      tenantId: session.tenantId!,
+      type: TYPE,
+      moduleId: MODULE_ID,
+    },
   });
   if (!doc) return { error: "문서를 찾을 수 없습니다." as const };
   // 문서 수정·폐기의 공통 경계 — 작성자 본인 또는 마스터
   if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
-    return { error: "수정·폐기는 작성자 또는 마스터만 할 수 있습니다." as const };
+    return {
+      error: "수정·폐기는 작성자 또는 마스터만 할 수 있습니다." as const,
+    };
   return { doc };
 }
 
@@ -62,7 +70,10 @@ export async function generateTrainingAction(
   const session = await requireTraining();
   const tenantId = session.tenantId!;
   if (!aiEnabled())
-    return { error: "AI 초안 생성이 아직 활성화되지 않았습니다. 운영팀에 문의해 주세요." };
+    return {
+      error:
+        "AI 초안 생성이 아직 활성화되지 않았습니다. 운영팀에 문의해 주세요.",
+    };
 
   const course = courseTypeOf(String(formData.get("courseType") ?? ""));
   if (!course) return { error: "교육 종류를 선택해 주세요." };
@@ -73,7 +84,8 @@ export async function generateTrainingAction(
     .filter(Boolean) as string[];
   const custom = String(formData.get("customTopic") ?? "").trim();
   if (custom) topicLabels.push(custom);
-  if (topicLabels.length === 0) return { error: "교육 주제를 한 가지 이상 골라 주세요." };
+  if (topicLabels.length === 0)
+    return { error: "교육 주제를 한 가지 이상 골라 주세요." };
 
   const date = String(formData.get("date") ?? "").trim();
   if (!date) return { error: "교육일자를 입력해 주세요." };
@@ -107,8 +119,16 @@ export async function generateTrainingAction(
       ? await db.trainingStaff.count({ where: { tenantId, active: true } })
       : attendees.length;
 
-  if (rateLimit(`safety-training:${tenantId}`, DAILY_LIMIT, 24 * 60 * 60 * 1000) <= 0)
-    return { error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.` };
+  if (
+    rateLimit(
+      `safety-training:${tenantId}`,
+      DAILY_LIMIT,
+      24 * 60 * 60 * 1000,
+    ) <= 0
+  )
+    return {
+      error: `오늘 생성 한도(${DAILY_LIMIT}건)에 도달했습니다. 내일 다시 시도해 주세요.`,
+    };
 
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: tenantId },
@@ -134,9 +154,10 @@ export async function generateTrainingAction(
     });
   } catch (e) {
     return {
-      error: e instanceof Error && e.message.includes("실패")
-        ? e.message
-        : "초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      error:
+        e instanceof Error && e.message.includes("실패")
+          ? e.message
+          : "초안 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
     };
   }
 
@@ -151,7 +172,17 @@ export async function generateTrainingAction(
     status: "draft",
     numberOnSubmit: true,
     createdById: session.userId,
-    meta: { courseType: course.key, date, place, hours, instructor, topics: topicLabels, draft, attendees, targetCount },
+    meta: {
+      courseType: course.key,
+      date,
+      place,
+      hours,
+      instructor,
+      topics: topicLabels,
+      draft,
+      attendees,
+      targetCount,
+    },
   });
   revalidatePath("/modules/safety-training");
   redirect(`/modules/safety-training/${doc.id}`);
@@ -194,11 +225,15 @@ export async function saveTrainingBody(formData: FormData) {
   await db.document.update({
     where: { id: found.doc.id },
     data: {
-      title: courseLabel ? `${courseLabel} — ${topics.join("·")}` : found.doc.title,
+      title: courseLabel
+        ? `${courseLabel} — ${topics.join("·")}`
+        : found.doc.title,
       content: draftPlainText(draft),
       meta: {
         ...(found.doc.meta as object),
-        date: String(formData.get("date") ?? "").trim() || (meta as { date?: string }).date,
+        date:
+          String(formData.get("date") ?? "").trim() ||
+          (meta as { date?: string }).date,
         place: String(formData.get("place") ?? "").trim(),
         hours: parseHours(formData.get("hours")) ?? meta.hours,
         instructor: String(formData.get("instructor") ?? "").trim(),
@@ -238,7 +273,8 @@ export async function finalizeTrainingLog(docId: string) {
 
 /**
  * 폐기 — 완성본은 목록에 '폐기'로 남고 열람만 된다.
- * 한 번도 완성되지 않은 초안(docNo 없음)은 하드 삭제 — 교육 대장에 결번을 남기지 않는다.
+ * 한 번도 완성되지 않은 초안(docNo 없음)은 하드 삭제 — 교육 대장에 결번을 남기지 않는다
+ * (첨부는 onDelete: Cascade).
  */
 export async function voidTrainingLog(docId: string) {
   const session = await requireTraining();
@@ -247,13 +283,76 @@ export async function voidTrainingLog(docId: string) {
   if (!found.doc.docNo) {
     await db.document.delete({ where: { id: found.doc.id } });
   } else {
-    await db.document.updateMany({
-      where: { id: found.doc.id, status: { not: "void" } },
-      data: { status: "void" },
-    });
+    await db.$transaction([
+      db.document.updateMany({
+        where: { id: found.doc.id, status: { not: "void" } },
+        data: { status: "void" },
+      }),
+      // 폐기 일지의 사진 본문 회수 — 이름·해시(row)는 기록으로 남긴다 (공지문과 동일)
+      db.documentAttachment.updateMany({
+        where: { documentId: found.doc.id },
+        data: { data: null },
+      }),
+    ]);
   }
   revalidatePath("/modules/safety-training");
   redirect("/modules/safety-training");
+}
+
+/**
+ * 교육 사진 첨부 — 감사 때 "교육 실시 사진"을 요구하는 관행에 맞춘 증빙.
+ * 일지 A4의 사진대지로 실린다. 본문 수정과 같은 경계(폐기 전 + 작성자/마스터).
+ */
+export async function uploadTrainingPhoto(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+) {
+  const session = await requireTraining();
+  const found = await ownedLog(String(formData.get("docId") ?? ""), session);
+  if ("error" in found) return found;
+  if (found.doc.status === "void")
+    return { error: "폐기된 일지는 수정할 수 없습니다." };
+  const r = await addDocPhoto(found.doc.id, formData.get("file"));
+  if (r) return r;
+  revalidatePath(`/modules/safety-training/${found.doc.id}`);
+  return undefined;
+}
+
+/** 사진 삭제 — 업로드와 같은 경계. meta.captions의 죽은 키는 무해해서 지우지 않는다 */
+export async function deleteTrainingPhoto(attachmentId: string) {
+  const session = await requireTraining();
+  const att = await db.documentAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { documentId: true },
+  });
+  if (!att) return { error: "사진을 찾을 수 없습니다." };
+  const found = await ownedLog(att.documentId, session);
+  if ("error" in found) return found;
+  if (found.doc.status === "void")
+    return { error: "폐기된 일지는 수정할 수 없습니다." };
+  await db.documentAttachment.delete({ where: { id: attachmentId } });
+  revalidatePath(`/modules/safety-training/${found.doc.id}`);
+  return undefined;
+}
+
+/** 캡션 저장 — 사진의 진실은 첨부 행이고 meta.captions는 조회용 부가정보다 */
+export async function saveTrainingPhotoCaption(
+  attachmentId: string,
+  caption: string,
+) {
+  const session = await requireTraining();
+  const att = await db.documentAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { documentId: true },
+  });
+  if (!att) return { error: "사진을 찾을 수 없습니다." };
+  const found = await ownedLog(att.documentId, session);
+  if ("error" in found) return found;
+  if (found.doc.status === "void")
+    return { error: "폐기된 일지는 수정할 수 없습니다." };
+  await setDocPhotoCaption(found.doc, attachmentId, caption);
+  revalidatePath(`/modules/safety-training/${found.doc.id}`);
+  return undefined;
 }
 
 // ── 직원 명부 — 세대 명부와 같은 경계: 마스터+매니저 ──
@@ -293,7 +392,9 @@ export async function addStaff(input: {
   if ("error" in gate) return gate;
   const name = input.name.trim();
   if (!name) return { error: "이름을 입력해 주세요." };
-  const position = (STAFF_POSITIONS as readonly string[]).includes(input.position)
+  const position = (STAFF_POSITIONS as readonly string[]).includes(
+    input.position,
+  )
     ? input.position
     : "기타";
   await db.trainingStaff.create({
@@ -323,7 +424,9 @@ export async function updateStaff(input: {
   if ("error" in gate) return gate;
   const name = input.name.trim();
   if (!name) return { error: "이름을 입력해 주세요." };
-  const position = (STAFF_POSITIONS as readonly string[]).includes(input.position)
+  const position = (STAFF_POSITIONS as readonly string[]).includes(
+    input.position,
+  )
     ? input.position
     : "기타";
   // tenantId를 조건에 넣는다 — 남의 단지 명부 id로는 아무 행도 맞지 않는다
@@ -396,7 +499,12 @@ export async function importAppUsers() {
   if (fresh.length)
     await db.trainingStaff.createMany({
       // 앱 계정은 사무실 근무자다 — 직종·사무직 여부는 명부에서 고칠 수 있다
-      data: fresh.map((u) => ({ tenantId, name: u.name, position: "사무", office: true })),
+      data: fresh.map((u) => ({
+        tenantId,
+        name: u.name,
+        position: "사무",
+        office: true,
+      })),
     });
   staffPaths();
   return { added: fresh.length };

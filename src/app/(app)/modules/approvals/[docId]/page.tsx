@@ -205,8 +205,9 @@ export default async function GianDocumentPage({
               {/* 폐기본은 열람만 — 게시 설정을 남겨 두면 아직 붙일 수 있는 공고로 읽힌다 */}
               {doc.status === "void" ? (
                 <Card className="p-4 text-sm text-muted-foreground">
-                  폐기된 공고문입니다. 기록으로만 남아 있습니다 — 원본 품의에서
-                  공고문을 다시 만들 수 있습니다.
+                  폐기된 공고문입니다. 기록으로만 남아 있습니다.
+                  <br />
+                  원본 품의에서 공고문을 다시 만들 수 있습니다.
                 </Card>
               ) : (
                 /* 어디에 붙이고 언제까지 두는가 — 단지마다 다르고 결재받은 내용도 아니다 */

@@ -16,45 +16,225 @@ export type NoticeType = {
   hint: { when: string; where: string; detail: string };
 };
 
-const h = (when: string, where: string, detail: string) => ({ when, where, detail });
+const h = (when: string, where: string, detail: string) => ({
+  when,
+  where,
+  detail,
+});
 
 /* 카테고리 순서 = 화면 표시 순서. 자주 붙이는 것이 앞에 온다 */
 export const NOTICE_TYPES: NoticeType[] = [
   // 시설·점검
-  { key: "water_cut", label: "단수 안내", category: "시설·점검", kind: "guide", hint: h("8월 10일(월) 10:00~16:00", "전 세대", "저수조 정기 청소") },
-  { key: "power_cut", label: "정전 안내", category: "시설·점검", kind: "guide", hint: h("8월 12일(수) 14:00~16:00", "101동~103동", "전기설비 정기점검") },
-  { key: "elevator", label: "승강기 정기점검", category: "시설·점검", kind: "guide", hint: h("8월 14일(금) 09:00~12:00", "전 동", "동별 30분 내외, 점검 업체명") },
-  { key: "tank_clean", label: "저수조 청소", category: "시설·점검", kind: "guide", hint: h("8월 20일(목) 09:00~17:00", "전 세대", "반기 정기 청소, 청소 중 단수 여부") },
-  { key: "pest_control", label: "소독·방역", category: "시설·점검", kind: "guide", hint: h("8월 12일(수) 10:00~15:00", "지하층·계단·조경지", "하절기 해충 방제, 창문 닫기") },
-  { key: "septic", label: "정화조·배수관 청소", category: "시설·점검", kind: "guide", hint: h("8월 18일(화) 09:00~", "전 동", "악취·소음 양해") },
-  { key: "construction", label: "공용부 공사", category: "시설·점검", kind: "guide", hint: h("8월 17일~8월 22일 09:00~18:00", "지하주차장 1층", "공사 내용, 소음·통행 제한") },
-  { key: "landscaping", label: "조경 작업", category: "시설·점검", kind: "guide", hint: h("8월 25일(화)", "단지 내 조경지", "수목 전지·소독, 주차 이동 협조") },
+  {
+    key: "water_cut",
+    label: "단수 안내",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h("8월 10일(월) 10:00~16:00", "전 세대", "저수조 정기 청소"),
+  },
+  {
+    key: "power_cut",
+    label: "정전 안내",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h("8월 12일(수) 14:00~16:00", "101동~103동", "전기설비 정기점검"),
+  },
+  {
+    key: "elevator",
+    label: "승강기 정기점검",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h("8월 14일(금) 09:00~12:00", "전 동", "동별 30분 내외, 점검 업체명"),
+  },
+  {
+    key: "tank_clean",
+    label: "저수조 청소",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h(
+      "8월 20일(목) 09:00~17:00",
+      "전 세대",
+      "반기 정기 청소, 청소 중 단수 여부",
+    ),
+  },
+  {
+    key: "pest_control",
+    label: "소독·방역",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h(
+      "8월 12일(수) 10:00~15:00",
+      "지하층·계단·조경지",
+      "하절기 해충 방제, 창문 닫기",
+    ),
+  },
+  {
+    key: "septic",
+    label: "정화조·배수관 청소",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h("8월 18일(화) 09:00~", "전 동", "악취·소음 양해"),
+  },
+  {
+    key: "construction",
+    label: "공용부 공사",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h(
+      "8월 17일~8월 22일 09:00~18:00",
+      "지하주차장 1층",
+      "공사 내용, 소음·통행 제한",
+    ),
+  },
+  {
+    key: "landscaping",
+    label: "조경 작업",
+    category: "시설·점검",
+    kind: "guide",
+    hint: h("8월 25일(화)", "단지 내 조경지", "수목 전지·소독, 주차 이동 협조"),
+  },
   // 생활·질서
-  { key: "parking", label: "주차 질서 협조", category: "생활·질서", kind: "guide", hint: h("", "지상·지하 주차장", "이중주차·소방차 전용구역 등 협조 내용") },
-  { key: "noise", label: "층간소음 자제", category: "생활·질서", kind: "guide", hint: h("", "전 세대", "야간 시간대, 최근 민원 상황") },
-  { key: "smoking", label: "금연 안내", category: "생활·질서", kind: "guide", hint: h("", "계단·복도·놀이터", "간접흡연 민원, 금연구역 안내") },
-  { key: "recycle", label: "재활용품 분리배출", category: "생활·질서", kind: "guide", hint: h("매주 수요일", "각 동 분리수거장", "품목별 배출 요령, 위반 사례") },
-  { key: "food_waste", label: "음식물쓰레기 배출", category: "생활·질서", kind: "guide", hint: h("", "각 동 수거함", "배출 요령, 물기 제거") },
-  { key: "dumping", label: "쓰레기 무단투기", category: "생활·질서", kind: "guide", hint: h("", "화단·주차장 주변", "최근 사례, 협조 요청") },
-  { key: "clutter", label: "복도·계단 적치물 정리", category: "생활·질서", kind: "guide", hint: h("정리 기한", "각 동 복도·계단", "소방 통로 확보, 자진 정리 요청") },
-  { key: "pets", label: "반려동물 관리", category: "생활·질서", kind: "guide", hint: h("", "단지 전체", "목줄·배설물 등 협조 내용") },
+  {
+    key: "parking",
+    label: "주차 질서 협조",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("", "지상·지하 주차장", "이중주차·소방차 전용구역 등 협조 내용"),
+  },
+  {
+    key: "noise",
+    label: "층간소음 자제",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("", "전 세대", "야간 시간대, 최근 민원 상황"),
+  },
+  {
+    key: "smoking",
+    label: "금연 안내",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("", "계단·복도·놀이터", "간접흡연 민원, 금연구역 안내"),
+  },
+  {
+    key: "recycle",
+    label: "재활용품 분리배출",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("매주 수요일", "각 동 분리수거장", "품목별 배출 요령, 위반 사례"),
+  },
+  {
+    key: "food_waste",
+    label: "음식물쓰레기 배출",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("", "각 동 수거함", "배출 요령, 물기 제거"),
+  },
+  {
+    key: "dumping",
+    label: "쓰레기 무단투기",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("", "화단·주차장 주변", "최근 사례, 협조 요청"),
+  },
+  {
+    key: "clutter",
+    label: "복도·계단 적치물 정리",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("정리 기한", "각 동 복도·계단", "소방 통로 확보, 자진 정리 요청"),
+  },
+  {
+    key: "pets",
+    label: "반려동물 관리",
+    category: "생활·질서",
+    kind: "guide",
+    hint: h("", "단지 전체", "목줄·배설물 등 협조 내용"),
+  },
   // 계절·안전
-  { key: "freeze", label: "동파 예방", category: "계절·안전", kind: "guide", hint: h("동절기", "전 세대", "계량기·수도관 보온, 장기 외출 시 조치") },
-  { key: "typhoon", label: "태풍·호우 대비", category: "계절·안전", kind: "guide", hint: h("이번 주말", "전 세대", "태풍 이름, 창문·베란다 물건 정리") },
-  { key: "heatwave", label: "폭염 대비", category: "계절·안전", kind: "guide", hint: h("폭염특보 기간", "전 세대", "냉방기 화재 예방, 취약 세대 안부") },
-  { key: "fire", label: "화재 예방", category: "계절·안전", kind: "guide", hint: h("", "전 세대", "명절·겨울철 화기 취급 주의") },
-  { key: "snow", label: "제설·빙판 주의", category: "계절·안전", kind: "guide", hint: h("강설 기간", "단지 내 보행로", "미끄럼 주의, 제설 협조") },
+  {
+    key: "freeze",
+    label: "동파 예방",
+    category: "계절·안전",
+    kind: "guide",
+    hint: h("동절기", "전 세대", "계량기·수도관 보온, 장기 외출 시 조치"),
+  },
+  {
+    key: "typhoon",
+    label: "태풍·호우 대비",
+    category: "계절·안전",
+    kind: "guide",
+    hint: h("이번 주말", "전 세대", "태풍 이름, 창문·베란다 물건 정리"),
+  },
+  {
+    key: "heatwave",
+    label: "폭염 대비",
+    category: "계절·안전",
+    kind: "guide",
+    hint: h("폭염특보 기간", "전 세대", "냉방기 화재 예방, 취약 세대 안부"),
+  },
+  {
+    key: "fire",
+    label: "화재 예방",
+    category: "계절·안전",
+    kind: "guide",
+    hint: h("", "전 세대", "명절·겨울철 화기 취급 주의"),
+  },
+  {
+    key: "snow",
+    label: "제설·빙판 주의",
+    category: "계절·안전",
+    kind: "guide",
+    hint: h("강설 기간", "단지 내 보행로", "미끄럼 주의, 제설 협조"),
+  },
   // 행사·운영
-  { key: "holiday", label: "명절 인사·휴무", category: "행사·운영", kind: "guide", hint: h("추석 연휴 9월 24일~27일", "", "관리사무소 휴무, 비상 연락 안내") },
-  { key: "event", label: "행사 안내", category: "행사·운영", kind: "guide", hint: h("행사 일시", "행사 장소", "행사 이름·내용·참여 방법") },
-  { key: "fee", label: "관리비 안내", category: "행사·운영", kind: "guide", hint: h("적용 시기", "전 세대", "변경 내용과 사유") },
-  { key: "council", label: "입주자대표회의 개최 공고", category: "행사·운영", kind: "official", hint: h("8월 28일(목) 19:00", "관리사무소 회의실", "안건 목록") },
-  { key: "election", label: "동별 대표자 선출 공고", category: "행사·운영", kind: "official", hint: h("후보 등록·투표 일정", "해당 선거구(동)", "선출 인원, 등록 방법") },
+  {
+    key: "holiday",
+    label: "명절 인사·휴무",
+    category: "행사·운영",
+    kind: "guide",
+    hint: h("추석 연휴 9월 24일~27일", "", "관리사무소 휴무, 비상 연락 안내"),
+  },
+  {
+    key: "event",
+    label: "행사 안내",
+    category: "행사·운영",
+    kind: "guide",
+    hint: h("행사 일시", "행사 장소", "행사 이름·내용·참여 방법"),
+  },
+  {
+    key: "fee",
+    label: "관리비 안내",
+    category: "행사·운영",
+    kind: "guide",
+    hint: h("적용 시기", "전 세대", "변경 내용과 사유"),
+  },
+  {
+    key: "council",
+    label: "입주자대표회의 개최 공고",
+    category: "행사·운영",
+    kind: "official",
+    hint: h("8월 28일(목) 19:00", "관리사무소 회의실", "안건 목록"),
+  },
+  {
+    key: "election",
+    label: "동별 대표자 선출 공고",
+    category: "행사·운영",
+    kind: "official",
+    hint: h("후보 등록·투표 일정", "해당 선거구(동)", "선출 인원, 등록 방법"),
+  },
   // 자유 입력 — kind는 폼에서 토글
-  { key: "free", label: "자유 입력", category: "자유 입력", kind: "guide", hint: h("일시·기간", "대상·구역", "알리고 싶은 내용을 자유롭게") },
+  {
+    key: "free",
+    label: "자유 입력",
+    category: "자유 입력",
+    kind: "guide",
+    hint: h("일시·기간", "대상·구역", "알리고 싶은 내용을 자유롭게"),
+  },
 ];
 
-export const NOTICE_CATEGORIES = [...new Set(NOTICE_TYPES.map((t) => t.category))];
+export const NOTICE_CATEGORIES = [
+  ...new Set(NOTICE_TYPES.map((t) => t.category)),
+];
 
 export const noticeTypeOf = (key: string) =>
   NOTICE_TYPES.find((t) => t.key === key);
@@ -101,26 +281,6 @@ export function itemsToText(items: { label: string; value: string }[]) {
   return items.map((i) => `${i.label}: ${i.value}`).join("\n");
 }
 
-/** A4 사진대지에 말이 되는 상한 — 문서당 9장(기안)과 다르다. 2열 55mm 칸으로 두 줄 */
-export const MAX_NOTICE_PHOTOS = 4;
-/** 캡션은 사진대지 칸의 한 줄 — 길면 배치가 깨진다. 서버 액션이 이 길이로 자른다 */
-export const NOTICE_CAPTION_MAX = 60;
-
-/**
- * A4 사진대지 배치 입력 — 첨부 목록과 meta.captions 맵을 렌더 행으로 만든다.
- * 사진의 진실은 DocumentAttachment이고 captions는 부가정보다: 삭제된 사진의
- * 죽은 캡션 키는 여기서 자연히 걸러지고, 이미지 아닌 mime·상한 초과분도 잘린다.
- */
-export function noticePhotos(
-  attachments: { id: string; mime: string }[],
-  captions?: Record<string, string>,
-): { id: string; caption: string }[] {
-  return attachments
-    .filter((a) => a.mime.startsWith("image/"))
-    .slice(0, MAX_NOTICE_PHOTOS)
-    .map((a) => ({ id: a.id, caption: (captions?.[a.id] ?? "").trim() }));
-}
-
 export function textToItems(text: string) {
   return text
     .split("\n")
@@ -130,6 +290,9 @@ export function textToItems(text: string) {
       const colon = line.indexOf(":");
       return colon < 0
         ? { label: "", value: line }
-        : { label: line.slice(0, colon).trim(), value: line.slice(colon + 1).trim() };
+        : {
+            label: line.slice(0, colon).trim(),
+            value: line.slice(colon + 1).trim(),
+          };
     });
 }

@@ -8,6 +8,8 @@ import { Role } from "@/generated/prisma/enums";
 import { buildLetter, koDate, type DunningStage } from "@/lib/dunning";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { AttentionCard } from "@/components/attention-card";
 import { PaperScale } from "@/components/paper-scale";
 import { PrintStyle } from "@/components/gian-paper";
 import { DunningSheets } from "@/components/dunning-paper";
@@ -35,16 +37,35 @@ export default async function DunningDocPage({
     }),
     db.tenant.findUniqueOrThrow({
       where: { id: tenantId },
-      select: { name: true, address: true, phone: true, sealImage: true, logoImage: true },
+      select: {
+        name: true,
+        address: true,
+        zipcode: true,
+        phone: true,
+        sealImage: true,
+        logoImage: true,
+      },
     }),
   ]);
-  const meta = (doc.meta ?? {}) as { dueDate: string; account: string; sentDate: string };
+  const meta = (doc.meta ?? {}) as {
+    dueDate: string;
+    account: string;
+    sentDate: string;
+  };
   const letters = entries.map((e) =>
     buildLetter({
-      row: { dong: e.dong, ho: e.ho, name: e.name, amount: e.amount, period: e.period },
+      row: {
+        dong: e.dong,
+        ho: e.ho,
+        name: e.name,
+        amount: e.amount,
+        period: e.period,
+      },
       stage: e.stage as DunningStage,
-      dueDate: meta.dueDate, account: meta.account,
-      office: `${tenant.name} 관리사무소`, address: tenant.address,
+      dueDate: meta.dueDate,
+      account: meta.account,
+      office: `${tenant.name} 관리사무소`,
+      address: tenant.address,
     }),
   );
   const hasProof = entries.some((e) => e.stage === 3);
@@ -90,7 +111,9 @@ export default async function DunningDocPage({
             {!voided && hasProof && (
               <Button asChild variant="outline">
                 {/* 내용증명은 우체국 발송이 마지막 걸음 — 인터넷우체국 편지병합에 올릴 수신인 목록 */}
-                <a href={`/modules/dunning/${doc.id}/postal`} download>우체국 수신인 목록</a>
+                <a href={`/modules/dunning/${doc.id}/postal`} download>
+                  우체국 수신인 목록
+                </a>
               </Button>
             )}
           </div>
@@ -102,27 +125,51 @@ export default async function DunningDocPage({
             <BackToTop />
             <PaperScale>
               <DunningSheets
-                letters={letters} docNo={doc.docNo ?? ""} sentDate={koDate(meta.sentDate)}
-                office={`${tenant.name} 관리사무소`} tel={tenant.phone}
-                sealImage={tenant.sealImage} logoImage={tenant.logoImage}
+                letters={letters}
+                docNo={doc.docNo ?? ""}
+                sentDate={koDate(meta.sentDate)}
+                office={`${tenant.name} 관리사무소`}
+                tel={tenant.phone}
+                sealImage={tenant.sealImage}
+                logoImage={tenant.logoImage}
               />
             </PaperScale>
           </div>
           <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
+            {/* 다른 문서 화면의 안내와 같은 문법(카드+제목+text-sm) — 맨몸 text-xs 문단은 여기만 달랐다 */}
             {hasProof && (
-              <p className="text-xs text-muted-foreground">
-                내용증명은 같은 문서 3부를 우체국에 제출합니다. [우체국 수신인 목록]은 인터넷우체국
-                편지병합용 기본 열(성명·우편번호·주소)로 내려받습니다. 실제 양식과 열 순서가 다르면
-                내려받은 파일을 인터넷우체국 양식에 맞게 조정해 주세요.
-              </p>
+              <Card className="p-4">
+                <h4 className="mb-1.5 text-sm font-semibold">발송 안내</h4>
+                <p className="text-xs text-muted-foreground">
+                  내용증명은 같은 문서 3부를 우체국에 제출합니다.
+                  <br />
+                  [우체국 수신인 목록]은 인터넷우체국 편지병합용 기본
+                  열(성명·우편번호·주소)로 내려받습니다.
+                  <br />
+                  실제 양식과 열 순서가 다르면 내려받은 파일을 인터넷우체국
+                  양식에 맞게 조정해 주세요.
+                </p>
+              </Card>
+            )}
+            {/* 우편번호 없이 내려받으면 빈 칸인 채 우체국 양식에 올라간다 — 내려받기 전에 알린다 */}
+            {hasProof && !tenant.zipcode && (
+              <AttentionCard title="단지 우편번호가 비어 있습니다">
+                수신인 목록의 우편번호 칸이 빈 채로 내려갑니다.
+                <br />
+                [설정 → 단지 정보]에서 우편번호를 입력한 뒤 내려받아 주세요.
+              </AttentionCard>
             )}
             <EntriesPanel
               docId={doc.id}
               voided={voided}
               canVoid={canVoid}
               rows={entries.map((e, i) => ({
-                id: e.id, unit: `${e.dong}동 ${e.ho}호`, name: e.name ?? "",
-                amount: e.amount, stage: e.stage as DunningStage, paid: !!e.paidAt,
+                id: e.id,
+                unit: `${e.dong}동 ${e.ho}호`,
+                name: e.name ?? "",
+                amount: e.amount,
+                stage: e.stage as DunningStage,
+                paid: !!e.paidAt,
                 sheetId: `dunning-sheet-${i}`,
               }))}
             />

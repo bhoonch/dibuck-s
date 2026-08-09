@@ -5,11 +5,8 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { Role } from "@/generated/prisma/enums";
-import {
-  noticePhotos,
-  type NoticeKind,
-  type NoticePostDraft,
-} from "@/lib/notice-catalog";
+import type { NoticeKind, NoticePostDraft } from "@/lib/notice-catalog";
+import { docPhotoRows } from "@/lib/photo-sheet";
 import {
   DEFAULT_PLACES,
   DEFAULT_POST_TO,
@@ -25,10 +22,16 @@ import { PrintFitOnePage } from "@/components/print-fit";
 import { PrintStyle } from "@/components/gian-paper";
 import { AttentionCard } from "@/components/attention-card";
 import { NoticePostPaper } from "@/components/notice-post-paper";
+import { DocPhotos } from "@/components/doc-photos";
 import { NoticePosting } from "../../approvals/[docId]/notice-posting";
-import { updateNoticePostPosting } from "../actions";
+import {
+  copyNoticePost,
+  deleteNoticePhoto,
+  saveNoticePhotoCaption,
+  updateNoticePostPosting,
+  uploadNoticePhoto,
+} from "../actions";
 import { FinalizeButton } from "./finalize-button";
-import { NoticePhotos } from "./notice-photos";
 import { PrintButton } from "./print-button";
 import { VoidButton } from "./void-button";
 
@@ -73,7 +76,13 @@ export default async function NoticeDocPage({
   };
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: tenantId },
-    select: { name: true, phone: true, fax: true, sealImage: true, logoImage: true },
+    select: {
+      name: true,
+      phone: true,
+      fax: true,
+      sealImage: true,
+      logoImage: true,
+    },
   });
   const tel = [
     tenant.phone && `TEL : ${tenant.phone}`,
@@ -86,7 +95,7 @@ export default async function NoticeDocPage({
   // 폐기본은 사진 본문(data)을 회수했다 — 빈 박스를 찍지 않게 사진대지 자체를 접는다
   const photos = voided
     ? []
-    : noticePhotos(
+    : docPhotoRows(
         await db.documentAttachment.findMany({
           where: { documentId: doc.id },
           select: { id: true, mime: true },
@@ -132,12 +141,20 @@ export default async function NoticeDocPage({
             >
               {docStatusLabels[doc.status] ?? doc.status}
             </span>
-            {/* 입주민에게 붙는 글이라 오타 하나로 폐기·재생성을 시키지 않는다 */}
-            {!voided && canEdit && (
-              <Button asChild variant="outline" className="ml-auto">
-                <Link href={`/modules/notice/${doc.id}/edit`}>내용 수정</Link>
-              </Button>
-            )}
+            <div className="ml-auto flex gap-2">
+              {/* 반복 공지는 복사가 재생성보다 빠르다 — AI 한도도 안 쓴다 */}
+              <form action={copyNoticePost.bind(null, doc.id)}>
+                <Button type="submit" variant="outline">
+                  복제
+                </Button>
+              </form>
+              {/* 입주민에게 붙는 글이라 오타 하나로 폐기·재생성을 시키지 않는다 */}
+              {!voided && canEdit && (
+                <Button asChild variant="outline">
+                  <Link href={`/modules/notice/${doc.id}/edit`}>내용 수정</Link>
+                </Button>
+              )}
+            </div>
           </div>
           {/* 인쇄는 완성본만 — 번호 없는 게시물이 벽에 붙으면 안 된다 */}
           <div className="flex flex-wrap gap-2">
@@ -148,8 +165,9 @@ export default async function NoticeDocPage({
         {/* "지금 채워야 할 것"은 격자 위 전체 폭 — 오른쪽은 상태·설정 자리라 섞지 않는다 */}
         {!voided && meta.draft.needsClarification.length > 0 && (
           <AttentionCard className="mb-4" title="게시 전 확인이 필요합니다">
-            {meta.draft.needsClarification.join(" · ")} — [내용 수정]에서 고칠 수
-            있습니다.
+            {meta.draft.needsClarification.join(" · ")}
+            <br />
+            [내용 수정]에서 고칠 수 있습니다.
           </AttentionCard>
         )}
 
@@ -197,12 +215,28 @@ export default async function NoticeDocPage({
             )}
             {/* 사진은 문서 내용이라 게시 설정(실무) 위 — 폐기본은 본문을 회수해 패널도 접는다 */}
             {!voided && (
-              <NoticePhotos docId={doc.id} photos={photos} editable={canEdit} />
+              <DocPhotos
+                docId={doc.id}
+                photos={photos}
+                editable={canEdit}
+                emptyText={
+                  <>
+                    현장 사진을 올리면 용지 하단에 실립니다.
+                    <br />
+                    설명 문구도 붙일 수 있습니다.
+                  </>
+                }
+                captionPlaceholder="사진 설명 (예: 놀이터 그네 보수 전)"
+                uploadAction={uploadNoticePhoto}
+                deleteAction={deleteNoticePhoto}
+                captionAction={saveNoticePhotoCaption}
+              />
             )}
             {voided ? (
               <Card className="p-4 text-sm text-muted-foreground">
-                폐기된 게시물입니다. 기록으로만 남아 있습니다 — 같은 내용이
-                필요하면 새 공지문을 만들어 주세요.
+                폐기된 게시물입니다. 기록으로만 남아 있습니다.
+                <br />
+                같은 내용이 필요하면 [복제]로 새 초안을 만들어 주세요.
               </Card>
             ) : (
               <NoticePosting
