@@ -33,6 +33,7 @@ export async function purgeExpiredTenants(now = new Date()) {
     await db.$transaction([
       db.notification.deleteMany({ where: { tenantId } }),
       db.dunningEntry.deleteMany({ where: { tenantId } }),
+      db.resolution.deleteMany({ where: { tenantId } }),
       db.trainingStaff.deleteMany({ where: { tenantId } }),
       db.inspectionItem.deleteMany({ where: { tenantId } }),
       db.equipment.deleteMany({ where: { tenantId } }),

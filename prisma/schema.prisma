@@ -57,6 +57,7 @@ model Tenant {
   trainingStaff   TrainingStaff[]
   inspectionItems InspectionItem[]
   equipment       Equipment[]
+  resolutions     Resolution[]
 }
 
 // ── 결제 (토스페이먼츠 자동결제) ─────────────────────────────
@@ -174,6 +175,28 @@ model DunningEntry {
 
   @@index([tenantId, dong, ho])
   @@index([docId])
+}
+
+/// 의결사항 — 회의록 문서(불변 증빙)와 달리 완성 후에도 상태가 변한다(이행중→완료).
+/// 완성본을 void해도 Resolution은 남긴다: 의결은 유효하고 문서만 폐기된 것이다.
+/// (하드 삭제는 채번 전 초안뿐인데 그때는 Resolution이 아직 없다 — 완성 시 등록되므로.
+///  Cascade는 그 불변식이 깨졌을 때의 안전벨트다. DunningEntry cascade 선례와 같음)
+model Resolution {
+  id             String    @id @default(cuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  meetingDocId   String
+  meetingDoc     Document  @relation(fields: [meetingDocId], references: [id], onDelete: Cascade)
+  order          Int
+  title          String
+  decision       String // 가결 | 부결 | 보류
+  followupStatus String // 없음(단순 의결) | 이행중 | 완료
+  dueDate        DateTime?
+  note           String?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, followupStatus])
+  @@index([meetingDocId])
 }
 
 // ── 산업안전보건 교육일지 — 모듈 전용 직원 명부 ──────────────
@@ -415,6 +438,7 @@ model Document {
   approvalSteps   ApprovalStep[]
   attachmentFiles DocumentAttachment[]
   dunningEntries  DunningEntry[]
+  resolutions     Resolution[]
 
   // 공문서 번호는 단지 안에서 유일해야 한다 — 채번이 겹치면 DB가 막는다
   @@unique([tenantId, docNo])

@@ -31,6 +31,8 @@ async function cleanup() {
   await db.billing.deleteMany({ where: { tenantId: T } });
   await db.inspectionItem.deleteMany({ where: { tenantId: T } });
   await db.equipment.deleteMany({ where: { tenantId: T } });
+  await db.resolution.deleteMany({ where: { tenantId: T } });
+  await db.document.deleteMany({ where: { tenantId: T } });
   await db.tenant.deleteMany({ where: { id: T } });
 }
 
@@ -53,6 +55,21 @@ async function main() {
   await db.equipment.create({
     data: { tenantId: T, name: "테스트 펌프", category: "급수·배수" },
   });
+  // 의결사항도 purge 대상 — InspectionItem 때처럼 빠뜨리면 FK가 tenant 삭제를 막는다.
+  // meetingDoc은 Document purge(위 deleteMany 목록)로 함께 지워진다
+  const meetingDoc = await db.document.create({
+    data: { tenantId: T, type: "minutes", title: "테스트 회의록" },
+  });
+  await db.resolution.create({
+    data: {
+      tenantId: T,
+      meetingDocId: meetingDoc.id,
+      order: 1,
+      title: "테스트 의결사항",
+      decision: "가결",
+      followupStatus: "없음",
+    },
+  });
   await db.payment.create({
     data: {
       tenantId: T,
@@ -70,6 +87,7 @@ async function main() {
   assert.equal(await db.billing.findUnique({ where: { tenantId: T } }), null);
   assert.equal(await db.inspectionItem.count({ where: { tenantId: T } }), 0);
   assert.equal(await db.equipment.count({ where: { tenantId: T } }), 0);
+  assert.equal(await db.resolution.count({ where: { tenantId: T } }), 0);
   assert.equal(
     await db.payment.count({ where: { tenantId: T } }),
     1,
