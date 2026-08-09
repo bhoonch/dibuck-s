@@ -1,5 +1,8 @@
 import crypto from "node:crypto";
 
+// 서버 전용 — node:crypto 때문에 클라이언트 컴포넌트에서 import 금지.
+// 클라이언트가 타입이 필요하면 `import type`으로만 가져올 것.
+
 export const DECISIONS = ["가결", "부결", "보류"] as const;
 export const FOLLOWUPS = ["없음", "이행중", "완료"] as const;
 export const DEFAULT_NOTICE_DAYS = 5;
