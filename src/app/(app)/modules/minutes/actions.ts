@@ -4,11 +4,14 @@ import { revalidatePath } from "next/cache";
 import { RedirectType, redirect } from "next/navigation";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { assignDocNo } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateMinutesDraft } from "@/lib/minutes-ai";
 import {
+  DECISIONS,
   DEFAULT_NOTICE_DAYS,
+  FOLLOWUPS,
   normalizeMinutesAgendas,
   type AnchorMismatch,
   type Attendee,
@@ -18,6 +21,9 @@ import {
 
 const MODULE_ID = "minutes";
 const TYPE = "minutes";
+
+/** 트랜잭션 안에서 조건부 쓰기가 빈손일 때 — 전체를 되돌리고 사용자 문구로 돌려준다 (approval.ts와 동형) */
+class ActFailed extends Error {}
 
 /**
  * Prisma 트랜잭션 직렬화 충돌(Serializable 재시도 대상, P2034).
@@ -274,4 +280,113 @@ export async function saveMinutesDraft(
   });
   revalidatePath(`/modules/minutes/${doc.id}`);
   redirect(`/modules/minutes/${docId}`);
+}
+
+export type FinalizeResolutionInput = {
+  order: number;
+  title: string;
+  decision: string;
+  followupStatus: string;
+  dueDate: string | null; // "YYYY-MM-DD" | null
+  note: string;
+};
+
+/**
+ * 완성 — 확인 화면(finalize-form.tsx)에서 사용자가 등록을 체크한 의결만 넘어온다.
+ * 그래도 서버는 다시 검사한다: order는 meta.minutes에 실제로 있는 값만,
+ * decision·followupStatus는 각 상수 집합 안의 값만, title은 필수(trim).
+ * 번호 부여(멱등)가 먼저다: 여기서 실패해도 초안으로 남아 다시 누르면 되지만,
+ * 확정부터 하면 번호 없는 완성본이 남는다(notice finalizeNoticePost와 동일 이유).
+ */
+export async function finalizeMinutes(
+  docId: string,
+  resolutions: FinalizeResolutionInput[],
+): Promise<{ error?: string } | void> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "draft")
+    return { error: "이미 완성됐거나 폐기된 회의록입니다." };
+
+  const meta = doc.meta as MeetingMeta;
+  const orderSet = new Set((meta.minutes ?? []).map((a) => a.order));
+  const decisionSet = new Set<string>(DECISIONS);
+  const followupSet = new Set<string>(FOLLOWUPS);
+  const rows: {
+    tenantId: string;
+    meetingDocId: string;
+    order: number;
+    title: string;
+    decision: string;
+    followupStatus: string;
+    dueDate: Date | null;
+    note: string | null;
+  }[] = [];
+  for (const r of resolutions) {
+    if (!orderSet.has(r.order)) return { error: "안건 정보가 올바르지 않습니다." };
+    const title = String(r.title ?? "").trim();
+    if (!title) return { error: "의결사항 제목을 입력해 주세요." };
+    if (!decisionSet.has(r.decision))
+      return { error: "의결 결과 값이 올바르지 않습니다." };
+    if (!followupSet.has(r.followupStatus))
+      return { error: "후속 조치 값이 올바르지 않습니다." };
+    if (r.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(r.dueDate))
+      return { error: "기한 형식이 올바르지 않습니다." };
+    rows.push({
+      tenantId,
+      meetingDocId: doc.id,
+      order: r.order,
+      title,
+      decision: r.decision,
+      followupStatus: r.followupStatus,
+      dueDate: r.dueDate ? new Date(`${r.dueDate}T00:00:00+09:00`) : null,
+      note: r.note?.trim() || null,
+    });
+  }
+
+  await assignDocNo(doc); // 멱등 — 실패하면 초안으로 남아 다시 누르면 된다
+  try {
+    await db.$transaction(async (tx) => {
+      // 완성 자리를 먼저 잡는다 — 동시 더블클릭이 Resolution을 두 벌 만들면 안 된다
+      const claimed = await tx.document.updateMany({
+        where: { id: doc.id, status: "draft" },
+        data: { status: "final" },
+      });
+      if (claimed.count === 0) throw new ActFailed("이미 완성 처리되었습니다.");
+      if (rows.length > 0) await tx.resolution.createMany({ data: rows });
+    });
+  } catch (e) {
+    if (e instanceof ActFailed) return { error: e.message };
+    throw e;
+  }
+  revalidatePath(`/modules/minutes/${docId}`);
+  revalidatePath("/modules/minutes");
+}
+
+/**
+ * 폐기 — notice voidNoticePost와 같은 규칙. docNo 없는 초안(한 번도 완성되지
+ * 않음)은 흔적 없이 삭제(이 시점엔 Resolution이 아직 없다 — 완성 때만 만들어진다.
+ * ApprovalStep·첨부는 onDelete: Cascade). 완성본은 상태만 바꾼다 —
+ * Resolution은 지우지 않는다. 의결은 유효, 문서만 폐기한다.
+ */
+export async function voidMinutes(docId: string) {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (!doc.docNo) {
+    await db.document.delete({ where: { id: doc.id } });
+  } else {
+    await db.document.updateMany({
+      where: { id: doc.id, status: { not: "void" } },
+      data: { status: "void" },
+    });
+  }
+  revalidatePath("/modules/minutes");
+  redirect("/modules/minutes");
 }
