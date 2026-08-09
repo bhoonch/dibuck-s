@@ -482,3 +482,32 @@ export async function reissueSignToken(
   revalidatePath(`/modules/minutes/${step.documentId}`);
   return result;
 }
+
+/**
+ * 의결사항 후속 상태 변경 — 대장(resolutions)에서 행마다 한 클릭. FOLLOWUPS 전체를
+ * 허용한다("없음"으로 되돌리기도 실무에 있다 — 잘못 등록한 후속 필요 표시 해제).
+ * tenantId를 updateMany where에 반드시 넣는다 — 남의 단지 의결을 못 바꾼다.
+ */
+export async function setResolutionStatus(
+  id: string,
+  status: (typeof FOLLOWUPS)[number],
+): Promise<{ error?: string } | void> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  if (!(FOLLOWUPS as readonly string[]).includes(status))
+    return { error: "후속 조치 값이 올바르지 않습니다." };
+
+  const resolution = await db.resolution.findFirst({
+    where: { id, tenantId },
+    select: { meetingDocId: true },
+  });
+  if (!resolution) return { error: "의결사항을 찾을 수 없습니다." };
+
+  await db.resolution.updateMany({
+    where: { id, tenantId },
+    data: { followupStatus: status },
+  });
+  revalidatePath("/modules/minutes/resolutions");
+  revalidatePath("/modules/minutes");
+  revalidatePath(`/modules/minutes/${resolution.meetingDocId}`);
+}
