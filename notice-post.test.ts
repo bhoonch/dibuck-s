@@ -4,10 +4,12 @@
  */
 import assert from "node:assert/strict";
 import {
+  MAX_NOTICE_PHOTOS,
   NOTICE_CATEGORIES,
   NOTICE_TYPES,
   draftPlainText,
   itemsToText,
+  noticePhotos,
   noticeTypeOf,
   textToItems,
 } from "./src/lib/notice-catalog";
@@ -49,5 +51,22 @@ const plain = draftPlainText({
 });
 assert.ok(plain.includes("단수 일시: 8월 10일(월) 10:00 ~ 16:00"));
 assert.ok(plain.includes("물을 받아 두시기 바랍니다."));
+
+// --- 사진대지 배치 입력 — 상한·mime·죽은 캡션 키 ---
+const atts = [
+  { id: "a", mime: "image/webp" },
+  { id: "b", mime: "application/pdf" }, // 종이에 못 찍는다 — 제외
+  { id: "c", mime: "image/jpeg" },
+  { id: "d", mime: "image/png" },
+  { id: "e", mime: "image/webp" },
+  { id: "f", mime: "image/webp" }, // 5번째 이미지 — 상한 4장에 잘린다
+];
+const rows = noticePhotos(atts, { a: " 보수 전 ", dead: "삭제된 사진", c: "" });
+assert.equal(rows.length, MAX_NOTICE_PHOTOS);
+assert.deepEqual(rows.map((r) => r.id), ["a", "c", "d", "e"]);
+assert.equal(rows[0].caption, "보수 전"); // trim
+assert.equal(rows[1].caption, ""); // 캡션 없음 → 캡션 칸 미생성 신호
+assert.ok(!rows.some((r) => r.id === "dead"), "죽은 캡션 키는 행이 되지 않는다");
+assert.deepEqual(noticePhotos([], { a: "x" }), [], "사진 없으면 박스도 없다");
 
 console.log("notice-post.test.ts 통과");

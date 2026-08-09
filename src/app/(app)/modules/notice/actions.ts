@@ -1,16 +1,20 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Role } from "@/generated/prisma/enums";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assignDocNo, createDocument } from "@/lib/documents";
+import { MAX_FILE_BYTES } from "@/lib/gian/attachments";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateNoticePost } from "@/lib/notice-ai";
 import {
   draftPlainText,
+  MAX_NOTICE_PHOTOS,
+  NOTICE_CAPTION_MAX,
   noticeTypeOf,
   textToItems,
   type NoticeKind,
@@ -221,7 +225,7 @@ export async function finalizeNoticePost(docId: string) {
 /**
  * 폐기 — 완성본은 목록에 '폐기'로 남고 열람만 된다.
  * 한 번도 완성되지 않은 초안(docNo 없음)은 하드 삭제 — 공지 대장에 결번을
- * 남기지 않는다(기안 초안 폐기와 같은 규칙).
+ * 남기지 않는다(기안 초안 폐기와 같은 규칙. 첨부는 onDelete: Cascade).
  */
 export async function voidNoticePost(docId: string) {
   const session = await requireNotice();
@@ -230,11 +234,109 @@ export async function voidNoticePost(docId: string) {
   if (!found.doc.docNo) {
     await db.document.delete({ where: { id: found.doc.id } });
   } else {
-    await db.document.updateMany({
-      where: { id: found.doc.id, status: { not: "void" } },
-      data: { status: "void" },
-    });
+    await db.$transaction([
+      db.document.updateMany({
+        where: { id: found.doc.id, status: { not: "void" } },
+        data: { status: "void" },
+      }),
+      // 폐기 게시물의 사진 본문 회수 — 이름·해시(row)는 기록으로 남긴다 (voidGian과 동일)
+      db.documentAttachment.updateMany({
+        where: { documentId: found.doc.id },
+        data: { data: null },
+      }),
+    ]);
   }
   revalidatePath("/modules/notice");
   redirect("/modules/notice");
+}
+
+/**
+ * 사진 첨부 — 사진대지로 A4에 실린다. 본문 [내용 수정]과 같은 경계
+ * (폐기 전 + 작성자/마스터)라 완성 후에도 넣고 뺄 수 있다.
+ * 브라우저가 1200px WebP로 줄여 보내지만 여기가 신뢰 경계다.
+ */
+export async function uploadNoticePhoto(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+) {
+  const session = await requireNotice();
+  const found = await ownedPost(String(formData.get("docId") ?? ""), session);
+  if ("error" in found) return found;
+  if (found.doc.status === "void")
+    return { error: "폐기된 게시물은 수정할 수 없습니다." };
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0)
+    return { error: "사진을 선택해 주세요." };
+  // A4에 <img>로 찍혀야 한다 — PDF는 종이에 못 싣는다
+  if (!file.type.startsWith("image/"))
+    return { error: "사진(이미지 파일)만 실을 수 있습니다." };
+  if (file.size > MAX_FILE_BYTES)
+    return { error: "3MB 이하만 올릴 수 있습니다. 폰으로 찍은 사진은 자동으로 줄어듭니다." };
+
+  const count = await db.documentAttachment.count({
+    where: { documentId: found.doc.id },
+  });
+  if (count >= MAX_NOTICE_PHOTOS)
+    return { error: `사진은 ${MAX_NOTICE_PHOTOS}장까지 실을 수 있습니다.` };
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  await db.documentAttachment.create({
+    data: {
+      documentId: found.doc.id,
+      name: file.name,
+      mime: file.type,
+      size: buf.byteLength,
+      sha256: crypto.createHash("sha256").update(buf).digest("hex"),
+      data: buf,
+    },
+  });
+  revalidatePath(`/modules/notice/${found.doc.id}`);
+  return undefined;
+}
+
+/** 사진 삭제 — 업로드와 같은 경계. meta.captions의 죽은 키는 무해해서 지우지 않는다 */
+export async function deleteNoticePhoto(attachmentId: string) {
+  const session = await requireNotice();
+  const att = await db.documentAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { documentId: true },
+  });
+  if (!att) return { error: "사진을 찾을 수 없습니다." };
+  const found = await ownedPost(att.documentId, session);
+  if ("error" in found) return found;
+  if (found.doc.status === "void")
+    return { error: "폐기된 게시물은 수정할 수 없습니다." };
+  await db.documentAttachment.delete({ where: { id: attachmentId } });
+  revalidatePath(`/modules/notice/${found.doc.id}`);
+  return undefined;
+}
+
+/** 캡션 저장 — 사진의 진실은 첨부 행이고 meta.captions는 조회용 부가정보다 */
+export async function saveNoticePhotoCaption(
+  attachmentId: string,
+  caption: string,
+) {
+  const session = await requireNotice();
+  const att = await db.documentAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { documentId: true },
+  });
+  if (!att) return { error: "사진을 찾을 수 없습니다." };
+  const found = await ownedPost(att.documentId, session);
+  if ("error" in found) return found;
+  if (found.doc.status === "void")
+    return { error: "폐기된 게시물은 수정할 수 없습니다." };
+
+  const meta = (found.doc.meta ?? {}) as { captions?: Record<string, string> };
+  const captions = {
+    ...meta.captions,
+    [attachmentId]: caption.trim().slice(0, NOTICE_CAPTION_MAX),
+  };
+  await db.document.update({
+    where: { id: found.doc.id },
+    data: { meta: { ...(found.doc.meta as object), captions } },
+  });
+  revalidatePath(`/modules/notice/${found.doc.id}`);
+  return undefined;
 }

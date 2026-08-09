@@ -48,11 +48,13 @@ export async function GET(
     // 폐기된 문서 — 파일 본문은 비웠고 이름·해시만 기록으로 남아 있다
     return NextResponse.json({ error: "purged" }, { status: 410 });
 
-  return new NextResponse(Buffer.from(att.data), {
+  // 첨부는 불변 리소스다(내용이 바뀌면 새 id) — 재열람은 브라우저 캐시가 다 걷는다
+  return new NextResponse(att.data, {
     headers: {
       "Content-Type": att.mime,
       "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(att.name)}`,
-      "Cache-Control": "private, max-age=0",
+      "Cache-Control": "private, max-age=31536000, immutable",
+      ETag: `"${att.sha256}"`,
     },
   });
 }

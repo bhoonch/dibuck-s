@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { FileText, Loader2, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { panel, panelTitle } from "@/components/gian-ui";
+import { shrinkImage } from "@/lib/shrink-image";
 import { deleteQuoteFile, uploadQuoteFile } from "../approval-actions";
 
 export type FileRow = {
@@ -12,30 +13,6 @@ export type FileRow = {
   size: number;
   quoteIndex: number | null;
 };
-
-/**
- * 폰으로 찍은 견적서(5MB급)를 올리기 전에 줄인다 — 장변 2000px WebP.
- * 2000px ≈ A4 171DPI라 표의 작은 글씨까지 읽힌다. 라이브러리 없이 canvas만.
- * 디코딩 실패(HEIC 등)면 원본 그대로 — 서버 3MB 상한이 최종선이다.
- */
-async function shrinkImage(file: File): Promise<File> {
-  if (!file.type.startsWith("image/")) return file;
-  const bmp = await createImageBitmap(file).catch(() => null);
-  if (!bmp) return file;
-  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
-  if (scale === 1 && file.size < 500 * 1024) return file; // 이미 작으면 그대로
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale);
-  canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((res) =>
-    canvas.toBlob(res, "image/webp", 0.8),
-  );
-  if (!blob) return file;
-  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", {
-    type: "image/webp",
-  });
-}
 
 const kb = (n: number) => `${Math.max(1, Math.round(n / 1024))}KB`;
 

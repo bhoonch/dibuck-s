@@ -5,7 +5,11 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { Role } from "@/generated/prisma/enums";
-import type { NoticeKind, NoticePostDraft } from "@/lib/notice-catalog";
+import {
+  noticePhotos,
+  type NoticeKind,
+  type NoticePostDraft,
+} from "@/lib/notice-catalog";
 import {
   DEFAULT_PLACES,
   DEFAULT_POST_TO,
@@ -23,6 +27,7 @@ import { NoticePostPaper } from "@/components/notice-post-paper";
 import { NoticePosting } from "../../approvals/[docId]/notice-posting";
 import { updateNoticePostPosting } from "../actions";
 import { FinalizeButton } from "./finalize-button";
+import { NoticePhotos } from "./notice-photos";
 import { PrintButton } from "./print-button";
 import { VoidButton } from "./void-button";
 
@@ -48,6 +53,7 @@ export default async function NoticeDocPage({
     postedDate?: string;
     place?: string;
     postTo?: string;
+    captions?: Record<string, string>;
   };
   // meta.draft 없는 옛 문서(시드 데모 등)는 제목·본문 평문으로 최소 렌더
   const meta = {
@@ -76,6 +82,17 @@ export default async function NoticeDocPage({
     .join(" / ");
   const voided = doc.status === "void";
   const isDraft = doc.status === "draft";
+  // 폐기본은 사진 본문(data)을 회수했다 — 빈 박스를 찍지 않게 사진대지 자체를 접는다
+  const photos = voided
+    ? []
+    : noticePhotos(
+        await db.documentAttachment.findMany({
+          where: { documentId: doc.id },
+          select: { id: true, mime: true },
+          orderBy: { createdAt: "asc" },
+        }),
+        raw.captions,
+      );
   // 문서 수정·폐기의 공통 경계 — 작성자 본인 또는 마스터
   const canEdit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
@@ -147,6 +164,7 @@ export default async function NoticeDocPage({
                 tel={tel}
                 sealImage={tenant.sealImage}
                 logoImage={tenant.logoImage}
+                photos={photos}
               />
             </PaperScale>
           </div>
@@ -171,6 +189,10 @@ export default async function NoticeDocPage({
                   </p>
                 )}
               </Card>
+            )}
+            {/* 사진은 문서 내용이라 게시 설정(실무) 위 — 폐기본은 본문을 회수해 패널도 접는다 */}
+            {!voided && (
+              <NoticePhotos docId={doc.id} photos={photos} editable={canEdit} />
             )}
             {voided ? (
               <Card className="p-4 text-sm text-muted-foreground">

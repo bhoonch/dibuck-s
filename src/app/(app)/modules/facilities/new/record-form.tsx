@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PaperScale } from "@/components/paper-scale";
 import { InspectionPaper } from "@/components/inspection-paper";
 import { STATUS_PILL, toneOf } from "@/lib/inspection/status";
+import { shrinkImage } from "@/lib/shrink-image";
 import {
   followupOf,
   type InspectionStatus,
@@ -67,29 +68,6 @@ export type EditDefaults = {
   /** 이미 붙어 있는 첨부 이름 — 미리보기 첨부 목록용 */
   attachmentNames: string[];
 };
-
-/**
- * 폰으로 찍은 성적서(5MB급)를 담기 전에 줄인다 — 장변 2000px WebP
- * (quote-files.tsx와 같은 방식). 실패하면 원본 — 서버 3MB 상한이 최종선이다.
- */
-async function shrinkImage(file: File): Promise<File> {
-  if (!file.type.startsWith("image/")) return file;
-  const bmp = await createImageBitmap(file).catch(() => null);
-  if (!bmp) return file;
-  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
-  if (scale === 1 && file.size < 500 * 1024) return file;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale);
-  canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((res) =>
-    canvas.toBlob(res, "image/webp", 0.8),
-  );
-  if (!blob) return file;
-  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", {
-    type: "image/webp",
-  });
-}
 
 const kb = (n: number) => `${Math.max(1, Math.round(n / 1024))}KB`;
 
