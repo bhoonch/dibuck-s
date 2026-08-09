@@ -24,7 +24,9 @@ const MODULES = [
   // 가격 33,000 단일가(사용자 확정 2026-07-27). 결재까지 구현이 끝나 판매 중이다.
   { id: "approvals", name: "AI 기안·결재", description: "다섯 항목만 입력하면 법적 검토를 마친 기안서·품의서 초안과 결재까지", icon: "Stamp", route: "/modules/approvals", price: 33000, sortOrder: 2, isActive: true },
   { id: "safety-training", name: "AI 안전교육일지", description: "종류·주제만 고르면 법정 교육일지가 완성되고, 놓친 반기 교육을 알려드려요", icon: "HardHat", route: "/modules/safety-training", price: 10000, sortOrder: 3, isActive: true },
-  { id: "minutes", name: "AI 회의록 완성", description: "메모만 넘기면 회의록이 정리돼요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 4, isActive: false },
+  // minutes = 입대의 회의록·의결 관리로 재정의(2026-08-10, 사용자 확정) — 소집 통지·회의록·
+  // 전자서명·의결 공고·이행 추적까지 구현이 끝나 판매 중이다.
+  { id: "minutes", name: "입대의 회의록·의결 관리", description: "소집 통지부터 회의록 작성, 전자서명, 의결사항 공고와 이행 추적까지 한 곳에서 끝나요", icon: "ClipboardList", route: "/modules/minutes", price: 20000, sortOrder: 4, isActive: true },
   { id: "dunning", name: "미납 독촉장", description: "관리비 미납 세대 독촉장을 한 번에 만들어요", icon: "FileWarning", route: "/modules/dunning", price: 30000, sortOrder: 5, isActive: true },
   { id: "contracts", name: "계약 만료 알리미", description: "계약 만료 전에 미리 알려드려요", icon: "FileText", route: "/modules/contracts", price: 20000, sortOrder: 6, isActive: false },
   { id: "complaints", name: "민원·하자 이력", description: "민원 접수부터 처리까지 한눈에", icon: "MessageSquareWarning", route: "/modules/complaints", price: 20000, sortOrder: 7, isActive: false },
@@ -104,7 +106,7 @@ async function seedDemo() {
   // 데모 단지는 구독 행만 만든다: 구독 중이면 판매 중단 모듈도 계속 보인다(retired).
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training", "facilities", "repairs"]) {
+  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training", "facilities", "repairs", "minutes"]) {
     const trial = moduleId === "contracts" ? trialEndsAt : null;
     await db.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: tenant.id, moduleId } },
@@ -343,6 +345,90 @@ async function seedDemo() {
         rec({ equipmentName: null, symptom: "지하 1층 복도 전등 깜빡임", action: "안정기 교체", vendor: "", cost: 45000, daysAgo: 30 }),
         rec({ equipmentName: null, symptom: "정문 자동문 감지 불량", action: "센서 청소·조정", vendor: "", cost: 0, daysAgo: 15 }),
       ],
+    });
+  }
+
+  // 회의록 데모 — 완성 회의 1건(의결 3건: 완료 1·이행중 1·이행중+기한경과 1) +
+  // 소집 단계 회의 1건(미래 회의일). 홈 위젯·대장·자동 이행 보고 제안이 데모에서 다 보인다.
+  // (문서와 같은 규칙: 이 모듈 문서가 없을 때만 심는다)
+  if ((await db.document.count({ where: { tenantId: tenant.id, type: "minutes" } })) === 0) {
+    const meetingYmdHm = (daysFromNow: number) => {
+      const d = new Date(Date.now() + 9 * 3600_000 + daysFromNow * 86400000);
+      return `${d.toISOString().slice(0, 10)} 19:00`;
+    };
+    const meetingDue = (meetingAt: string) =>
+      new Date(`${meetingAt.replace(" ", "T")}:00+09:00`);
+
+    const attendees = [
+      { role: "CHAIR", label: "입주자대표회장", name: "김회장", present: true },
+      { role: "AUDITOR", label: "감사", name: "이감사", present: true },
+      { role: "ETC", label: "동대표", name: "박동대표", present: true },
+    ];
+    const agenda1 = [
+      { order: 1, title: "지하주차장 LED 조명 교체 공사 승인의 건" },
+      { order: 2, title: "놀이터 안전매트 보수 예산 승인의 건" },
+      { order: 3, title: "관리비 예치금 이자율 변경의 건" },
+    ];
+    const meetingAt1 = meetingYmdHm(-60); // 60일 전(완성 회의)
+    const minutes1 = [
+      { order: 1, title: agenda1[0].title, discussion: ["노후 조명 30개 교체 필요성 설명", "견적 3개사 비교 검토"], decision: "가결", votesFor: 5, votesAgainst: 0 },
+      { order: 2, title: agenda1[1].title, discussion: ["안전매트 마모 상태 확인", "보수 업체 선정 방식 논의"], decision: "가결", votesFor: 4, votesAgainst: 1 },
+      { order: 3, title: agenda1[2].title, discussion: ["예치금 이자율 시중은행 대비 검토"], decision: "가결", votesFor: 5, votesAgainst: 0 },
+    ];
+
+    const meeting1 = await db.document.create({
+      data: {
+        tenantId: tenant.id,
+        moduleId: "minutes",
+        docNo: `회의-${year}-0001`,
+        type: "minutes",
+        title: "제1차 입주자대표회의",
+        content: agenda1.map((a) => a.title).join("\n"),
+        status: "final",
+        dueDate: meetingDue(meetingAt1),
+        createdById: director.id,
+        meta: {
+          meetingNo: 1,
+          meetingAt: meetingAt1,
+          place: "관리사무소 회의실",
+          noticeDays: 5,
+          attendees,
+          agenda: agenda1,
+          minutes: minutes1,
+        },
+      },
+    });
+    await db.resolution.createMany({
+      data: [
+        { tenantId: tenant.id, meetingDocId: meeting1.id, order: 1, title: agenda1[0].title, decision: "가결", followupStatus: "완료", dueDate: null, note: null },
+        { tenantId: tenant.id, meetingDocId: meeting1.id, order: 2, title: agenda1[1].title, decision: "가결", followupStatus: "이행중", dueDate: days(30), note: null },
+        { tenantId: tenant.id, meetingDocId: meeting1.id, order: 3, title: agenda1[2].title, decision: "가결", followupStatus: "이행중", dueDate: days(-20), note: null }, // 기한 경과
+      ],
+    });
+
+    // 소집 단계 회의 — 미래 회의일, 아직 회의록 없음(meta.minutes 없음)
+    const agenda2 = [{ order: 1, title: "제설 작업 예산 편성 승인의 건" }];
+    const meetingAt2 = meetingYmdHm(20); // 20일 뒤
+    await db.document.create({
+      data: {
+        tenantId: tenant.id,
+        moduleId: "minutes",
+        docNo: null,
+        type: "minutes",
+        title: "제2차 입주자대표회의",
+        content: agenda2.map((a) => a.title).join("\n"),
+        status: "draft",
+        dueDate: meetingDue(meetingAt2),
+        createdById: director.id,
+        meta: {
+          meetingNo: 2,
+          meetingAt: meetingAt2,
+          place: "관리사무소 회의실",
+          noticeDays: 5,
+          attendees,
+          agenda: agenda2,
+        },
+      },
     });
   }
 

@@ -8,6 +8,7 @@ import { docStatusLabels, docStatusStyles } from "@/lib/labels";
 import { koreanDateKst, ymdKst, ymdhmKst } from "@/lib/utils";
 import { noticeDueYmd, type MeetingMeta } from "@/lib/minutes";
 import type { ExternalApprover } from "@/lib/gian/rules";
+import type { NoticeDoc } from "@/lib/gian/notice";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,10 +17,12 @@ import { PrintStyle } from "@/components/gian-paper";
 import { PrintFitOnePage } from "@/components/print-fit";
 import { ConvocationPaper } from "@/components/convocation-paper";
 import { MinutesPaper } from "@/components/minutes-paper";
+import { NoticePaper } from "@/components/notice-paper";
 import { PrintButton } from "./print-button";
 import { FinalizeForm } from "./finalize-form";
 import { VoidButton } from "./void-button";
 import { SignPanel, type SignStepRow } from "./sign-panel";
+import { NoticeButton } from "./notice-button";
 
 const MODULE_ID = "minutes";
 const TYPE = "minutes";
@@ -41,10 +44,72 @@ export default async function MeetingDocPage({
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, MODULE_ID))) redirect("/subscriptions");
   const { docId } = await params;
+  // type은 "minutes" 아니면 "notice" — 파생 공고문도 같은 화면에서 연다(원본과 moduleId가 같다)
   const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+    where: { id: docId, tenantId, moduleId: MODULE_ID, type: { in: [TYPE, "notice"] } },
   });
   if (!doc) notFound();
+
+  // 파생 의결 공고문 — gian의 approvals/[docId] meta.notice 분기와 같은 자리
+  if (doc.type === "notice") {
+    const noticeMeta = doc.meta as { notice?: NoticeDoc; sourceDocId?: string } | null;
+    if (!noticeMeta?.notice) notFound(); // createResolutionNotice가 항상 채운다 — 방어적
+    const tenant = await db.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { name: true, phone: true, fax: true, sealImage: true, logoImage: true },
+    });
+    const tel = [
+      tenant.phone && `TEL : ${tenant.phone}`,
+      tenant.fax && `FAX : ${tenant.fax}`,
+    ]
+      .filter(Boolean)
+      .join(" / ");
+    return (
+      <>
+        <PrintStyle margin="0" />
+        <PrintFitOnePage />
+        <div className="mx-auto max-w-[794px]">
+          <Link
+            href="/modules/minutes"
+            className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground print:hidden"
+          >
+            <ChevronLeft className="size-4" />
+            목록
+          </Link>
+          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded border-[1.5px] border-[var(--gian-stamp)] py-1 pr-3 pl-3.5 text-sm font-bold tracking-[.18em] text-[var(--gian-stamp)]">
+                의결사항 공고
+              </span>
+              <span className="text-sm text-[var(--gian-ink-soft)]">
+                {doc.docNo}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <PrintButton label="공고문 인쇄" />
+              {noticeMeta.sourceDocId && (
+                <Button asChild variant="outline">
+                  <Link href={`/modules/minutes/${noticeMeta.sourceDocId}`}>
+                    원본 회의록
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+          <PaperScale>
+            <NoticePaper
+              notice={noticeMeta.notice}
+              docNo={doc.docNo ?? ""}
+              office={`${tenant.name} 관리사무소`}
+              tel={tel}
+              sealImage={tenant.sealImage}
+              logoImage={tenant.logoImage}
+            />
+          </PaperScale>
+        </div>
+      </>
+    );
+  }
 
   const meta = doc.meta as MeetingMeta;
 
@@ -236,14 +301,15 @@ export default async function MeetingDocPage({
               )}
               {!voided && (
                 <Card className="space-y-2 p-4">
-                  <Button
-                    disabled
-                    variant="outline"
-                    title="다음 업데이트에서 제공됩니다"
-                    className="w-full"
-                  >
-                    의결 공고문 만들기
-                  </Button>
+                  {meta.noticeDocId ? (
+                    <Button asChild variant="outline" className="w-full">
+                      <Link href={`/modules/minutes/${meta.noticeDocId}`}>
+                        공고문 보기
+                      </Link>
+                    </Button>
+                  ) : (
+                    <NoticeButton docId={doc.id} />
+                  )}
                 </Card>
               )}
               <Card className="p-4">

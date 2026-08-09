@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { AttentionCard } from "@/components/attention-card";
+import { GuideLink } from "@/components/guide-link";
 
 const MODULE_ID = "minutes";
 const TYPE = "minutes";
@@ -76,6 +77,7 @@ export default async function MinutesHomePage() {
         title="입주자대표회의 회의록"
         description="소집 통지부터 서명까지 한 화면에서 관리합니다. 완료되지 않은 의결은 다음 회의 안건으로 자동 제안됩니다."
       >
+        <GuideLink section="minutes" />
         <Button asChild variant="outline" size="lg">
           <Link href="/modules/minutes/resolutions">
             <ScrollText className="size-4" /> 의결사항 대장

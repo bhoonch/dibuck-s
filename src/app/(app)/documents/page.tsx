@@ -14,6 +14,7 @@ const LINKABLE_MODULES = new Set([
   "safety-training",
   "facilities",
   "repairs",
+  "minutes",
 ]);
 
 /** 기간 필터의 기준 시각. 0·NaN이면 기간 제한 없음 */

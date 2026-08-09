@@ -4,12 +4,19 @@ import { revalidatePath } from "next/cache";
 import { RedirectType, redirect } from "next/navigation";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { assignDocNo } from "@/lib/documents";
+import { assignDocNo, createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateMinutesDraft } from "@/lib/minutes-ai";
 import { newToken, reissueToken, tokenExpiry } from "@/lib/gian/approval";
+import {
+  DEFAULT_PLACES,
+  DEFAULT_POST_TO,
+  findNoticeFor,
+  type NoticeDoc,
+} from "@/lib/gian/notice";
 import { mailerEnabled, sendSignatureRequest, trySend } from "@/lib/mailer";
+import { ymdKst } from "@/lib/utils";
 import type { ExternalApprover } from "@/lib/gian/rules";
 import {
   DECISIONS,
@@ -510,4 +517,107 @@ export async function setResolutionStatus(
   revalidatePath("/modules/minutes/resolutions");
   revalidatePath("/modules/minutes");
   revalidatePath(`/modules/minutes/${resolution.meetingDocId}`);
+}
+
+/**
+ * 의결 공고문 파생 — gian의 결재 완료 → 공고문 파생(createNoticeFrom)과 동형·결정적 코드.
+ * 게이트: 완성(final) + 의결 1건 이상. 이미 파생됐으면(findNoticeFor) 그 문서로 안내한다
+ * (재생성이 아니다 — 공고문은 결정적 코드 산출물이라 손으로 못 고치고, 다시 만드는 게
+ * 유일한 복구다. 그래도 여기선 있으면 그냥 보여주기만 한다).
+ * moduleId는 원본과 같은 "minutes"를 쓴다 — [docId] 화면이 type "notice"도 함께 연다.
+ * 파생 실패가 완성을 롤백하지 않는다: 완성은 이미 끝난 일이고, 공고는 언제든 다시 누른다.
+ */
+export async function createResolutionNotice(
+  docId: string,
+): Promise<{ error?: string } | void> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "final")
+    return { error: "완성된 회의록만 공고문을 만들 수 있습니다." };
+
+  const meta = doc.meta as MeetingMeta;
+
+  const existing = await findNoticeFor(doc.id);
+  if (existing) {
+    if (meta.noticeDocId !== existing.id)
+      await db.document.update({
+        where: { id: doc.id },
+        data: { meta: { ...meta, noticeDocId: existing.id } },
+      });
+    redirect(`/modules/minutes/${existing.id}`);
+  }
+
+  const resolutions = await db.resolution.findMany({
+    where: { meetingDocId: doc.id, tenantId },
+    orderBy: { order: "asc" },
+  });
+  if (resolutions.length === 0)
+    return { error: "의결사항이 없어 공고문을 만들 수 없습니다." };
+
+  // 찬반 수는 Resolution에 없다(후속 조치 대장은 표결 수를 안 쓴다) — meta.minutes에서 order로 되찾는다
+  const votesByOrder = new Map((meta.minutes ?? []).map((a) => [a.order, a]));
+  const [ymd] = meta.meetingAt.split(" ");
+  const [y, m, d] = ymd.split("-");
+  const meetingAtDisplay = `${Number(y)}년 ${Number(m)}월 ${Number(d)}일`;
+
+  const notice: NoticeDoc = {
+    kind: "공 고 문",
+    place: DEFAULT_PLACES.join(", "),
+    // 게시 시작일 = 지금(파생 시점). gian 공고문의 postFrom(approvedAt)과 다른 판단이다 —
+    // 결재 파생은 "결재된 날"이 곧 시행 근거일이지만, 의결 공고는 "결정된 날"이 아니라
+    // "게시하는 날"부터 효력이 있다. 완성 시점을 따로 저장하지 않으므로 지금이 가장 정직하다.
+    postFrom: ymdKst(new Date()),
+    postTo: DEFAULT_POST_TO,
+    title: `제${meta.meetingNo}차 입주자대표회의 의결사항 공고`,
+    intro: `제${meta.meetingNo}차 입주자대표회의(${meetingAtDisplay})에서 다음과 같이 의결되었음을 공고합니다.`,
+    rows: resolutions.map((r) => {
+      const a = votesByOrder.get(r.order);
+      const votes =
+        a && (a.votesFor !== null || a.votesAgainst !== null)
+          ? `(찬성 ${a.votesFor ?? 0}, 반대 ${a.votesAgainst ?? 0})`
+          : "";
+      return { k: `제${r.order}호 안건`, v: `${r.title} ${r.decision}${votes}` };
+    }),
+    notes: [{ text: "회의록은 관리사무소에 보관되어 있습니다." }],
+  };
+
+  let created;
+  try {
+    created = await createDocument({
+      tenantId,
+      moduleId: MODULE_ID,
+      type: "notice",
+      title: notice.title,
+      // 문서함 검색용 평문 — 화면 렌더는 meta.notice가 담당한다
+      content: [
+        notice.intro,
+        ...notice.rows.map((r) => `${r.k}: ${r.v}`),
+        ...notice.notes.map((n) => n.text),
+      ].join("\n"),
+      meta: { sourceDocId: doc.id, notice },
+      status: "final",
+      createdById: session.userId,
+      sourceDocId: doc.id, // @@unique([type, sourceDocId])가 동시 파생을 막는다
+    });
+  } catch (e) {
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "P2002") {
+      // 동시 파생의 진 쪽 — 이긴 쪽이 이미 만들었으니 그 문서로 안내한다
+      const won = await findNoticeFor(doc.id);
+      if (won) redirect(`/modules/minutes/${won.id}`);
+      return { error: "이미 공고문이 만들어졌습니다." };
+    }
+    throw e;
+  }
+
+  await db.document.update({
+    where: { id: doc.id },
+    data: { meta: { ...meta, noticeDocId: created.id } },
+  });
+  revalidatePath(`/modules/minutes/${docId}`);
+  revalidatePath("/modules/minutes");
+  redirect(`/modules/minutes/${created.id}`);
 }
