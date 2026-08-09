@@ -44,8 +44,9 @@ export function tokenState(
   return "valid";
 }
 
-const newToken = () => crypto.randomBytes(32).toString("hex");
-const tokenExpiry = () =>
+// 회의록 병렬 서명(minutes actions)도 같은 토큰 발급 규칙을 그대로 쓴다 — export만 추가, 동작 변경 없음.
+export const newToken = () => crypto.randomBytes(32).toString("hex");
+export const tokenExpiry = () =>
   new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
 /**

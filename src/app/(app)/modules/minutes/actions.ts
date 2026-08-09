@@ -8,6 +8,9 @@ import { assignDocNo } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
 import { rateLimit } from "@/lib/rate-limit";
 import { aiEnabled, generateMinutesDraft } from "@/lib/minutes-ai";
+import { newToken, reissueToken, tokenExpiry } from "@/lib/gian/approval";
+import { mailerEnabled, sendSignatureRequest, trySend } from "@/lib/mailer";
+import type { ExternalApprover } from "@/lib/gian/rules";
 import {
   DECISIONS,
   DEFAULT_NOTICE_DAYS,
@@ -389,4 +392,93 @@ export async function voidMinutes(docId: string) {
   }
   revalidatePath("/modules/minutes");
   redirect("/modules/minutes");
+}
+
+/**
+ * 서명 요청 — 완성(final) 회의록에서 한 번만. 결재(순차)와 달리 참석자 전원이
+ * 동시에 pending + 각자 토큰을 받는다(병렬). 이미 스텝이 있으면 거부하고,
+ * 개별 재발급은 아래 reissueSignToken(스텝 단위, gian의 reissueToken 재사용)이 맡는다.
+ */
+export async function requestSignatures(
+  docId: string,
+): Promise<{ error?: string } | void> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const doc = await db.document.findFirst({
+    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  if (doc.status !== "final")
+    return { error: "완성된 회의록만 서명을 요청할 수 있습니다." };
+
+  const meta = doc.meta as MeetingMeta;
+  const present = meta.attendees.filter((a) => a.present);
+  if (present.length === 0) return { error: "참석자가 없습니다." };
+
+  const already = await db.approvalStep.count({ where: { documentId: doc.id } });
+  if (already > 0) return { error: "이미 서명을 요청했습니다." };
+
+  try {
+    await db.approvalStep.createMany({
+      data: present.map((a, i) => ({
+        documentId: doc.id,
+        order: i + 1,
+        name: a.name,
+        externalRole: a.role === "ETC" ? null : a.role, // 표시용 — 판정에 안 쓴다
+        status: "pending",
+        token: newToken(),
+        tokenExpiresAt: tokenExpiry(),
+      })),
+    });
+  } catch (e) {
+    // 동시 요청 경합 — @@unique([documentId, order]) 충돌
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "P2002")
+      return { error: "이미 서명을 요청했습니다." };
+    throw e;
+  }
+
+  // 메일은 실패해도 흐름을 막지 않는다 — 링크 복사가 기본 전달 수단
+  if (mailerEnabled()) {
+    const tenant = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true, externalApprovers: true },
+    });
+    const approvers =
+      (tenant?.externalApprovers as ExternalApprover[] | null) ?? [];
+    const steps = await db.approvalStep.findMany({ where: { documentId: doc.id } });
+    for (const step of steps) {
+      const person = approvers.find((e) => e.name === step.name);
+      if (person?.email && step.token && tenant)
+        await trySend(() =>
+          sendSignatureRequest(
+            person.email!,
+            step.name,
+            tenant.name,
+            doc.title,
+            step.token!,
+          ),
+        );
+    }
+  }
+
+  revalidatePath(`/modules/minutes/${docId}`);
+}
+
+/** 서명 링크 재발급 — 스텝 단위. gian의 reissueToken을 그대로 쓴다(조건이 그대로 맞는다) */
+export async function reissueSignToken(
+  stepId: string,
+): Promise<{ error?: string; token?: string }> {
+  const session = await requireMinutes();
+  const step = await db.approvalStep.findFirst({
+    where: {
+      id: stepId,
+      document: { tenantId: session.tenantId!, type: TYPE, moduleId: MODULE_ID },
+    },
+  });
+  if (!step) return { error: "단계를 찾을 수 없습니다." };
+
+  const result = await reissueToken(stepId);
+  if ("error" in result) return result;
+  revalidatePath(`/modules/minutes/${step.documentId}`);
+  return result;
 }

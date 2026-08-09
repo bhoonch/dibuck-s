@@ -5,7 +5,7 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
-import { koreanDateKst, ymdKst } from "@/lib/utils";
+import { koreanDateKst, ymdKst, ymdhmKst } from "@/lib/utils";
 import { noticeDueYmd, type MeetingMeta } from "@/lib/minutes";
 import type { ExternalApprover } from "@/lib/gian/rules";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { MinutesPaper } from "@/components/minutes-paper";
 import { PrintButton } from "./print-button";
 import { FinalizeForm } from "./finalize-form";
 import { VoidButton } from "./void-button";
+import { SignPanel, type SignStepRow } from "./sign-panel";
 
 const MODULE_ID = "minutes";
 const TYPE = "minutes";
@@ -114,6 +115,27 @@ export default async function MeetingDocPage({
       where: { meetingDocId: doc.id, tenantId },
       orderBy: { order: "asc" },
     });
+    const signSteps = await db.approvalStep.findMany({
+      where: { documentId: doc.id },
+      orderBy: { order: "asc" },
+    });
+    // 서명 스텝은 참석자 배열의 present 순서와 order(1부터)로 짝짓는다(requestSignatures와 동일 규칙)
+    const now = new Date();
+    const signRows: SignStepRow[] = meta.attendees
+      .filter((a) => a.present)
+      .map((a, i) => {
+        const step = signSteps.find((s) => s.order === i + 1);
+        return {
+          order: i + 1,
+          label: a.label,
+          name: a.name,
+          stepId: step?.id ?? null,
+          status: step?.status ?? null,
+          actedAt: step?.actedAt ? ymdhmKst(step.actedAt) : null,
+          token: step?.token ?? null,
+          tokenExpired: step ? !step.tokenExpiresAt || step.tokenExpiresAt <= now : false,
+        };
+      });
     const [ymd, hm] = meta.meetingAt.split(" ");
     const [y, m, d] = ymd.split("-");
     const meetingAtDisplay = `${y}년 ${Number(m)}월 ${Number(d)}일 ${hm}`;
@@ -158,7 +180,12 @@ export default async function MeetingDocPage({
                   place={meta.place}
                   attendees={meta.attendees}
                   agendas={meta.minutes}
-                  steps={[]}
+                  steps={signSteps.map((s) => ({
+                    order: s.order,
+                    status: s.status,
+                    actedAt: s.actedAt,
+                    name: s.name,
+                  }))}
                 />
               </PaperScale>
             </div>
@@ -201,14 +228,14 @@ export default async function MeetingDocPage({
                 )}
               </Card>
               {!voided && (
+                <SignPanel
+                  docId={doc.id}
+                  rows={signRows}
+                  requested={signSteps.length > 0}
+                />
+              )}
+              {!voided && (
                 <Card className="space-y-2 p-4">
-                  <Button
-                    disabled
-                    title="다음 업데이트에서 제공됩니다"
-                    className="w-full"
-                  >
-                    서명 요청
-                  </Button>
                   <Button
                     disabled
                     variant="outline"

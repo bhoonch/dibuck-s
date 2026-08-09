@@ -118,6 +118,28 @@ export async function sendApprovalRequest(
   );
 }
 
+// ── 회의록 전자서명 요청 (입대의 — approve와 별도 라우트) ─────────
+export async function sendSignatureRequest(
+  to: string,
+  name: string,
+  tenantName: string,
+  docTitle: string,
+  token: string,
+) {
+  await send(
+    to,
+    `[디벅] ${tenantName} 회의록 서명 요청: ${docTitle}`,
+    layout(
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(tenantName)}</b> 관리사무소에서 회의록 서명을 요청했습니다.</p>
+       <p style="margin:4px 0;"><b>${escapeHtml(docTitle)}</b></p>
+       <p>아래 버튼을 눌러 회의록을 확인하고 서명해 주세요.<br/>
+       링크는 <b>7일</b> 동안 유효하며, 별도 로그인 없이 처리할 수 있습니다.</p>`,
+      { label: "회의록 확인하고 서명하기", url: `${APP_URL}/sign/${token}` },
+    ),
+  );
+}
+
 // ── 비밀번호 재설정 ────────────────────────────────────────────
 export async function sendPasswordReset(to: string, name: string, token: string) {
   await send(

@@ -1,16 +1,19 @@
 import type { Attendee, MinutesAgenda } from "@/lib/minutes";
 import { ymdhmKst } from "@/lib/utils";
 
-/** 서명 진행 스텝(Task 6이 채운다) — 참석자 배열과 order(1부터)로 짝짓는다 */
+/** 서명 진행 스텝 — 참석자 배열과 order(1부터)로 짝짓는다 */
 export type MinutesSignStep = {
   order: number;
   status: string; // "pending" | "approved" | ...
   actedAt: Date | null;
+  name: string;
 };
 
 const line = "border border-[var(--gian-doc-line)]";
 const th = `${line} bg-[var(--gian-paper)] px-[2mm] py-[1.2mm] text-center text-[10pt] font-bold whitespace-nowrap`;
 const td = `${line} px-[2.5mm] py-[1.2mm] text-[10.5pt]`;
+const th2 = `${line} bg-[var(--gian-paper)] px-[2mm] py-[1mm] text-center text-[8.5pt] font-bold whitespace-nowrap`;
+const td2 = `${line} px-[2.5mm] py-[1mm] text-[8.5pt]`;
 
 /**
  * 회의록 A4 렌더러 — 책상 증빙 문서라 기안서 축(본문 11.5pt), gian-paper 괘선 문법.
@@ -145,6 +148,33 @@ export function MinutesPaper({
           </tbody>
         </table>
       </section>
+
+      {/* 전자서명 증적 표 — 자필란만 있으면(전원 자필) 무의미하므로 1건 이상일 때만 */}
+      {steps.some((s) => s.status === "approved") && (
+        <section className="mt-[4mm] break-inside-avoid text-[var(--gian-ink-soft)]">
+          <p className="mb-[1mm] text-[9pt] font-bold">전자서명 기록</p>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={`${th2} w-[26mm]`}>성명</th>
+                <th className={`${th2} w-[34mm]`}>일시</th>
+                <th className={th2}>방식</th>
+              </tr>
+            </thead>
+            <tbody>
+              {steps
+                .filter((s) => s.status === "approved")
+                .map((s) => (
+                  <tr key={s.order}>
+                    <td className={td2}>{s.name}</td>
+                    <td className={td2}>{s.actedAt ? ymdhmKst(s.actedAt) : ""}</td>
+                    <td className={td2}>전자(링크)</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </article>
   );
 }
