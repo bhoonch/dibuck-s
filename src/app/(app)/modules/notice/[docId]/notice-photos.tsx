@@ -89,8 +89,9 @@ export function NoticePhotos({
       </div>
       {photos.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          현장 사진을 올리면 용지 하단에 실립니다 — 설명 문구도 붙일 수
-          있습니다.
+          현장 사진을 올리면 용지 하단에 실립니다.
+          <br />
+          설명 문구도 붙일 수 있습니다.
         </p>
       ) : (
         <ul className="space-y-2.5">

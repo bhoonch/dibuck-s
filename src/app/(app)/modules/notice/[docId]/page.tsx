@@ -182,7 +182,9 @@ export default async function NoticeDocPage({
                 </h4>
                 <p className="text-sm text-muted-foreground">
                   지금은 초안입니다. 고칠 곳은 [내용 수정]에서 고친 뒤 완성해
-                  주세요 — 완성하면 문서번호가 부여되고 인쇄할 수 있습니다.
+                  주세요.
+                  <br />
+                  완성하면 문서번호가 부여되고 인쇄할 수 있습니다.
                 </p>
                 {canEdit ? (
                   <FinalizeButton docId={doc.id} />

@@ -31,7 +31,8 @@ function GeneratingOverlay() {
         <Loader2 className="size-8 animate-spin text-muted-foreground" />
         <p className="text-base font-bold">공지문을 만들고 있습니다</p>
         <p className="text-sm text-muted-foreground">
-          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
+          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span>{" "}
+          경과
         </p>
       </div>
     </div>
@@ -46,7 +47,10 @@ export function NoticeForm({
   defaultContact: string;
   aiReady: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(generateNoticeAction, undefined);
+  const [state, formAction, pending] = useActionState(
+    generateNoticeAction,
+    undefined,
+  );
   // [초안 만들기]는 화면 맨 아래 — 생성이 시작되면 맨 위로 올려 로딩 중임을 보여준다
   useEffect(() => {
     if (pending) window.scrollTo({ top: 0, behavior: "smooth" });
@@ -66,7 +70,9 @@ export function NoticeForm({
         <div className="space-y-4">
           {NOTICE_CATEGORIES.map((cat) => (
             <div key={cat}>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{cat}</p>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                {cat}
+              </p>
               {/* 카드 그리드(시안 A) — 고르기 전에 "무엇을 적게 될지"가 힌트로 보인다 */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {NOTICE_TYPES.filter((t) => t.category === cat).map((t) => (
@@ -133,8 +139,8 @@ export function NoticeForm({
               placeholder={type?.hint.when || "예: 8월 10일(월) 10:00~16:00"}
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              &quot;8월 둘째 주&quot; 같은 대략 표기도 그대로 실립니다. 비우면 일시 없이 만들고
-              게시 전 확인 항목으로 알려드립니다.
+              &quot;8월 둘째 주&quot; 같은 대략 표기도 그대로 실립니다. 비우면
+              일시 없이 만들고 게시 전 확인 항목으로 알려드립니다.
             </p>
           </div>
           <div>
@@ -143,7 +149,9 @@ export function NoticeForm({
               id="where"
               name="where"
               className="mt-1.5"
-              placeholder={type?.hint.where || "예: 전 세대, 101동, 지하주차장 1층"}
+              placeholder={
+                type?.hint.where || "예: 전 세대, 101동, 지하주차장 1층"
+              }
             />
           </div>
           <div>
@@ -153,7 +161,9 @@ export function NoticeForm({
               name="detail"
               rows={3}
               className="mt-1.5"
-              placeholder={type?.hint.detail || "사유, 협조를 구할 내용, 강조할 것"}
+              placeholder={
+                type?.hint.detail || "사유, 협조를 구할 내용, 강조할 것"
+              }
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
               키워드만 적어도 됩니다 — 문장은 완성문이 만듭니다.
@@ -176,13 +186,24 @@ export function NoticeForm({
         <p className="text-sm font-medium text-destructive">{state.error}</p>
       )}
       <div className="flex items-center gap-3">
-        <Button type="submit" size="lg" disabled={pending || !typeKey || !aiReady}>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={pending || !typeKey || !aiReady}
+        >
           초안 만들기
         </Button>
         <p className="text-sm text-muted-foreground">
-          {typeKey
-            ? "초안이 만들어집니다 — 내용을 확인하고 [공지문 완성]을 누르면 문서번호가 부여됩니다."
-            : "먼저 유형을 골라 주세요."}
+          {typeKey ? (
+            <>
+              초안이 만들어집니다.
+              <br />
+              사진은 초안 화면에서 붙이고, 내용을 확인해 [공지문 완성]을 누르면
+              문서번호가 부여됩니다.
+            </>
+          ) : (
+            "먼저 유형을 골라 주세요."
+          )}
         </p>
       </div>
     </form>
