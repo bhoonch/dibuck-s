@@ -35,6 +35,7 @@ export async function purgeExpiredTenants(now = new Date()) {
       db.dunningEntry.deleteMany({ where: { tenantId } }),
       db.trainingStaff.deleteMany({ where: { tenantId } }),
       db.inspectionItem.deleteMany({ where: { tenantId } }),
+      db.equipment.deleteMany({ where: { tenantId } }),
       db.document.deleteMany({ where: { tenantId } }),
       db.unit.deleteMany({ where: { tenantId } }),
       db.inquiry.deleteMany({ where: { tenantId } }),

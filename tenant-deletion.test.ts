@@ -30,6 +30,7 @@ async function cleanup() {
   await db.payment.deleteMany({ where: { tenantId: T } });
   await db.billing.deleteMany({ where: { tenantId: T } });
   await db.inspectionItem.deleteMany({ where: { tenantId: T } });
+  await db.equipment.deleteMany({ where: { tenantId: T } });
   await db.tenant.deleteMany({ where: { id: T } });
 }
 
@@ -48,6 +49,10 @@ async function main() {
       cycleType: "MONTHLY",
     },
   });
+  // 설비도 purge 대상 — InspectionItem 때처럼 빠뜨리면 FK가 tenant 삭제를 막는다
+  await db.equipment.create({
+    data: { tenantId: T, name: "테스트 펌프", category: "급수·배수" },
+  });
   await db.payment.create({
     data: {
       tenantId: T,
@@ -64,6 +69,7 @@ async function main() {
   assert.equal(await db.tenant.findUnique({ where: { id: T } }), null);
   assert.equal(await db.billing.findUnique({ where: { tenantId: T } }), null);
   assert.equal(await db.inspectionItem.count({ where: { tenantId: T } }), 0);
+  assert.equal(await db.equipment.count({ where: { tenantId: T } }), 0);
   assert.equal(
     await db.payment.count({ where: { tenantId: T } }),
     1,

@@ -3,7 +3,12 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fieldInput, fieldLabel, panel, panelTitle } from "@/components/gian-ui";
+import {
+  fieldInput,
+  fieldLabel,
+  panel,
+  panelTitle,
+} from "@/components/gian-ui";
 import {
   buildApprovalSteps,
   classify,
@@ -38,7 +43,8 @@ function GeneratingOverlay() {
         <Loader2 className="size-8 animate-spin text-[var(--gian-ink-soft)]" />
         <p className="text-base font-bold">초안을 만들고 있습니다</p>
         <p className="text-sm text-[var(--gian-ink-soft)]">
-          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
+          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span>{" "}
+          경과
         </p>
         <p className="text-xs text-[var(--gian-ink-soft)]">
           이 창을 닫지 마세요.
@@ -64,21 +70,24 @@ export function GianForm({
   internal,
   external,
   directorLimit,
+  defaults,
 }: {
   /** 설정 > 결재선의 내부 결재자 (순서대로) */
   internal: { userId: string; name: string }[];
   external: ExternalApprover[];
   /** 관리규약의 소장 전결 한도 — 이하 지출은 회장 결재를 뺀다 */
   directorLimit: number | null;
+  /** 다른 모듈에서 넘어온 초기값 — 설비 교체 품의(repairs)가 쓴다 */
+  defaults?: { work?: string; why?: string };
 }) {
   const [state, formAction, pending] = useActionState(generateGian, undefined);
   // [초안 만들기]는 화면 맨 아래 — 생성이 시작되면 맨 위로 올려 로딩 중임을 보여준다
   useEffect(() => {
     if (pending) window.scrollTo({ top: 0, behavior: "smooth" });
   }, [pending]);
-  const [work, setWork] = useState("");
+  const [work, setWork] = useState(defaults?.work ?? "");
   const [location, setLocation] = useState("");
-  const [why, setWhy] = useState("");
+  const [why, setWhy] = useState(defaults?.why ?? "");
   const [amount, setAmount] = useState("");
   const [vat, setVat] = useState(true);
   const [quotes, setQuotes] = useState(["", "", ""]);
@@ -126,8 +135,8 @@ export function GianForm({
           어떤 문서를 올릴까요?
         </h2>
         <p className="mt-1 mb-6 text-sm text-[var(--gian-ink-soft)]">
-          짧게 적으셔도 됩니다. 문장은 AI가 공문서 투로 완성하고, 법적
-          근거·계약 방식·결재선은 규칙이 자동으로 붙입니다.
+          짧게 적으셔도 됩니다. 문장은 AI가 공문서 투로 완성하고, 법적 근거·계약
+          방식·결재선은 규칙이 자동으로 붙입니다.
         </p>
 
         <div className="mb-4">
@@ -272,8 +281,8 @@ export function GianForm({
             autoComplete="off"
           />
           <Hint>
-            몇 월인지라도 알면 &ldquo;8월 중&rdquo;처럼 대략만 적어 주세요.
-            비워 두면 문서에 &ldquo;결재 후 확정&rdquo;으로 적힙니다. 계약일까지
+            몇 월인지라도 알면 &ldquo;8월 중&rdquo;처럼 대략만 적어 주세요. 비워
+            두면 문서에 &ldquo;결재 후 확정&rdquo;으로 적힙니다. 계약일까지
             잡혔다면 &ldquo;8월 5일 계약, 9월 초 공사&rdquo;처럼 함께 적으면
             그대로 실립니다.
           </Hint>
@@ -342,7 +351,8 @@ export function GianForm({
         <Button type="submit" size="lg" className="w-full" disabled={pending}>
           {pending ? (
             <>
-              <Loader2 className="size-4 animate-spin" /> 초안 생성 중… (10~30초)
+              <Loader2 className="size-4 animate-spin" /> 초안 생성 중…
+              (10~30초)
             </>
           ) : (
             "초안 생성"
@@ -389,9 +399,7 @@ export function GianForm({
         {cls.docType === "ltp_work" && (
           <div className="rounded-lg bg-[var(--gian-warn-soft)] px-4 py-4 text-[var(--gian-warn)]">
             <h4 className={panelTitle}>확인 필요</h4>
-            <p className="text-sm font-bold">
-              장기수선계획 대상일 수 있습니다
-            </p>
+            <p className="text-sm font-bold">장기수선계획 대상일 수 있습니다</p>
             <p className="mt-1 text-sm">
               수선유지비가 아닌 장기수선충당금 사용 대상인지 검토가 필요합니다
               (공동주택관리법 제29·30조).

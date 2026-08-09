@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Wrench } from "lucide-react";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
@@ -49,6 +49,7 @@ export default async function InspectionDocPage({
     findings?: string;
     actions?: string;
     cost?: number;
+    vendor?: string | null;
     kind?: string;
     units?: { name: string; result: string }[];
     barrier?: boolean;
@@ -96,6 +97,17 @@ export default async function InspectionDocPage({
     !action && (doc.status === "scheduled" || meta.kind === "workorder");
   const canEdit =
     doc.createdById === session.userId || session.role === Role.DIRECTOR;
+  // 지적사항 → 수선 연동 — 수선 모듈 구독 시에만 버튼이 있다(잠금 유도 배너 금지)
+  const repairLink =
+    !voided && !action && !workOrder && meta.findings?.trim()
+      ? (await isSubscribed(tenantId, "repairs"))
+        ? `/modules/repairs/new?symptom=${encodeURIComponent(
+            `${meta.itemName ?? ""} 점검 지적: ${meta.findings}`
+              .trim()
+              .slice(0, 200),
+          )}&vendor=${encodeURIComponent(meta.vendor ?? "")}`
+        : null
+      : null;
 
   if (action)
     return (
@@ -253,6 +265,23 @@ export default async function InspectionDocPage({
           </div>
           {/* 오른쪽은 이 문서에 대한 판단 자리 — sticky (교육일지와 동일) */}
           <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
+            {repairLink && (
+              <Card className="p-4">
+                <h4 className="mb-1.5 text-sm font-semibold">
+                  지적사항 수선 연결
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  지적 내용이 증상으로 채워진 수선 기록을 바로 만들 수 있습니다.
+                  <br />
+                  수선 이력에 쌓여 비용 근거가 됩니다.
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-3">
+                  <Link href={repairLink}>
+                    <Wrench className="size-4" /> 수선 등록
+                  </Link>
+                </Button>
+              </Card>
+            )}
             {!voided && govHint && (
               <AttentionCard title="별도 보고 의무가 있습니다">
                 {govHint[0]}

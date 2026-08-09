@@ -31,6 +31,9 @@ const MODULES = [
   // facilities = 법정점검 대장으로 재정의 (2026-08-05, 사용자 확정) — 모듈 id는 라우트·아이콘
   // 매핑이 물려 있어 바꾸지 않는다. 설명은 크론이 실제로 하는 범위만 서술(과장 금지).
   { id: "facilities", name: "법정점검 대장", description: "소방·승강기·저수조 등 법정 주기를 앱이 세고, 기록 한 번으로 일지와 감사 서류철까지 쌓여요", icon: "ClipboardCheck", route: "/modules/facilities", price: 20000, sortOrder: 8, isActive: true },
+  // repairs = 설비 대장(테이블) + 수선 기록(Document). 가격 15,000·이름 확정 2026-08-09.
+  // Wrench는 이 모듈 것 — facilities는 법정점검 재정의 때 ClipboardCheck로 정리됐다.
+  { id: "repairs", name: "설비·수선 이력", description: "30초 입력만으로 수선 이력과 비용 관리 완료! 인수인계 자료까지 자동으로 만들어져요", icon: "Wrench", route: "/modules/repairs", price: 15000, sortOrder: 9, isActive: true },
 ];
 
 /** 모듈 레지스트리 — 운영에도 필요한 기준 데이터 */
@@ -101,7 +104,7 @@ async function seedDemo() {
   // 데모 단지는 구독 행만 만든다: 구독 중이면 판매 중단 모듈도 계속 보인다(retired).
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training", "facilities"]) {
+  for (const moduleId of ["dunning", "notice", "contracts", "approvals", "safety-training", "facilities", "repairs"]) {
     const trial = moduleId === "contracts" ? trialEndsAt : null;
     await db.tenantModule.upsert({
       where: { tenantId_moduleId: { tenantId: tenant.id, moduleId } },
@@ -250,6 +253,95 @@ async function seedDemo() {
           createdById: director.id,
           meta: { itemId: idOf("tank_cleaning"), itemName: "저수조 청소", legalBasis: "수도법 제33조, 같은 법 시행규칙 제22조의3", doneAt: ymdOf(tankLast), performedBy: "맑은물환경", result: "지적사항", findings: "저수조 내부 사다리 부식", actions: "차기 청소 시 사다리 교체 예정", cost: 450000, vendor: "맑은물환경" },
         },
+      ],
+    });
+  }
+
+  // 수선 이력 데모 — 설비 8대 + 기록 15건. 급수펌프가 최근 12개월 4회로
+  // 반복 고장 경고 카드가 서는 시연. (문서와 같은 규칙: 없을 때만 심는다)
+  if ((await db.equipment.count({ where: { tenantId: tenant.id } })) === 0) {
+    const ymdAgo = (daysAgo: number) =>
+      new Date(Date.now() + 9 * 3600_000 - daysAgo * 86400000)
+        .toISOString()
+        .slice(0, 10);
+    const installed = (y: number) => new Date(`${y}-01-01T00:00:00+09:00`);
+    const eq = (data: {
+      name: string;
+      category: string;
+      location?: string;
+      installedAt?: Date;
+      vendor?: string;
+    }) => ({ tenantId: tenant.id, ...data });
+    await db.equipment.createMany({
+      data: [
+        eq({ name: "지하 1층 급수펌프 #2", category: "급수·배수", location: "지하 1층 기계실", installedAt: installed(2015), vendor: "한국펌프 02-1234-5678" }),
+        eq({ name: "101동 승강기 1호기", category: "승강기", location: "101동", installedAt: installed(2008), vendor: "한국엘리베이터" }),
+        eq({ name: "중앙난방 보일러 #1", category: "난방·보일러", location: "지하 2층 기계실", installedAt: installed(2011), vendor: "대성보일러" }),
+        eq({ name: "지하주차장 배수펌프", category: "급수·배수", location: "지하 2층", installedAt: installed(2018) }),
+        eq({ name: "단지 CCTV 서버", category: "전기", location: "관리사무소", installedAt: installed(2020), vendor: "세콤시스템" }),
+        eq({ name: "소방 가압펌프", category: "소방", location: "지하 1층", installedAt: installed(2010), vendor: "한국소방점검(주)" }),
+        eq({ name: "101동 옥상 방수층", category: "건축·외벽", location: "101동 옥상", installedAt: installed(2016) }),
+        eq({ name: "놀이터 조합놀이대", category: "조경·부대시설", location: "중앙 놀이터", installedAt: installed(2017) }),
+      ],
+    });
+    const equipRows = await db.equipment.findMany({
+      where: { tenantId: tenant.id },
+      select: { id: true, name: true },
+    });
+    const eqId = (name: string) => equipRows.find((e) => e.name === name)!.id;
+
+    // 기록 15건 — 급수펌프 5(12개월 안 4, 그중 1건 조치 중) + 설비별 1~2건 + 미지정 2건
+    let no = 0;
+    const rec = (data: {
+      equipmentName: string | null;
+      symptom: string;
+      action: string;
+      vendor: string;
+      cost: number;
+      daysAgo: number;
+      open?: boolean;
+    }) => {
+      const startedAt = ymdAgo(data.daysAgo);
+      const meta = {
+        equipmentId: data.equipmentName ? eqId(data.equipmentName) : null,
+        equipmentName: data.equipmentName,
+        symptom: data.symptom,
+        action: data.action,
+        vendor: data.vendor,
+        cost: data.cost,
+        startedAt,
+        completedAt: data.open ? null : startedAt,
+      };
+      no += 1;
+      return {
+        tenantId: tenant.id,
+        moduleId: "repairs",
+        docNo: `수선-${year}-${String(no).padStart(4, "0")}`,
+        type: "repair",
+        title: data.equipmentName ? `${data.equipmentName} ${data.symptom}` : data.symptom,
+        content: [data.equipmentName, data.symptom, data.action, data.vendor].filter(Boolean).join("\n"),
+        status: data.open ? "open" : "done",
+        createdById: director.id,
+        meta,
+      };
+    };
+    await db.document.createMany({
+      data: [
+        rec({ equipmentName: "지하 1층 급수펌프 #2", symptom: "베어링 마모 소음", action: "베어링 교체", vendor: "한국펌프", cost: 280000, daysAgo: 500 }),
+        rec({ equipmentName: "지하 1층 급수펌프 #2", symptom: "누수", action: "패킹 교체", vendor: "한국펌프", cost: 350000, daysAgo: 300 }),
+        rec({ equipmentName: "지하 1층 급수펌프 #2", symptom: "압력 저하", action: "임펠러 교체", vendor: "한국펌프", cost: 420000, daysAgo: 200 }),
+        rec({ equipmentName: "지하 1층 급수펌프 #2", symptom: "기동 불량", action: "마그네트 스위치 교체", vendor: "한국펌프", cost: 380000, daysAgo: 90 }),
+        rec({ equipmentName: "지하 1층 급수펌프 #2", symptom: "소음 재발", action: "업체 점검 요청", vendor: "한국펌프", cost: 0, daysAgo: 10, open: true }),
+        rec({ equipmentName: "101동 승강기 1호기", symptom: "도어 개폐 지연", action: "도어 롤러 교체", vendor: "한국엘리베이터", cost: 250000, daysAgo: 150 }),
+        rec({ equipmentName: "101동 승강기 1호기", symptom: "버튼 조명 불량", action: "버튼 어셈블리 교체", vendor: "한국엘리베이터", cost: 90000, daysAgo: 45 }),
+        rec({ equipmentName: "중앙난방 보일러 #1", symptom: "점화 불량", action: "점화 플러그 교체", vendor: "대성보일러", cost: 180000, daysAgo: 240 }),
+        rec({ equipmentName: "중앙난방 보일러 #1", symptom: "순환펌프 소음", action: "순환펌프 수리", vendor: "대성보일러", cost: 320000, daysAgo: 60 }),
+        rec({ equipmentName: "지하주차장 배수펌프", symptom: "수위 센서 오작동", action: "센서 교체", vendor: "", cost: 150000, daysAgo: 120 }),
+        rec({ equipmentName: "단지 CCTV 서버", symptom: "녹화 끊김", action: "하드디스크 교체", vendor: "세콤시스템", cost: 220000, daysAgo: 80 }),
+        rec({ equipmentName: "소방 가압펌프", symptom: "압력 스위치 불량", action: "스위치 교체", vendor: "한국소방점검(주)", cost: 170000, daysAgo: 180 }),
+        rec({ equipmentName: "101동 옥상 방수층", symptom: "우수 침투", action: "부분 방수 보수", vendor: "튼튼방수", cost: 850000, daysAgo: 400 }),
+        rec({ equipmentName: null, symptom: "지하 1층 복도 전등 깜빡임", action: "안정기 교체", vendor: "", cost: 45000, daysAgo: 30 }),
+        rec({ equipmentName: null, symptom: "정문 자동문 감지 불량", action: "센서 청소·조정", vendor: "", cost: 0, daysAgo: 15 }),
       ],
     });
   }

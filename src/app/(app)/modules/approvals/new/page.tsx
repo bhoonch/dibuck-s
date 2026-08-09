@@ -13,14 +13,18 @@ import { GianSteps } from "@/components/gian-steps";
 import { copyGian } from "../actions";
 import { GianForm } from "./gian-form";
 
-export default async function NewGianPage() {
+export default async function NewGianPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ work?: string; why?: string }>;
+}) {
   const session = await requireTenantSession();
   if (!(await isSubscribed(session.tenantId!, "approvals")))
     redirect("/subscriptions");
 
   // 상신 때 뜰 결재선을 작성 중에 미리 보여준다 — submitDocument와 같은 재료.
   // 지금 이 화면을 쓰는 사람이 곧 기안자라 결재란 첫 칸에 선다.
-  const [{ internal, external }, tenant, recent] = await Promise.all([
+  const [{ internal, external }, tenant, recent, sp] = await Promise.all([
     approvalLineFor(session.tenantId!, session.userId),
     db.tenant.findUniqueOrThrow({
       where: { id: session.tenantId! },
@@ -38,7 +42,13 @@ export default async function NewGianPage() {
       take: 5,
       select: { id: true, title: true, createdAt: true },
     }),
+    searchParams,
   ]);
+  // 설비 교체 품의(repairs) 프리필 — 공사명·사유만 받는다. 값이 없으면 기존 동작 그대로
+  const defaults = {
+    work: String(sp.work ?? "").slice(0, 200) || undefined,
+    why: String(sp.why ?? "").slice(0, 500) || undefined,
+  };
 
   // 제목·단계표시·폼·판정을 문서 화면과 같은 기둥에 세운다 — 794(A4) + 288(패널).
   // 예전엔 여기만 620px 가운데 정렬이라 초안 확인에서 돌아올 때 화면이 옆으로 튀었다.
@@ -75,6 +85,7 @@ export default async function NewGianPage() {
         internal={internal}
         external={external}
         directorLimit={tenant.directorLimit}
+        defaults={defaults}
       />
     </div>
   );

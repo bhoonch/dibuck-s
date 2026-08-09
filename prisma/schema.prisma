@@ -56,6 +56,7 @@ model Tenant {
   dunningEntries  DunningEntry[]
   trainingStaff   TrainingStaff[]
   inspectionItems InspectionItem[]
+  equipment       Equipment[]
 }
 
 // ── 결제 (토스페이먼츠 자동결제) ─────────────────────────────
@@ -225,6 +226,24 @@ model InspectionItem {
   vendor     String? // 담당 업체명·연락처 자유 텍스트
   active     Boolean   @default(true) // 퇴역은 삭제가 아니라 비활성 — 명부와 같은 결
   createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+// ── 설비·수선 이력 — 설비 대장 (마스터는 테이블, 기록은 Document) ──
+model Equipment {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String // "지하 1층 급수펌프 #2"
+  category    String // EQUIPMENT_CATEGORIES (src/lib/repairs.ts)
+  location    String? // 동·위치
+  installedAt DateTime? // 설치·최근 교체 시점 (연 단위 입력은 1월 1일로 저장)
+  vendor      String? // 담당 업체·연락처 자유 텍스트
+  note        String?
+  /// 폐기 설비는 삭제가 아니라 비활성 — 수선 기록의 meta.equipmentId가 이 행을 가리킨다
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
 
   @@index([tenantId])
 }
