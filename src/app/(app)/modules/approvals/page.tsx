@@ -9,6 +9,7 @@ import { waitingOnLabel } from "@/lib/gian/rules";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { GuideLink } from "@/components/guide-link";
 import { GianTable } from "./gian-table";
 
 export default async function GianModulePage() {
@@ -93,6 +94,7 @@ export default async function GianModulePage() {
         title="AI 기안·결재"
         description="다섯 항목 입력으로 기안서·품의서 초안을 만들고 결재까지 진행합니다."
       >
+        <GuideLink section="approvals" />
         <Button asChild size="lg">
           <Link href="/modules/approvals/new">
             <FilePlus2 className="size-4" /> 새 기안·품의

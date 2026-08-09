@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SummaryBox, SummaryStat } from "@/components/ui/summary-box";
 import { Button } from "@/components/ui/button";
 import { AttentionCard } from "@/components/attention-card";
+import { GuideLink } from "@/components/guide-link";
 import { DunningDocsTable } from "./dunning-docs-table";
 import { UnpaidTable } from "./unpaid-table";
 
@@ -68,6 +69,7 @@ export default async function DunningHomePage() {
         title="미납 독촉장"
         description="1차 납부 안내 → 2차 납부 최고 → 3차 내용증명 순으로 문서를 만들어 보냅니다. 발송 후에도 미납이면 다음 단계가 자동 제안됩니다."
       >
+        <GuideLink section="dunning" />
         <Button asChild size="lg">
           <Link href="/modules/dunning/new"><FilePlus2 className="size-4" /> 새 독촉장</Link>
         </Button>

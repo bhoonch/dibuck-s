@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SummaryBox, SummaryStat } from "@/components/ui/summary-box";
 import { AttentionCard } from "@/components/attention-card";
+import { GuideLink } from "@/components/guide-link";
 import { TrainingTable } from "./training-table";
 
 type LogMeta = {
@@ -116,6 +117,7 @@ export default async function SafetyTrainingHomePage() {
         title="AI 안전교육일지"
         description="종류·주제를 고르고 참석자를 체크하면 교육 내용까지 채워진 법정 교육일지가 완성됩니다. 인쇄해 참석자 서명을 받아 보관하세요."
       >
+        <GuideLink section="safety-training" />
         <Button asChild variant="outline" size="lg">
           <Link href="/modules/safety-training/report">
             <FileCheck2 className="size-4" /> 연간 보고서

@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SummaryBox, SummaryStat } from "@/components/ui/summary-box";
 import { AttentionCard } from "@/components/attention-card";
+import { GuideLink } from "@/components/guide-link";
 
 export default async function InspectionHomePage() {
   const session = await requireTenantSession();
@@ -81,6 +82,7 @@ export default async function InspectionHomePage() {
         title="법정점검 대장"
         description="법정 주기는 앱이 셉니다. 점검을 마치면 기록 한 번으로 일지·대장·감사 서류철이 함께 쌓입니다."
       >
+        <GuideLink section="facilities" />
         <Button asChild variant="outline" size="lg">
           <Link href="/modules/facilities/items">
             <ListChecks className="size-4" /> 항목 관리

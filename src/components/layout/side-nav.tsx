@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
   FolderOpen,
   Home,
   Lock,
@@ -84,6 +85,9 @@ export function SideNav({
       match: ["/subscriptions", "/billing"],
       icon: Package,
     },
+    // 사용법과 고객 문의는 "막혔을 때 가는 곳" 한 묶음이다. 사용법이 먼저인 이유는
+    // 셀프서비스 순서 그대로 — 앱 안에서 스스로 풀고, 그래도 안 되면 문의한다.
+    { name: "사용법", href: "/guide", match: "/guide", icon: BookOpen },
     // 어느 화면에서 눌렀는지 실어 보낸다 — 운영자가 상황을 되묻지 않아도 된다
     {
       name: "고객 문의",

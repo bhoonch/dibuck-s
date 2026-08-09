@@ -7,6 +7,7 @@ import { isSubscribed } from "@/lib/modules";
 import { ymdKst } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
+import { GuideLink } from "@/components/guide-link";
 import { NoticeTable } from "./notice-table";
 
 export default async function NoticeHomePage() {
@@ -48,6 +49,7 @@ export default async function NoticeHomePage() {
         title="AI 공지문 완성"
         description="유형을 고르고 일시·대상·내용만 입력하면 게시판·승강기에 붙일 공고문·안내문이 완성됩니다."
       >
+        <GuideLink section="notice" />
         <Button asChild size="lg">
           <Link href="/modules/notice/new">
             <FilePlus2 className="size-4" /> 새 공지문
