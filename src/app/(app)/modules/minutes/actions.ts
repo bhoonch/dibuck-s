@@ -3,7 +3,6 @@
 import { RedirectType, redirect } from "next/navigation";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { createDocument } from "@/lib/documents";
 import { isSubscribed } from "@/lib/modules";
 import {
   DEFAULT_NOTICE_DAYS,
@@ -13,6 +12,20 @@ import {
 
 const MODULE_ID = "minutes";
 const TYPE = "minutes";
+
+/**
+ * Prisma 트랜잭션 직렬화 충돌(Serializable 재시도 대상, P2034).
+ * 이 프로젝트는 드라이버 어댑터(@prisma/adapter-pg)를 쓴다 — 인터랙티브 트랜잭션
+ * 안에서 난 충돌은 PrismaClientKnownRequestError(P2034)로 안 감싸이고, 원본
+ * DriverAdapterError(cause.kind: "TransactionWriteConflict")가 그대로 올라온다.
+ * 실측 확인(Postgres SQLSTATE 40001 유도 테스트) — 둘 다 잡는다.
+ */
+const isSerializationConflict = (e: unknown) => {
+  if (typeof e !== "object" || e === null) return false;
+  if ("code" in e && e.code === "P2034") return true;
+  const err = e as { name?: string; cause?: { kind?: string } };
+  return err.name === "DriverAdapterError" && err.cause?.kind === "TransactionWriteConflict";
+};
 
 /** 문서를 만드는 입구 — 화면 가드를 믿지 않고 여기서 다시 검사한다 */
 async function requireMinutes() {
@@ -25,7 +38,7 @@ async function requireMinutes() {
 export type MeetingState = { error?: string } | undefined;
 
 /**
- * 회의 만들기(소집) — 채번은 하지 않는다(numberOnSubmit). 소집만 하고 버린 회의가
+ * 회의 만들기(소집) — docNo는 null로 둔다(채번 없음). 소집만 하고 버린 회의가
  * 문서번호를 결번으로 남기면 안 된다(회의록 완성에서 채번 — Task 4).
  * meetingNo(회차)는 별도 채번 트랙 — docNo와 달리 즉시 확정해야 제목("제N차")을 지을 수 있다.
  */
@@ -78,30 +91,56 @@ export async function createMeeting(
 
   // 회차 = 기존 minutes 문서 meta.meetingNo 최대값 + 1. count+1이 아니다 —
   // 소집만 하고 버린 회의가 있으면 count가 줄어 회차가 겹친다(채번과 같은 이유).
-  const existing = await db.document.findMany({
-    where: { tenantId, moduleId: MODULE_ID, type: TYPE },
-    select: { meta: true },
-  });
-  const meetingNo =
-    1 +
-    Math.max(
-      0,
-      ...existing.map(
-        (d) => Number((d.meta as { meetingNo?: number } | null)?.meetingNo) || 0,
-      ),
-    );
-
-  const doc = await createDocument({
-    tenantId,
-    moduleId: MODULE_ID,
-    type: TYPE,
-    title: `제${meetingNo}차 입주자대표회의`,
-    content: agenda.map((a) => a.title).join("\n"), // 문서함 검색용
-    status: "draft",
-    numberOnSubmit: true, // [회의록 완성]에서 채번 — 버린 소집이 결번을 남기면 안 된다
-    dueDate: new Date(`${meetingAt.replace(" ", "T")}:00+09:00`), // 홈 할 일 위젯
-    createdById: session.userId,
-    meta: { meetingNo, meetingAt, place, noticeDays, attendees, agenda } satisfies MeetingMeta,
-  });
+  // meta는 JSON이라 유니크 제약을 걸 수 없다 — 읽기(최대값)와 쓰기를 Serializable
+  // 트랜잭션으로 묶어 동시 생성 때 같은 회차를 두 번 발급하는 것을 막는다.
+  // createDocument를 안 쓰는 이유: meetingNo 직렬화 트랜잭션 안에서 생성해야 해서
+  // (docNo는 numberOnSubmit이라 애초에 null 그대로 — createDocument가 하던 채번은 여기 없다).
+  let doc;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      doc = await db.$transaction(
+        async (tx) => {
+          const existing = await tx.document.findMany({
+            where: { tenantId, moduleId: MODULE_ID, type: TYPE },
+            select: { meta: true },
+          });
+          const meetingNo =
+            1 +
+            Math.max(
+              0,
+              ...existing.map(
+                (d) =>
+                  Number((d.meta as { meetingNo?: number } | null)?.meetingNo) || 0,
+              ),
+            );
+          return tx.document.create({
+            data: {
+              tenantId,
+              moduleId: MODULE_ID,
+              docNo: null,
+              type: TYPE,
+              title: `제${meetingNo}차 입주자대표회의`,
+              content: agenda.map((a) => a.title).join("\n"), // 문서함 검색용
+              status: "draft",
+              dueDate: new Date(`${meetingAt.replace(" ", "T")}:00+09:00`), // 홈 할 일 위젯
+              createdById: session.userId,
+              meta: {
+                meetingNo,
+                meetingAt,
+                place,
+                noticeDays,
+                attendees,
+                agenda,
+              } satisfies MeetingMeta,
+            },
+          });
+        },
+        { isolationLevel: "Serializable" },
+      );
+      break;
+    } catch (e) {
+      if (!isSerializationConflict(e) || attempt >= 4) throw e;
+    }
+  }
   redirect(`/modules/minutes/${doc.id}`, RedirectType.replace);
 }
