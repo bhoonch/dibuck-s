@@ -15,7 +15,8 @@ function PhotoBox({
 }) {
   return (
     <figure
-      className={`flex flex-col border border-[#333] ${single ? "mx-auto w-[100mm]" : "w-[calc(50%-2mm)]"}`}
+      // 0.3mm(≈1.1px): 한 장 맞춤 축소가 걸려도 1px 미만 헤어라인으로 끊기지 않는 굵기
+      className={`flex flex-col border-[0.3mm] border-solid border-[#333] ${single ? "mx-auto w-[100mm]" : "w-[calc(50%-2mm)]"}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- 첨부 라우트 원본이라 next/image 최적화 대상이 아니다 */}
       <img
@@ -29,7 +30,7 @@ function PhotoBox({
         }
       />
       {photo.caption && (
-        <figcaption className="shrink-0 border-t border-[#333] px-[2mm] py-[1mm] text-center text-[10.5pt]">
+        <figcaption className="shrink-0 border-t-[0.3mm] border-solid border-[#333] px-[2mm] py-[1mm] text-center text-[10.5pt]">
           {photo.caption}
         </figcaption>
       )}
@@ -81,12 +82,13 @@ export function NoticePostPaper({
 
   // 2장씩 한 행 — 홀수 마지막 행은 왼쪽 1장
   const photoRows: (typeof photos)[] = [];
-  for (let i = 0; i < photos.length; i += 2) photoRows.push(photos.slice(i, i + 2));
+  for (let i = 0; i < photos.length; i += 2)
+    photoRows.push(photos.slice(i, i + 2));
 
   return (
     <div
       id={id}
-      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[14pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none"
+      className="flex w-full max-w-[210mm] shrink-0 flex-col border bg-white px-[15mm] pt-[14mm] pb-[12mm] text-[14pt] leading-[1.65] text-[#111] shadow-sm lg:min-h-[297mm] lg:w-[210mm] print:border-0 print:shadow-none print:[zoom:var(--print-fit,1)]"
     >
       {/* 3분할 헤더 — notice-paper.tsx와 같은 규격 */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-[5mm]">
@@ -181,7 +183,7 @@ export function NoticePostPaper({
       {/* 맺음말 아래·명의 위 — 1장은 폭 100mm 중앙, 2장 이상은 2장씩 행.
           grid가 아니라 블록 행인 이유: 인쇄 엔진이 flex·grid 안의 break-inside를
           무시해서 박스가 페이지 경계선에 걸쳐 잘렸다 — 행 단위로 통째 넘긴다.
-          사진 때문에 2페이지가 되는 것은 허용한다 */}
+          내용이 한 장을 넘치면 PrintFitOnePage가 인쇄만 축소해 한 장에 맞춘다 */}
       {photos.length > 0 && (
         <div className="mt-[5mm]">
           {photoRows.map((row, i) => (
@@ -199,37 +201,43 @@ export function NoticePostPaper({
 
       <div className="flex-1" />
 
-      {/* 위 간격은 고정 — flex-1 스페이서는 내용이 길면 0으로 접혀 사진 박스가 괘선에 붙었다 */}
-      <hr className="mt-[5mm] mb-[5mm] border-0 border-t-[3px] border-[#2456A6]" />
-      <div className="flex items-center justify-center gap-[4mm]">
-        {logoImage && (
-          // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
-          <img
-            src={logoImage}
-            alt="아파트 로고"
-            className="size-[12mm] shrink-0 object-contain"
-          />
-        )}
-        <span className="text-[17pt] font-extrabold tracking-[.06em] whitespace-nowrap">
-          {office}
-          {!sealImage && (
-            <span className="ml-2 text-[10pt] font-semibold tracking-normal text-[#444]">
-              (직인생략)
-            </span>
+      {/* 괘선·명의·전화는 한 덩어리로만 페이지를 넘긴다 — 내용이 한 장을 살짝
+          넘치면 전화번호 줄만 홀로 다음 페이지로 떨어졌다 */}
+      <div className="break-inside-avoid">
+        {/* 위 간격은 고정 — flex-1 스페이서는 내용이 길면 0으로 접혀 사진 박스가 괘선에 붙었다 */}
+        <hr className="mt-[5mm] mb-[5mm] border-0 border-t-[3px] border-[#2456A6]" />
+        <div className="flex items-center justify-center gap-[4mm]">
+          {logoImage && (
+            // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+            <img
+              src={logoImage}
+              alt="아파트 로고"
+              className="size-[12mm] shrink-0 object-contain"
+            />
           )}
-        </span>
-        {sealImage && (
-          // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
-          <img
-            src={sealImage}
-            alt="직인"
-            className="-ml-[3mm] size-[17mm] shrink-0 object-contain"
-          />
+          <span className="text-[17pt] font-extrabold tracking-[.06em] whitespace-nowrap">
+            {office}
+            {!sealImage && (
+              <span className="ml-2 text-[10pt] font-semibold tracking-normal text-[#444]">
+                (직인생략)
+              </span>
+            )}
+          </span>
+          {sealImage && (
+            // eslint-disable-next-line @next/next/no-img-element -- data URI라 next/image 최적화 대상이 아니다
+            <img
+              src={sealImage}
+              alt="직인"
+              className="-ml-[3mm] size-[17mm] shrink-0 object-contain"
+            />
+          )}
+        </div>
+        {tel && (
+          <p className="mt-[2.5mm] text-center text-[11pt] text-[#222]">
+            {tel}
+          </p>
         )}
       </div>
-      {tel && (
-        <p className="mt-[2.5mm] text-center text-[11pt] text-[#222]">{tel}</p>
-      )}
     </div>
   );
 }

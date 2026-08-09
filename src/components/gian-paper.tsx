@@ -397,7 +397,9 @@ export function PrintStyle({
            bottom을 묶지 않는다(inset:0 금지): 용지 높이가 내용이 아니라 페이지 상자에
            고정되면 넘친 꼬리가 상자 밖으로 새서 페이지 나눔이 예측 불가가 된다.
            min-height로 짧은 문서만 한 장을 채운다. */
-        #${target} { position: absolute; top: 0; left: 0; right: 0; min-height: 100%; margin: 0; }
+        /* 가로 margin auto — 한 장 맞춤 축소(print-fit zoom)로 용지가 종이보다
+           좁아져도 왼쪽에 쏠리지 않고 가운데 온다. 축소 없는 문서는 폭이 꽉 차 무영향 */
+        #${target} { position: absolute; top: 0; left: 0; right: 0; min-height: 100%; margin: 0 auto; }
       }
       @page { size: A4; margin: ${margin}; }
     `}</style>

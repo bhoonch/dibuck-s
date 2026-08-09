@@ -21,6 +21,7 @@ import { ymdKst } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PaperScale } from "@/components/paper-scale";
+import { PrintFitOnePage } from "@/components/print-fit";
 import { PrintStyle } from "@/components/gian-paper";
 import { AttentionCard } from "@/components/attention-card";
 import { NoticePostPaper } from "@/components/notice-post-paper";
@@ -102,6 +103,8 @@ export default async function NoticeDocPage({
   return (
     <>
       <PrintStyle margin="0" />
+      {/* 게시물은 무조건 한 장 — 벽에 붙이는 종이가 두 장이면 안 붙는다 */}
+      <PrintFitOnePage />
       {/* 결재 파생 공고문 화면과 같은 기둥 — A4 794 + 패널 320 */}
       <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
         {/* 목록은 이 문서에 하는 일이 아니라 뒤로 가기다 — 액션 버튼 무리에서 뺀다 */}
