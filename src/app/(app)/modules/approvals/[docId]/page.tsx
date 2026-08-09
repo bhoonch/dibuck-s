@@ -11,9 +11,11 @@ import {
   buildApprovalSteps,
   externalRoleLabels,
   type Classification,
+  type ExternalApprover,
   type ExternalRole,
 } from "@/lib/gian/rules";
 import { approvalLineFor } from "@/lib/gian/approval";
+import { mailerEnabled } from "@/lib/mailer";
 import { Role } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,6 +45,7 @@ import {
   followupMeta,
   type FollowupKind,
 } from "@/lib/gian/followup";
+import { copyGian } from "../actions";
 import { makeGianNotice } from "../approval-actions";
 import { ApprovalPanel, type PanelStep } from "./approval-panel";
 import { QuoteFiles } from "./quote-files";
@@ -331,8 +334,19 @@ export default async function GianDocumentPage({
         : "품 의 서";
   const tenant = await db.tenant.findUniqueOrThrow({
     where: { id: doc.tenantId },
-    select: { name: true },
+    select: { name: true, externalApprovers: true },
   });
+  // [메일로 보내기] 노출 판정 — SMTP가 켜져 있고, 지금 차례 외부 결재자의
+  // 이메일이 결재선 설정에 있어야 한다 (발송 액션 입구에서 같은 검사를 다시 한다)
+  const pendingExternal = doc.approvalSteps.find(
+    (s) => s.status === "pending" && !s.userId,
+  );
+  const canEmailLink =
+    mailerEnabled() &&
+    !!pendingExternal &&
+    ((tenant.externalApprovers as ExternalApprover[] | null) ?? []).some(
+      (e) => e.role === pendingExternal.externalRole && !!e.email,
+    );
 
   return (
     <>
@@ -409,9 +423,17 @@ export default async function GianDocumentPage({
                 </Link>
               </Button>
             ) : (
-              <Button asChild variant="outline">
-                <Link href="/modules/approvals/new">다시 만들기</Link>
-              </Button>
+              <>
+                {/* 반복 품의는 복사가 재생성보다 빠르다 — AI 한도도 안 쓴다 */}
+                <form action={copyGian.bind(null, doc.id)}>
+                  <Button type="submit" variant="outline">
+                    복제
+                  </Button>
+                </form>
+                <Button asChild variant="outline">
+                  <Link href="/modules/approvals/new">다시 만들기</Link>
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -518,6 +540,7 @@ export default async function GianDocumentPage({
               steps={panelSteps}
               waiverNote={waiverNote}
               evidenceGap={evidenceGap}
+              canEmailLink={canEmailLink}
             />
 
             {/* 예산 없는 기안도 그 밖의 서류(점검표 등)를 올린다 — 붙임은 이 카드가 원천이다 */}

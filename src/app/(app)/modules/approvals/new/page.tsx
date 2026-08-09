@@ -4,10 +4,13 @@ import { ChevronLeft } from "lucide-react";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
+import { ymdKst } from "@/lib/utils";
 import { aiEnabled } from "@/lib/gian/claude";
 import { approvalLineFor } from "@/lib/gian/approval";
 import { PageHeader } from "@/components/ui/page-header";
+import { CopyRecent } from "@/components/copy-recent";
 import { GianSteps } from "@/components/gian-steps";
+import { copyGian } from "../actions";
 import { GianForm } from "./gian-form";
 
 export default async function NewGianPage() {
@@ -17,11 +20,23 @@ export default async function NewGianPage() {
 
   // 상신 때 뜰 결재선을 작성 중에 미리 보여준다 — submitDocument와 같은 재료.
   // 지금 이 화면을 쓰는 사람이 곧 기안자라 결재란 첫 칸에 선다.
-  const [{ internal, external }, tenant] = await Promise.all([
+  const [{ internal, external }, tenant, recent] = await Promise.all([
     approvalLineFor(session.tenantId!, session.userId),
     db.tenant.findUniqueOrThrow({
       where: { id: session.tenantId! },
       select: { directorLimit: true },
+    }),
+    // 복제 후보 — 원본 기안·품의만(파생 완료보고·지출결의·공고문은 type이 다르다)
+    db.document.findMany({
+      where: {
+        tenantId: session.tenantId!,
+        moduleId: "approvals",
+        type: { in: ["gian", "approval"] },
+        status: { not: "void" },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, title: true, createdAt: true },
     }),
   ]);
 
@@ -47,6 +62,15 @@ export default async function NewGianPage() {
           있지만 초안 생성은 준비 후 가능합니다.
         </div>
       )}
+      <CopyRecent
+        title="지난 기안 복제"
+        items={recent.map((d) => ({
+          id: d.id,
+          title: d.title,
+          date: ymdKst(d.createdAt),
+        }))}
+        action={copyGian}
+      />
       <GianForm
         internal={internal}
         external={external}

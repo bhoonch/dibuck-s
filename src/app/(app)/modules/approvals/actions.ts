@@ -13,6 +13,8 @@ import {
   classify,
   externalRoleLabels,
   legalNoticesFor,
+  type Classification,
+  type ExternalRole,
   type FundSource,
 } from "@/lib/gian/rules";
 import { approvalLineFor } from "@/lib/gian/approval";
@@ -24,6 +26,20 @@ const MODULE_ID = "approvals";
 const DAILY_LIMIT = 30;
 
 export type GenerateState = { error?: string } | undefined;
+
+/** 결재선이 비거나 외부 결재자가 빠졌을 때의 안내 — 생성·복제가 같은 문구를 쓴다 */
+function lineWarnings(stepCount: number, missing: ExternalRole[]): string[] {
+  const out: string[] = [];
+  if (stepCount === 0)
+    out.push(
+      "결재선이 비어 있습니다 — 설정 > 결재선에서 결재자를 지정해야 상신할 수 있습니다. (문서의 결재란은 공란으로 인쇄됩니다)",
+    );
+  if (missing.length > 0)
+    out.push(
+      `결재선에 ${missing.map((r) => externalRoleLabels[r]).join("·")}이(가) 등록되지 않았습니다 — 설정 > 결재선에서 등록해야 상신할 수 있습니다.`,
+    );
+  return out;
+}
 
 /** 문서함 검색용 평문 — 화면 렌더는 meta의 구조화 데이터가 담당한다 */
 function toPlainText(draft: GianDraft): string {
@@ -45,7 +61,8 @@ export async function generateGian(
     return { error: "모듈 구독이 필요합니다." };
   if (!aiEnabled())
     return {
-      error: "AI 초안 생성이 아직 활성화되지 않았습니다. 운영팀에 문의해 주세요.",
+      error:
+        "AI 초안 생성이 아직 활성화되지 않았습니다. 운영팀에 문의해 주세요.",
     };
 
   const work = String(formData.get("work") ?? "").trim();
@@ -103,7 +120,10 @@ export async function generateGian(
 
   // 결재선 미리보기 스냅샷 — 상신(Phase 2)이 아니라 문서에 보여줄 예정 결재선.
   // 지금 초안을 만드는 사람이 기안자라 결재란 첫 칸에 선다(상신 때와 같은 재료).
-  const { internal, external } = await approvalLineFor(tenantId, session.userId);
+  const { internal, external } = await approvalLineFor(
+    tenantId,
+    session.userId,
+  );
   const { steps, missing } = buildApprovalSteps(cls, internal, external);
 
   let draft: GianDraft;
@@ -120,16 +140,13 @@ export async function generateGian(
   }
 
   // 결정적 유의사항이 항상 앞 — LLM이 빠뜨려도 법적 경고는 나간다
-  const legalNotices = [...new Set([...legalNoticesFor(cls), ...draft.legalNotices])];
-  const needsClarification = [...draft.needsClarification];
-  if (steps.length === 0)
-    needsClarification.push(
-      "결재선이 비어 있습니다 — 설정 > 결재선에서 결재자를 지정해야 상신할 수 있습니다. (문서의 결재란은 공란으로 인쇄됩니다)",
-    );
-  if (missing.length > 0)
-    needsClarification.push(
-      `결재선에 ${missing.map((r) => externalRoleLabels[r]).join("·")}이(가) 등록되지 않았습니다 — 설정 > 결재선에서 등록해야 상신할 수 있습니다.`,
-    );
+  const legalNotices = [
+    ...new Set([...legalNoticesFor(cls), ...draft.legalNotices]),
+  ];
+  const needsClarification = [
+    ...draft.needsClarification,
+    ...lineWarnings(steps.length, missing),
+  ];
 
   const doc = await createDocument({
     tenantId,
@@ -159,5 +176,75 @@ export async function generateGian(
     createdById: session.userId,
   });
 
+  redirect(`/modules/approvals/${doc.id}`);
+}
+
+/**
+ * 복제 — 연간 소독처럼 반복되는 품의는 지난 문서를 복사해 값만 고친다.
+ * AI 재생성(대기·일일 한도)을 태우지 않는 경로. 원본 기안·품의만 —
+ * 파생(완료보고·지출결의·공고문)은 원본의 [이어서 만들기]가 담당한다.
+ * 견적서 첨부는 그 건의 증빙이라 복사하지 않는다. 결재 단계·채번은 상신 때 새로.
+ */
+export async function copyGian(docId: string) {
+  const session = await requireTenantSession();
+  const tenantId = session.tenantId!;
+  if (!(await isSubscribed(tenantId, MODULE_ID))) return;
+  const src = await db.document.findFirst({
+    where: {
+      id: docId,
+      tenantId,
+      moduleId: MODULE_ID,
+      type: { in: ["gian", "approval"] },
+    },
+  });
+  const meta = (src?.meta ?? null) as {
+    form?: object;
+    quotes?: { vendor: string; amount: number }[];
+    cls?: Classification;
+    draft?: GianDraft;
+    kind?: string;
+    notice?: unknown;
+    sourceDocId?: string;
+  } | null;
+  // 파생·공고문·구조가 다른 옛 문서는 조용히 무시 — 화면은 원본에만 버튼을 준다
+  if (
+    !src ||
+    !meta?.draft ||
+    !meta.cls ||
+    meta.kind ||
+    meta.notice ||
+    meta.sourceDocId
+  )
+    return;
+
+  // 결재선 경고는 지금 설정으로 다시 계산 — 원본에 굳은 옛 경고는 거짓 안내가 된다
+  const { internal, external } = await approvalLineFor(
+    tenantId,
+    session.userId,
+  );
+  const { steps, missing } = buildApprovalSteps(meta.cls, internal, external);
+  const needsClarification = [
+    "복제된 초안입니다. 금액·일정·업체가 지금도 맞는지 확인해 주세요.",
+    ...meta.draft.needsClarification.filter((s) => !s.startsWith("결재선")),
+    ...lineWarnings(steps.length, missing),
+  ];
+
+  const doc = await createDocument({
+    tenantId,
+    moduleId: MODULE_ID,
+    numberOnSubmit: true,
+    type: src.type,
+    title: src.title,
+    content: src.content,
+    meta: {
+      form: meta.form,
+      quotes: meta.quotes ?? [],
+      cls: meta.cls,
+      draft: { ...meta.draft, needsClarification },
+      plannedSteps: steps,
+    },
+    status: "draft",
+    createdById: session.userId,
+  });
   redirect(`/modules/approvals/${doc.id}`);
 }

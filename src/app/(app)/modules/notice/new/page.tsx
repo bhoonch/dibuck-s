@@ -7,6 +7,8 @@ import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/notice-ai";
 import { ymdKst } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
+import { CopyRecent } from "@/components/copy-recent";
+import { copyNoticePost } from "../actions";
 import { NoticeForm } from "./notice-form";
 
 export default async function NewNoticePage() {
@@ -51,15 +53,16 @@ export default async function NewNoticePage() {
           AI 문안 생성이 아직 활성화되지 않았습니다. 준비 후 이용할 수 있습니다.
         </div>
       )}
-      <NoticeForm
-        defaultContact={tenant.phone ?? ""}
-        aiReady={aiEnabled()}
-        recentPosts={recent.map((d) => ({
+      <CopyRecent
+        title="지난 공지 복제"
+        items={recent.map((d) => ({
           id: d.id,
           title: d.title,
           date: ymdKst(d.createdAt),
         }))}
+        action={copyNoticePost}
       />
+      <NoticeForm defaultContact={tenant.phone ?? ""} aiReady={aiEnabled()} />
     </div>
   );
 }

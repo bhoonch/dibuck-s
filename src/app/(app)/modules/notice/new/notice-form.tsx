@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
-import { Copy, Loader2 } from "lucide-react";
+import { useActionState, useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   NOTICE_CATEGORIES,
   NOTICE_TYPES,
@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { copyNoticePost, generateNoticeAction } from "../actions";
+import { generateNoticeAction } from "../actions";
 
 /**
  * 생성 대기 — 10~30초짜리 대기에서 "멈춘 건지 도는 건지"를 가르는 건
@@ -42,13 +42,10 @@ function GeneratingOverlay() {
 export function NoticeForm({
   defaultContact,
   aiReady,
-  recentPosts = [],
 }: {
   /** 문의처 기본값 — 설정 > 단지 정보의 전화번호 */
   defaultContact: string;
   aiReady: boolean;
-  /** 복제 후보 — 최근 공지(폐기 제외). 비어 있으면 복제 타일 자체를 안 그린다 */
-  recentPosts?: { id: string; title: string; date: string }[];
 }) {
   const [state, formAction, pending] = useActionState(
     generateNoticeAction,
@@ -60,9 +57,6 @@ export function NoticeForm({
   }, [pending]);
   const [typeKey, setTypeKey] = useState("");
   const [freeKind, setFreeKind] = useState<"guide" | "official">("guide");
-  const [copyOpen, setCopyOpen] = useState(false);
-  // 복제는 서버 액션이 새 초안으로 redirect — 폼 안에 폼을 중첩할 수 없어 transition으로 부른다
-  const [copying, startCopy] = useTransition();
   const type = noticeTypeOf(typeKey);
 
   return (
@@ -74,65 +68,6 @@ export function NoticeForm({
       <Card className="p-6">
         <h2 className="mb-4 text-sm font-semibold">1. 어떤 게시물인가요?</h2>
         <div className="space-y-4">
-          {/* 반복 공지는 재생성보다 복사 — 유형을 고르는 결정 지점에 선택지로 둔다 */}
-          {recentPosts.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                지난 공지 다시 붙이기
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => setCopyOpen((v) => !v)}
-                  className={
-                    "rounded-md border px-3 py-2 text-left " +
-                    (copyOpen
-                      ? "border-primary bg-accent shadow-[inset_0_0_0_1px_var(--primary)]"
-                      : "hover:border-primary/60")
-                  }
-                >
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    <Copy className="size-3.5" /> 지난 공지 복제
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                    AI 생성 없이 바로 초안이 됩니다
-                  </span>
-                </button>
-              </div>
-              {copyOpen && (
-                <ul className="mt-2 divide-y rounded-md border">
-                  {recentPosts.map((p) => (
-                    <li
-                      key={p.id}
-                      className="flex items-center gap-2 px-3 py-2 text-sm"
-                    >
-                      <span className="min-w-0 flex-1 truncate">{p.title}</span>
-                      <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                        {p.date}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        disabled={copying}
-                        onClick={() =>
-                          startCopy(async () => {
-                            await copyNoticePost(p.id);
-                          })
-                        }
-                      >
-                        {copying ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          "복제"
-                        )}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
           {NOTICE_CATEGORIES.map((cat) => (
             <div key={cat}>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">

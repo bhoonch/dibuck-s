@@ -14,8 +14,14 @@ import {
   MAX_FILES_PER_DOC,
   MAX_FILES_PER_QUOTE,
 } from "@/lib/gian/attachments";
-import type { Classification } from "@/lib/gian/rules";
-import { actOnStep, reissueToken, submitDocument } from "@/lib/gian/approval";
+import type { Classification, ExternalApprover } from "@/lib/gian/rules";
+import {
+  actOnStep,
+  reissueToken,
+  submitDocument,
+  tokenState,
+} from "@/lib/gian/approval";
+import { mailerEnabled, sendApprovalRequest } from "@/lib/mailer";
 import type { GianDraft } from "@/lib/gian/claude";
 import {
   createNoticeFrom,
@@ -340,7 +346,12 @@ export async function createFollowup(formData: FormData) {
     });
   } catch (e) {
     // 동시 생성의 진 쪽 — 이긴 쪽 문서로 보낸다(위의 "이미 만들었으면"과 같은 결말)
-    if (typeof e === "object" && e !== null && "code" in e && e.code === "P2002") {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      e.code === "P2002"
+    ) {
       const winner = await findFollowupFor(doc.id, kind);
       if (winner) redirect(`/modules/approvals/${winner.id}`);
     }
@@ -519,6 +530,70 @@ export async function updateNoticePosting(
     },
   });
   revalidatePath(`/modules/approvals/${doc.id}`);
+  return undefined;
+}
+
+/**
+ * 서명 링크 메일 재발송 — 차례가 됐을 때 자동 발송(notifyStepActivated)되지만,
+ * 메일이 유실됐거나 링크를 재발급한 뒤에는 손으로 다시 보내는 길이 필요하다.
+ * 이메일은 스냅샷이 아니라 현재 결재선 설정에서 읽는다(연락처는 최신이 맞다).
+ * 경계는 재발급과 동일: 작성자 또는 마스터.
+ */
+export async function emailGianLink(stepId: string): Promise<ActionState> {
+  const session = await requireTenantSession();
+  const step = await db.approvalStep.findUnique({
+    where: { id: stepId },
+    include: {
+      document: {
+        select: {
+          id: true,
+          tenantId: true,
+          title: true,
+          status: true,
+          createdById: true,
+        },
+      },
+    },
+  });
+  if (!step || step.document.tenantId !== session.tenantId)
+    return { error: "권한이 없습니다." };
+  if (
+    step.document.createdById !== session.userId &&
+    session.role !== Role.DIRECTOR
+  )
+    return { error: "메일 발송은 작성자 또는 마스터만 할 수 있습니다." };
+  if (!mailerEnabled())
+    return { error: "메일 발송이 아직 설정되지 않았습니다." };
+  if (tokenState(step, step.document.status) !== "valid")
+    return {
+      error:
+        "지금 결재 차례의 유효한 링크만 보낼 수 있습니다. 만료됐다면 먼저 [링크 재발급]을 눌러 주세요.",
+    };
+
+  const tenant = await db.tenant.findUniqueOrThrow({
+    where: { id: session.tenantId! },
+    select: { name: true, externalApprovers: true },
+  });
+  const person = (
+    (tenant.externalApprovers as ExternalApprover[] | null) ?? []
+  ).find((e) => e.role === step.externalRole);
+  if (!person?.email)
+    return {
+      error: "설정 > 결재선에 이메일을 등록하면 메일로 보낼 수 있습니다.",
+    };
+
+  try {
+    await sendApprovalRequest(
+      person.email,
+      step.name,
+      tenant.name,
+      step.document.title,
+      step.token!,
+    );
+  } catch (e) {
+    console.error("approval link mail failed:", e);
+    return { error: "메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요." };
+  }
   return undefined;
 }
 

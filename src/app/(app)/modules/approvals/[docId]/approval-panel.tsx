@@ -1,12 +1,22 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Check, Copy, Loader2, RefreshCw, Send, Undo2, X } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Loader2,
+  Mail,
+  RefreshCw,
+  Send,
+  Undo2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { panel, panelTitle } from "@/components/gian-ui";
 import {
   actOnGianStep,
+  emailGianLink,
   reissueGianToken,
   submitGian,
   voidGian,
@@ -57,6 +67,7 @@ export function ApprovalPanel({
   numbered,
   waiverNote,
   evidenceGap,
+  canEmailLink = false,
 }: {
   docId: string;
   docStatus: string;
@@ -68,10 +79,13 @@ export function ApprovalPanel({
   waiverNote?: string | null;
   /** 지금 부족한 증빙. 파일을 올리면 서버가 null로 내려주므로 사유칸이 저절로 닫힌다 */
   evidenceGap?: string | null;
+  /** SMTP가 켜져 있고 지금 차례 외부 결재자의 이메일이 등록돼 있는가 (서버 판정) */
+  canEmailLink?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [mailed, setMailed] = useState(false);
   const [triedSubmit, setTriedSubmit] = useState(false);
   const [waiverReason, setWaiverReason] = useState("");
 
@@ -90,8 +104,7 @@ export function ApprovalPanel({
   // 기안자 본인의 자동 서명을 뺀 누군가가 처리했으면 회수는 막힌다(서버도 같은 조건).
   // 자동 서명까지 세면 결재선이 2칸 이상인 문서는 상신 직후에도 회수 버튼이 안 뜬다.
   const anyActed = steps.some(
-    (s) =>
-      !s.isDrafter && (s.status === "approved" || s.status === "rejected"),
+    (s) => !s.isDrafter && (s.status === "approved" || s.status === "rejected"),
   );
 
   const run = (fn: () => Promise<{ error?: string } | undefined>) => {
@@ -232,7 +245,12 @@ export function ApprovalPanel({
             className="w-full rounded-md border border-[var(--gian-line-strong)] bg-[var(--gian-paper)] px-3 py-2 text-sm"
           />
           <div className="flex gap-2">
-            <Button type="submit" name="action" value="approve" disabled={actPending}>
+            <Button
+              type="submit"
+              name="action"
+              value="approve"
+              disabled={actPending}
+            >
               <Check className="size-4" /> 승인
             </Button>
             <Button
@@ -272,6 +290,24 @@ export function ApprovalPanel({
               >
                 <Copy className="size-4" />
                 {copied ? "복사됨!" : "서명 링크 복사"}
+              </Button>
+            )}
+            {current.token && !current.tokenExpired && canEmailLink && (
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  setError(undefined);
+                  setMailed(false);
+                  startTransition(async () => {
+                    const r = await emailGianLink(current.id);
+                    if (r?.error) setError(r.error);
+                    else setMailed(true);
+                  });
+                }}
+              >
+                <Mail className="size-4" />
+                {mailed ? "발송됨!" : "메일로 보내기"}
               </Button>
             )}
             <Button
