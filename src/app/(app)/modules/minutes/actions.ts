@@ -22,6 +22,8 @@ import {
   DECISIONS,
   DEFAULT_NOTICE_DAYS,
   FOLLOWUPS,
+  MEETING_KINDS,
+  voteCounts,
   normalizeMinutesAgendas,
   type AnchorMismatch,
   type Attendee,
@@ -48,6 +50,10 @@ const isSerializationConflict = (e: unknown) => {
   const err = e as { name?: string; cause?: { kind?: string } };
   return err.name === "DriverAdapterError" && err.cause?.kind === "TransactionWriteConflict";
 };
+
+/** 표결자 대조용 참석자 성명 — 준칙상 표결은 참석한 동별 대표자만 한다 */
+const presentNames = (meta: MeetingMeta) =>
+  meta.attendees.filter((a) => a.present).map((a) => a.name);
 
 /** 문서를 만드는 입구 — 화면 가드를 믿지 않고 여기서 다시 검사한다 */
 async function requireMinutes() {
@@ -78,6 +84,25 @@ export async function createMeeting(
   const meetingAt = meetingAtRaw.slice(0, 16).replace("T", " ");
 
   const place = String(formData.get("place") ?? "").trim();
+
+  // 회의구분 — 준칙 서식의 "회의구분" 칸. 값이 이상하면 정기로 둔다(가장 흔한 쪽)
+  const kindRaw = String(formData.get("kind") ?? "");
+  const kind = (MEETING_KINDS as readonly string[]).includes(kindRaw)
+    ? (kindRaw as MeetingMeta["kind"])
+    : "정기";
+
+  // 관리규약이 정한 정원. 회의마다 스냅샷이라 지난 회의록의 성원보고가 흔들리지 않는다.
+  // 비어 있으면 저장하지 않는다 — quorum()이 선출 인원을 정원으로 보고 계산한다.
+  const seatsRaw = Number(formData.get("boardSeats"));
+  const boardSeats =
+    Number.isFinite(seatsRaw) && seatsRaw > 0 ? Math.floor(seatsRaw) : undefined;
+
+  const writerName = String(formData.get("writerName") ?? "").trim().slice(0, 30);
+  const observers = String(formData.get("observers") ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean)
+    .slice(0, 10);
 
   const noticeDaysRaw = Number(formData.get("noticeDays"));
   const noticeDays =
@@ -149,10 +174,14 @@ export async function createMeeting(
               meta: {
                 meetingNo,
                 meetingAt,
+                kind,
                 place,
                 noticeDays,
                 attendees,
                 agenda,
+                ...(boardSeats ? { boardSeats } : {}),
+                ...(writerName ? { writerName } : {}),
+                ...(observers.length ? { observers } : {}),
               } satisfies MeetingMeta,
             },
           });
@@ -216,6 +245,7 @@ export async function generateMinutes(
       agenda: meta.agenda.map((a) => ({ order: a.order, title: a.title })),
       rawText,
       meetingLabel: doc.title,
+      attendees: presentNames(meta),
     });
   } catch (e) {
     return {
@@ -229,7 +259,7 @@ export async function generateMinutes(
   // JSON 스키마는 형태만 강제한다 — 안건 개수·순서·제목이 입력 앵커와 같은지는
   // 여기서 다시 검사해야 한다(모델이 안건을 더하거나 빼거나 제목을 바꿀 수 있다).
   // saveMinutesDraft와 같은 정규화를 태워, 제목도 meta.agenda 기준으로 되돌린다.
-  const validated = normalizeMinutesAgendas(result.agendas, meta.agenda);
+  const validated = normalizeMinutesAgendas(result.agendas, meta.agenda, presentNames(meta));
   if ("fail" in validated)
     return { error: "AI 초안이 안건 구성과 맞지 않습니다. 다시 시도해 주세요." };
 
@@ -277,7 +307,7 @@ export async function saveMinutesDraft(
     return { error: "안건 정보를 읽을 수 없습니다." };
   }
 
-  const result = normalizeMinutesAgendas(raw, meta.agenda);
+  const result = normalizeMinutesAgendas(raw, meta.agenda, presentNames(meta));
   if ("fail" in result) {
     const messages: Record<AnchorMismatch, string> = {
       count: "안건 개수가 맞지 않습니다.",
@@ -285,15 +315,22 @@ export async function saveMinutesDraft(
       decision: "의결 결과 값이 올바르지 않습니다.",
       votes: "찬반 수는 0 이상의 숫자여야 합니다.",
       duplicate: "안건 정보가 올바르지 않습니다.",
+      voter: "표결자는 참석자 중에서만 고를 수 있고, 한 사람이 두 칸에 들어갈 수 없습니다.",
+      quote: "견적 금액은 0 이상의 숫자여야 합니다.",
     };
     return { error: messages[result.fail] };
   }
+
+  // 폐회 시각 — 회의가 끝나야 아는 값이라 소집이 아니라 회의록 작성에서 받는다.
+  // 형식이 어긋나면 저장하지 않는다(서식에 그대로 인쇄되는 값이다).
+  const closedAtRaw = String(formData.get("closedAt") ?? "").trim();
+  const closedAt = /^\d{2}:\d{2}$/.test(closedAtRaw) ? closedAtRaw : undefined;
 
   // 검사(위 status draft 확인)와 쓰기 사이 다른 탭이 완성·서명을 끝낼 수 있다 —
   // 조건부 updateMany로 그 경합을 다시 막는다(generateMinutes와 동형).
   const updated = await db.document.updateMany({
     where: { id: doc.id, status: "draft" },
-    data: { meta: { ...meta, minutes: result.agendas } },
+    data: { meta: { ...meta, minutes: result.agendas, closedAt } },
   });
   if (updated.count === 0)
     return { error: "완성된 회의록은 수정할 수 없습니다." };
@@ -587,9 +624,11 @@ export async function createResolutionNotice(
     intro: `제${meta.meetingNo}차 입주자대표회의(${meetingAtDisplay})에서 다음과 같이 의결되었음을 공고합니다.`,
     rows: resolutions.map((r) => {
       const a = votesByOrder.get(r.order);
+      // 표결 성명은 공고문에 싣지 않는다 — 게시물이라 개인정보다. 인원수만 옮긴다.
+      const c = a ? voteCounts(a) : null;
       const votes =
-        a && (a.votesFor !== null || a.votesAgainst !== null)
-          ? `(찬성 ${a.votesFor ?? 0}, 반대 ${a.votesAgainst ?? 0})`
+        c && c.for + c.against + c.abstain > 0
+          ? `(찬성 ${c.for}, 반대 ${c.against}, 기권 ${c.abstain})`
           : "";
       return { k: `제${r.order}호 안건`, v: `${r.title} ${r.decision}${votes}` };
     }),

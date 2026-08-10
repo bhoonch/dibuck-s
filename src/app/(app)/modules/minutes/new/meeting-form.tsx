@@ -5,8 +5,10 @@ import { Loader2, Plus, X } from "lucide-react";
 import type { Attendee, AgendaItem } from "@/lib/minutes";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TimeSelect } from "@/components/ui/time-select";
 import { createMeeting, type MeetingState } from "../actions";
 
 /**
@@ -18,11 +20,18 @@ export function MeetingForm({
   agendaInit,
   hasRegistry,
   defaultNoticeDays,
+  defaultBoardSeats,
+  defaultWriterName,
+  defaultObservers,
 }: {
   attendeesInit: Attendee[];
   agendaInit: AgendaItem[];
   hasRegistry: boolean;
   defaultNoticeDays: number;
+  /** 관리규약이 정한 입대의 정원 — 직전 회의 값. 없으면 빈칸 */
+  defaultBoardSeats: number | null;
+  defaultWriterName: string;
+  defaultObservers: string;
 }) {
   const [state, formAction, pending] = useActionState<MeetingState, FormData>(
     createMeeting,
@@ -34,6 +43,10 @@ export function MeetingForm({
   );
   const [newName, setNewName] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  // 날짜·시각을 나눠 받는다 — datetime-local 위젯이 어렵다는 사용자 지적.
+  // 저녁 7시는 입대의 회의의 압도적 관행이라 기본값으로 보이게 둔다(숨은 기본값 아님).
+  const [meetDate, setMeetDate] = useState("");
+  const [meetTime, setMeetTime] = useState("19:00");
 
   const addAttendee = () => {
     const name = newName.trim();
@@ -52,16 +65,43 @@ export function MeetingForm({
       <input type="hidden" name="agenda" value={JSON.stringify(agenda)} />
 
       <Card className="space-y-4 p-4 sm:p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label>회의 구분</Label>
+          <div className="mt-1.5 flex gap-4">
+            {["정기", "임시"].map((k) => (
+              <label key={k} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="kind"
+                  value={k}
+                  defaultChecked={k === "정기"}
+                  className="size-4 accent-primary"
+                />
+                {k}회의
+              </label>
+            ))}
+          </div>
+        </div>
+        {/* 서버는 기존 형식(YYYY-MM-DDTHH:mm) 그대로 받는다 — 합쳐서 hidden으로 */}
+        <input
+          type="hidden"
+          name="meetingAt"
+          value={meetDate && meetTime ? `${meetDate}T${meetTime}` : ""}
+        />
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <Label htmlFor="mt-at">일시</Label>
-            <Input
-              id="mt-at"
-              name="meetingAt"
-              type="datetime-local"
+            <Label htmlFor="mt-date">회의 날짜</Label>
+            <DatePicker
+              id="mt-date"
               required
+              value={meetDate}
+              onChange={(e) => setMeetDate(e.target.value)}
               className="mt-1.5 h-11"
             />
+          </div>
+          <div>
+            <Label htmlFor="mt-time">시작 시각</Label>
+            <TimeSelect id="mt-time" value={meetTime} onValueChange={setMeetTime} />
           </div>
           <div>
             <Label htmlFor="mt-place">장소</Label>
@@ -73,7 +113,54 @@ export function MeetingForm({
             />
           </div>
         </div>
-        <div className="max-w-[10rem]">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="mt-writer">회의록 작성자</Label>
+            <Input
+              id="mt-writer"
+              name="writerName"
+              defaultValue={defaultWriterName}
+              placeholder="예: 홍길동"
+              className="mt-1.5 h-11"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              회의록 작성 책임은 입주자대표회의 회장에게 있습니다.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="mt-observers">배석자</Label>
+            <Input
+              id="mt-observers"
+              name="observers"
+              defaultValue={defaultObservers}
+              placeholder="예: 관리사무소장 김소장"
+              className="mt-1.5 h-11"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              참석자가 아니라 자리에 함께한 사람입니다.
+              <br />
+              쉼표로 구분해 적으세요.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="mt-seats">입주자대표회의 정원 (명)</Label>
+            <Input
+              id="mt-seats"
+              name="boardSeats"
+              type="number"
+              min={1}
+              defaultValue={defaultBoardSeats ?? ""}
+              className="mt-1.5 h-11"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              의결정족수를 세는 기준입니다.
+              <br />
+              관리규약이 정한 정원을 적으세요.
+            </p>
+          </div>
+          <div>
           <Label htmlFor="mt-notice">소집 통지 기한 (일)</Label>
           <Input
             id="mt-notice"
@@ -88,6 +175,7 @@ export function MeetingForm({
             <br />
             관리규약을 확인하세요.
           </p>
+          </div>
         </div>
       </Card>
 

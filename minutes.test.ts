@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   proposeAgenda, signTokenState, minutesHash, noticeDueYmd, signProgress,
-  normalizeMinutesAgendas,
+  normalizeMinutesAgendas, quorum, voteCounts, toSpeech, maskName,
 } from "./src/lib/minutes";
 
 // ── proposeAgenda: 미완료 의결 → 이행 보고 안건, 순서는 이어 붙는다 ──
@@ -110,5 +110,114 @@ assert.deepEqual(
   ),
   { fail: "decision" },
 );
+
+// ── quorum: 영 제4조제3항(구성원) + 영 제14조제1항(과반수) ──
+// 정원 10, 선출 9 → 3분의 2(7명) 이상 선출됐으므로 구성원은 선출 인원 9, 정족수 5
+assert.deepEqual(quorum(10, 9, 7), {
+  seats: 10, unfilled: 1, members: 9, required: 5, present: 7, absent: 2,
+});
+// 정원 10, 선출 6 → 3분의 2(7명) 미달이라 구성원은 정원 10으로 되돌아가 정족수 6
+assert.deepEqual(quorum(10, 6, 5), {
+  seats: 10, unfilled: 4, members: 10, required: 6, present: 5, absent: 1,
+});
+// 경계 — 정원 9의 3분의 2는 정확히 6명. 6명 선출은 "이상"이라 선출 인원이 구성원
+assert.equal(quorum(9, 6, 6).members, 6);
+assert.equal(quorum(9, 5, 5).members, 9);
+// 규약 정원 미입력 → 선출 인원을 정원으로 본다(미선출 0)
+assert.deepEqual(quorum(null, 7, 4), {
+  seats: 7, unfilled: 0, members: 7, required: 4, present: 4, absent: 3,
+});
+
+// ── 표결 성명 — 준칙이 요구하는 찬성자·반대자·기권자 기록 ──
+const roster = ["김회장", "이감사", "박서울"];
+const withVotes = normalizeMinutesAgendas(
+  [
+    { order: 1, title: "x", discussion: [{ speaker: "101동 김회장", text: "원안 찬성" }],
+      decision: "가결", votes: { for: ["김회장", "박서울"], against: ["이감사"], abstain: [] } },
+    { order: 2, title: "x", discussion: [], decision: "없음" },
+  ],
+  anchor, roster,
+);
+assert.ok("agendas" in withVotes);
+if ("agendas" in withVotes) {
+  const a = withVotes.agendas[0];
+  assert.deepEqual(voteCounts(a), { for: 2, against: 1, abstain: 0 });
+  // 성명이 있으면 숫자는 저장하지 않는다 — 두 벌이 어긋날 자리를 없앤다
+  assert.equal(a.votesFor, null);
+  assert.equal(a.votesAgainst, null);
+  assert.deepEqual(a.discussion[0], { speaker: "101동 김회장", text: "원안 찬성" });
+  // 표결 없는 보고 안건은 votes를 남기지 않는다
+  assert.equal(withVotes.agendas[1].votes, undefined);
+}
+
+// 명부 밖 이름 거부 — LLM이든 클라이언트든 없는 사람을 표결에 넣을 수 없다
+assert.deepEqual(
+  normalizeMinutesAgendas(
+    [
+      { order: 1, title: "x", discussion: [], decision: "가결", votes: { for: ["없는사람"], against: [], abstain: [] } },
+      { order: 2, title: "x", discussion: [], decision: "없음" },
+    ],
+    anchor, roster,
+  ),
+  { fail: "voter" },
+);
+
+// 한 사람이 찬성이면서 반대 — 중복 배정 거부
+assert.deepEqual(
+  normalizeMinutesAgendas(
+    [
+      { order: 1, title: "x", discussion: [], decision: "가결", votes: { for: ["김회장"], against: ["김회장"], abstain: [] } },
+      { order: 2, title: "x", discussion: [], decision: "없음" },
+    ],
+    anchor, roster,
+  ),
+  { fail: "voter" },
+);
+
+// 레거시 회의록 — 발언자 없는 string과 숫자 표결이 그대로 살아 있다
+assert.deepEqual(toSpeech("발언만 있음"), { speaker: "", text: "발언만 있음" });
+assert.deepEqual(
+  voteCounts({ order: 1, title: "x", discussion: [], decision: "가결", votesFor: 6, votesAgainst: 2 }),
+  { for: 6, against: 2, abstain: 0 },
+);
+
+// ── 견적 비교표 — 업체명 없는 행은 버리고, 금액은 0 이상 또는 null만 ──
+const withQuotes = normalizeMinutesAgendas(
+  [
+    { order: 1, title: "x", discussion: [], decision: "가결",
+      quotes: [
+        { vendor: "(주)한빛방수", amount: 11800000, note: "최저가" },
+        { vendor: "  ", amount: 999, note: "빈 행" },
+        { vendor: "대성건설", amount: null, note: "" },
+      ] },
+    { order: 2, title: "x", discussion: [], decision: "없음" },
+  ],
+  anchor, roster,
+);
+assert.ok("agendas" in withQuotes);
+if ("agendas" in withQuotes) {
+  assert.deepEqual(withQuotes.agendas[0].quotes, [
+    { vendor: "(주)한빛방수", amount: 11800000, note: "최저가" },
+    { vendor: "대성건설", amount: null, note: "" },
+  ]);
+  assert.equal(withQuotes.agendas[1].quotes, undefined); // 없으면 필드 자체가 없다
+}
+assert.deepEqual(
+  normalizeMinutesAgendas(
+    [
+      { order: 1, title: "x", discussion: [], decision: "가결",
+        quotes: [{ vendor: "업체", amount: -1, note: "" }] },
+      { order: 2, title: "x", discussion: [], decision: "없음" },
+    ],
+    anchor, roster,
+  ),
+  { fail: "quote" }, // 음수 금액 거부
+);
+
+// ── maskName: 공개용 성명 비식별(준칙 제43조⑤) — 성만 남긴다 ──
+assert.equal(maskName("박일동"), "박○○");
+assert.equal(maskName("남궁일동"), "남○○○"); // 복성 판별 안 함 — 더 가려지는 쪽
+assert.equal(maskName("김구"), "김○");
+assert.equal(maskName("구"), "구"); // 외자는 가릴 나머지가 없다
 
 console.log("minutes.test.ts OK");

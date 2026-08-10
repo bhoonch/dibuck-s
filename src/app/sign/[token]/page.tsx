@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { signTokenState, type MeetingMeta } from "@/lib/minutes";
+import { quorum, signTokenState, type MeetingMeta } from "@/lib/minutes";
+import { dayKst, kstDayStart, koreanDateKst } from "@/lib/utils";
 import { MinutesPaper } from "@/components/minutes-paper";
 import { PaperScale } from "@/components/paper-scale";
 import { SignForm } from "./sign-form";
@@ -52,13 +53,27 @@ export default async function SignByTokenPage({
 
   const doc = step!.document;
   const meta = doc.meta as MeetingMeta;
-  const signSteps = await db.approvalStep.findMany({
-    where: { documentId: doc.id },
-    orderBy: { order: "asc" },
-  });
+  const [signSteps, tenant] = await Promise.all([
+    db.approvalStep.findMany({
+      where: { documentId: doc.id },
+      orderBy: { order: "asc" },
+    }),
+    db.tenant.findUniqueOrThrow({
+      where: { id: doc.tenantId },
+      select: { name: true },
+    }),
+  ]);
   const [ymd, hm] = meta.meetingAt.split(" ");
-  const [y, m, d] = ymd.split("-");
-  const meetingAtDisplay = `${y}년 ${Number(m)}월 ${Number(d)}일 ${hm}`;
+  // 서명자가 보는 회의록도 완성본과 같은 서식이어야 한다 — 무엇에 서명하는지가 달라지면 증거력이 흔들린다
+  const weekday = "일월화수목금토"[dayKst(kstDayStart(ymd))];
+  const meetingAtDisplay = `${koreanDateKst(kstDayStart(ymd))}(${weekday}) ${hm}${
+    meta.closedAt ? ` ~ ${meta.closedAt}` : ""
+  }`;
+  const q = quorum(
+    meta.boardSeats,
+    meta.attendees.length,
+    meta.attendees.filter((a) => a.present).length,
+  );
 
   return shell(
     <>
@@ -78,9 +93,15 @@ export default async function SignByTokenPage({
               docNo={doc.docNo ?? ""}
               meetingNo={meta.meetingNo}
               meetingAt={meetingAtDisplay}
+              kind={meta.kind}
               place={meta.place}
               attendees={meta.attendees}
               agendas={meta.minutes ?? []}
+              quorum={q}
+              writerName={meta.writerName}
+              observers={meta.observers}
+              issuedDate={koreanDateKst(kstDayStart(ymd))}
+              tenantName={tenant.name}
               steps={signSteps.map((s) => ({
                 order: s.order,
                 status: s.status,

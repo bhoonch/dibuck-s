@@ -5,7 +5,12 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { approverRoleLabel, type ExternalApprover } from "@/lib/gian/rules";
-import { DEFAULT_NOTICE_DAYS, proposeAgenda, type Attendee } from "@/lib/minutes";
+import {
+  DEFAULT_NOTICE_DAYS,
+  proposeAgenda,
+  type Attendee,
+  type MeetingMeta,
+} from "@/lib/minutes";
 import { PageHeader } from "@/components/ui/page-header";
 import { MeetingForm } from "./meeting-form";
 
@@ -14,7 +19,7 @@ export default async function NewMeetingPage() {
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, "minutes"))) redirect("/subscriptions");
 
-  const [tenant, unresolved] = await Promise.all([
+  const [tenant, unresolved, lastMeeting] = await Promise.all([
     db.tenant.findUniqueOrThrow({
       where: { id: tenantId },
       select: { externalApprovers: true },
@@ -24,7 +29,15 @@ export default async function NewMeetingPage() {
       orderBy: { createdAt: "asc" },
       select: { id: true, title: true, meetingDocId: true },
     }),
+    // 규약 정원·작성자·배석자는 회의마다 스냅샷이지만 매번 다시 적을 값은 아니다 —
+    // 직전 회의 값을 초기값으로 끌어온다(첫 회의만 손으로 적는다).
+    db.document.findFirst({
+      where: { tenantId, moduleId: "minutes", type: "minutes" },
+      orderBy: { createdAt: "desc" },
+      select: { meta: true },
+    }),
   ]);
+  const prev = lastMeeting?.meta as MeetingMeta | undefined;
 
   // 명부(externalApprovers) 전원을 참석 대상 스냅샷 초기값으로 — 기본 전원 체크
   const registry = (tenant.externalApprovers ?? []) as ExternalApprover[];
@@ -73,6 +86,13 @@ export default async function NewMeetingPage() {
         agendaInit={agenda}
         hasRegistry={registry.length > 0}
         defaultNoticeDays={DEFAULT_NOTICE_DAYS}
+        defaultBoardSeats={prev?.boardSeats ?? null}
+        defaultWriterName={
+          prev?.writerName ??
+          attendees.find((a) => a.role === "CHAIR")?.name ??
+          ""
+        }
+        defaultObservers={(prev?.observers ?? []).join(", ")}
       />
     </div>
   );

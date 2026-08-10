@@ -5,7 +5,7 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { aiEnabled } from "@/lib/minutes-ai";
-import type { MeetingMeta } from "@/lib/minutes";
+import { quorum, type MeetingMeta } from "@/lib/minutes";
 import { PageHeader } from "@/components/ui/page-header";
 import { MinutesEditor } from "./minutes-editor";
 
@@ -32,6 +32,11 @@ export default async function MinutesEditPage({
   if (doc.status !== "draft") redirect(`/modules/minutes/${docId}`);
 
   const meta = doc.meta as MeetingMeta;
+  const present = meta.attendees.filter((a) => a.present);
+  // 정족수는 회의 정보(정원·선출·참석)만으로 정해진다 — 편집 중 바뀌지 않으므로
+  // 서버에서 한 번 계산해 내려보낸다. lib/minutes는 node:crypto 때문에 클라이언트가
+  // 값으로 import할 수 없다(DECISIONS와 같은 제약).
+  const q = quorum(meta.boardSeats, meta.attendees.length, present.length);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -52,6 +57,10 @@ export default async function MinutesEditPage({
         initialMinutes={meta.minutes}
         initialRawText={meta.rawText ?? ""}
         aiReady={aiEnabled()}
+        present={present.map((a) => ({ name: a.name, label: a.label }))}
+        required={q.required}
+        members={q.members}
+        initialClosedAt={meta.closedAt ?? ""}
       />
     </div>
   );

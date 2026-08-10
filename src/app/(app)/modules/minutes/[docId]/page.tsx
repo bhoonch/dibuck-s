@@ -5,8 +5,14 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
-import { koreanDateKst, ymdKst, ymdhmKst } from "@/lib/utils";
-import { noticeDueYmd, type MeetingMeta } from "@/lib/minutes";
+import { dayKst, kstDayStart, koreanDateKst, ymdKst, ymdhmKst } from "@/lib/utils";
+import {
+  noticeDueYmd,
+  quorum,
+  toSpeech,
+  voteCounts,
+  type MeetingMeta,
+} from "@/lib/minutes";
 import type { ExternalApprover } from "@/lib/gian/rules";
 import type { NoticeDoc } from "@/lib/gian/notice";
 import { Card } from "@/components/ui/card";
@@ -37,13 +43,17 @@ const decisionStyles: Record<string, string> = {
 
 export default async function MeetingDocPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ docId: string }>;
+  searchParams: Promise<{ public?: string }>;
 }) {
   const session = await requireTenantSession();
   const tenantId = session.tenantId!;
   if (!(await isSubscribed(tenantId, MODULE_ID))) redirect("/subscriptions");
   const { docId } = await params;
+  // 공개용 보기(?public=1) — 발언자 성명을 마스킹한 렌더 변형. 문서 데이터는 불변
+  const isPublicView = (await searchParams).public === "1";
   // type은 "minutes" 아니면 "notice" — 파생 공고문도 같은 화면에서 연다(원본과 moduleId가 같다)
   const doc = await db.document.findFirst({
     where: { id: docId, tenantId, moduleId: MODULE_ID, type: { in: [TYPE, "notice"] } },
@@ -142,15 +152,28 @@ export default async function MeetingDocPage({
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${decisionStyles[a.decision] ?? "bg-gray-100 text-gray-600"}`}
                 >
                   {a.decision}
-                  {(a.votesFor !== null || a.votesAgainst !== null) &&
-                    ` (찬 ${a.votesFor ?? 0} · 반 ${a.votesAgainst ?? 0})`}
+                  {a.decision !== "없음" &&
+                    (() => {
+                      const c = voteCounts(a);
+                      return ` (찬 ${c.for} · 반 ${c.against} · 기권 ${c.abstain})`;
+                    })()}
                 </span>
               </div>
               {a.discussion.length > 0 ? (
                 <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">
-                  {a.discussion.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
+                  {a.discussion.map((l, i) => {
+                    const sp = toSpeech(l);
+                    return (
+                      <li key={i}>
+                        {sp.speaker && (
+                          <span className="font-medium text-foreground">
+                            {sp.speaker}:{" "}
+                          </span>
+                        )}
+                        {sp.text}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -184,6 +207,11 @@ export default async function MeetingDocPage({
       where: { documentId: doc.id },
       orderBy: { order: "asc" },
     });
+    // 단지명은 준칙 서식 1면의 "○○○○아파트 입주자대표회의" 자리에 들어간다
+    const tenant = await db.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { name: true },
+    });
     // 서명 스텝은 참석자 배열의 present 순서와 order(1부터)로 짝짓는다(requestSignatures와 동일 규칙)
     const now = new Date();
     const signRows: SignStepRow[] = meta.attendees
@@ -202,14 +230,19 @@ export default async function MeetingDocPage({
         };
       });
     const [ymd, hm] = meta.meetingAt.split(" ");
-    const [y, m, d] = ymd.split("-");
-    const meetingAtDisplay = `${y}년 ${Number(m)}월 ${Number(d)}일 ${hm}`;
+    // 준칙 서식의 회의일시는 "20○○년 ○○월 ○○일(○). ○○:○○~○○:○○" 꼴이다 —
+    // 요일과 폐회 시각까지 넣는다(폐회 시각은 안 적었으면 개회 시각만 나온다).
+    const weekday = "일월화수목금토"[dayKst(kstDayStart(ymd))];
+    const meetingAtDisplay = `${koreanDateKst(kstDayStart(ymd))}(${weekday}) ${hm}${
+      meta.closedAt ? ` ~ ${meta.closedAt}` : ""
+    }`;
+    const q = quorum(meta.boardSeats, meta.attendees.length, signRows.length);
 
     return (
       <>
         <PrintStyle />
-        {/* 269 = 297 - @page 상·하 여백 14mm×2, 화면 패딩은 인쇄에서 빠지므로 제외 측정 */}
-        <PrintFitOnePage printableMm={269} subtractPadding />
+        {/* 준칙 [별첨 3]이 정한 3면 구성이라 한 장으로 눌러 담지 않는다 —
+            PrintFitOnePage를 쓰면 세 면이 한 장에 겹쳐 서식이 무너진다 */}
         <div className="mx-auto max-w-[794px] xl:max-w-[1138px]">
           <Link
             href="/modules/minutes"
@@ -231,9 +264,35 @@ export default async function MeetingDocPage({
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!voided && <PrintButton label="회의록 인쇄" />}
+              {!voided && (
+                <>
+                  <Button asChild variant="outline">
+                    <Link
+                      href={
+                        isPublicView
+                          ? `/modules/minutes/${doc.id}`
+                          : `/modules/minutes/${doc.id}?public=1`
+                      }
+                    >
+                      {isPublicView ? "원본 보기" : "공개용 보기"}
+                    </Link>
+                  </Button>
+                  <PrintButton
+                    label={isPublicView ? "공개용 인쇄" : "회의록 인쇄"}
+                  />
+                </>
+              )}
             </div>
           </div>
+
+          {isPublicView && (
+            <div className="mb-3.5 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 print:hidden">
+              공개용입니다. 문서의 개인 성명을 모두 가렸습니다.
+              <br />
+              발언 내용 안에 개인정보(호수·전화번호 등)가 남아 있는지 확인한 뒤
+              게시하세요.
+            </div>
+          )}
 
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,794px)_320px]">
             <div className="order-2 min-w-0 xl:order-1">
@@ -242,9 +301,16 @@ export default async function MeetingDocPage({
                   docNo={doc.docNo ?? ""}
                   meetingNo={meta.meetingNo}
                   meetingAt={meetingAtDisplay}
+                  kind={meta.kind}
                   place={meta.place}
                   attendees={meta.attendees}
                   agendas={meta.minutes}
+                  quorum={q}
+                  writerName={meta.writerName}
+                  observers={meta.observers}
+                  issuedDate={koreanDateKst(kstDayStart(ymd))}
+                  tenantName={tenant.name}
+                  masked={isPublicView}
                   steps={signSteps.map((s) => ({
                     order: s.order,
                     status: s.status,
@@ -320,6 +386,16 @@ export default async function MeetingDocPage({
                     : "인쇄해 참석자 자필 서명을 받아 보관하세요."}
                 </p>
                 {!voided && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    관리규약이 정한 기한 안에 관리주체에 회의록을 통보하세요.
+                    <br />
+                    300세대 이상 단지는 회의록을 14일 이상 동별 게시판과
+                    통합정보마당에 공개해야 합니다.
+                    <br />
+                    게시할 때는 [공개용 보기]로 인쇄하세요.
+                  </p>
+                )}
+                {!voided && (
                   <div className="mt-3">
                     <VoidButton docId={doc.id} draft={false} />
                   </div>
@@ -391,6 +467,26 @@ export default async function MeetingDocPage({
             </PaperScale>
           </div>
           <aside className="order-1 flex flex-col gap-3 print:hidden xl:order-2 xl:sticky xl:top-5">
+            <Card className="p-4">
+              <h4 className="mb-1.5 text-sm font-semibold">통지·게시 방법</h4>
+              {/* 준칙(서울 제36조·경기 제25조)의 이원 구조 — 개별 통지가 본체, 게시는 관리주체 공개 의무 */}
+              <ol className="space-y-2 text-sm text-muted-foreground">
+                <li>
+                  ① 동별 대표자에게 개별 통지
+                  <br />
+                  서면으로 전달하거나, 수신확인이 되는 전자우편으로 보내세요.
+                </li>
+                <li>
+                  ② 게시판 공개
+                  <br />
+                  이 통지문을 인쇄해 동별 게시판에 붙이고,
+                  인터넷 홈페이지(공동주택 통합정보마당)에도 올리세요.
+                </li>
+              </ol>
+              <p className="mt-2 text-xs text-muted-foreground">
+                관리규약이 정한 통지 방법을 확인하세요.
+              </p>
+            </Card>
             <Card className="p-4">
               <h4 className="mb-1.5 text-sm font-semibold">소집 통지 시한</h4>
               <p className="text-sm text-muted-foreground">
