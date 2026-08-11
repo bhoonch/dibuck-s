@@ -29,5 +29,8 @@ export async function openNotification(formData: FormData) {
     data: { readAt: new Date() },
   });
   revalidatePath("/", "layout"); // 헤더 배지
-  redirect(link || "/notifications");
+  // 앱 내부 경로만 — 폼 값이라 외부 URL을 넣으면 오픈 리다이렉트가 된다
+  // ("//host"는 프로토콜 상대 URL이라 같이 막는다 — postAnnouncement와 동일 검증)
+  const safe = link.startsWith("/") && !link.startsWith("//");
+  redirect(safe ? link : "/notifications");
 }

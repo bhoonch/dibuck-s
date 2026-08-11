@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
 import { RENEWAL_NOTICE_DAYS, daysBetween, dunningAction } from "@/lib/billing";
 import {
@@ -31,8 +32,7 @@ import { purgeExpiredTenants } from "@/lib/tenant-deletion";
  * 매일 405만 나며 청구가 조용히 전면 중단된다.
  */
 async function run(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
+  if (!cronAuthorized(req))
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const now = new Date();
@@ -41,6 +41,11 @@ async function run(req: NextRequest) {
   // ── 0. 탈퇴 유예가 끝난 단지 삭제 ──────────────────────────
   // 청구보다 먼저 — 지워질 단지에 결제를 걸지 않는다
   result.purged = await purgeExpiredTenants(now);
+
+  // 접속기록 파기 — 보관 의무(1년 이상)를 채운 지난 기록. 2년 경과분을 지운다
+  await db.accessLog.deleteMany({
+    where: { createdAt: { lt: new Date(now.getTime() - 2 * 365 * 86400000) } },
+  });
 
   // ── 1. 청구·재시도·정지 ────────────────────────────────────
   // SUSPENDED도 포함한다 — 해지 예약·탈퇴 신청은 정지 상태에서도 실행돼야 한다.

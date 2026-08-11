@@ -73,6 +73,11 @@ export async function changeMyPassword(_prev: State, formData: FormData) {
  */
 export async function deleteMyTenant(_prev: State, formData: FormData) {
   const session = await requireRole(Role.DIRECTOR);
+  // 임퍼서네이션 차단 — 대리 세션의 role은 DIRECTOR라 requireRole을 통과하고,
+  // 아래 비밀번호 확인은 운영자 본인 것이라 고객 단지 삭제가 운영자 비밀번호만으로
+  // 예약된다. 탈퇴는 단지 마스터 본인만 할 수 있다.
+  if (session.impersonating)
+    return { error: "임퍼서네이션 중에는 탈퇴할 수 없습니다." };
   const tenantId = session.tenantId!;
   const password = String(formData.get("password") ?? "");
   const confirmName = String(formData.get("confirmName") ?? "").trim();
@@ -104,6 +109,7 @@ export async function deleteMyTenant(_prev: State, formData: FormData) {
 /** 탈퇴 취소 — 유예 안이면 언제든. 지운 게 없으니 되돌릴 것도 없다 */
 export async function cancelTenantDeletion() {
   const session = await requireRole(Role.DIRECTOR);
+  if (session.impersonating) return; // 탈퇴와 같은 경계 — 본인 결정만
   await db.tenant.update({
     where: { id: session.tenantId! },
     data: { deleteRequestedAt: null },

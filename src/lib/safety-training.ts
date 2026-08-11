@@ -56,10 +56,17 @@ export const courseTypeOf = (key: string) =>
 // 예전엔 meta.hours가 자유 텍스트("1시간")라 합산이 불가능했고, 1시간짜리
 // 한 번으로도 "완료"로 보였다. 옛 일지를 읽어야 하므로 파서는 둘 다 받는다.
 
-/** 교육시간 → 시간(숫자). 옛 자유 텍스트("1시간", "1.5h")도 읽는다. null = 못 읽음 */
+/** 교육시간 → 시간(숫자). 옛 자유 텍스트("1시간", "1시간 30분", "1.5h")도 읽는다. null = 못 읽음 */
 export function parseHours(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) && v > 0 ? v : null;
   if (typeof v !== "string") return null;
+  // "1시간 30분"·"90분" — 분이 붙은 표기에서 첫 숫자만 읽으면 30분이 사라져
+  // 반기 누적이 실제보다 미이수 쪽으로 기운다. formatHours가 만드는 표기이기도 하다.
+  const hm = v.match(/(?:(\d+(?:\.\d+)?)\s*시간)?\s*(\d+)\s*분/);
+  if (hm) {
+    const n = Number(hm[1] ?? 0) + Number(hm[2]) / 60;
+    return n > 0 ? n : null;
+  }
   const m = v.match(/\d+(?:\.\d+)?/);
   if (!m) return null;
   const n = Number(m[0]);

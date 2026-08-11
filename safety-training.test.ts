@@ -70,6 +70,12 @@ assert.equal(parseHours("2"), 2);
 assert.equal(parseHours("1시간"), 1);
 assert.equal(parseHours("1.5시간"), 1.5);
 assert.equal(parseHours("총 3시간"), 3);
+// 분이 붙은 표기 — 첫 숫자만 읽으면 30분이 사라져 판정이 미이수 쪽으로 기운다.
+// formatHours(1.5)가 정확히 "1시간 30분"을 만들므로 왕복이 보존돼야 한다.
+assert.equal(parseHours("1시간 30분"), 1.5);
+assert.equal(parseHours(formatHours(1.5)), 1.5);
+assert.equal(parseHours("30분"), 0.5);
+assert.equal(parseHours("90분"), 1.5);
 // 시간으로 볼 수 없는 값은 null — 0을 돌려주면 "0시간 이수"로 집계된다
 assert.equal(parseHours(""), null);
 assert.equal(parseHours("미정"), null);

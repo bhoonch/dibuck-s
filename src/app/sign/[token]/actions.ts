@@ -26,6 +26,10 @@ export async function signMinutes(
   });
   if (signTokenState(step, step?.document.status) !== "valid")
     return { error: "서명할 수 없는 링크입니다." };
+  // 회의록 스텝만 — 다른 모듈 토큰이 이 액션으로 들어오면 비회의록 문서에
+  // minutesHash가 서명 증적으로 찍힌다 (현재 재현 경로는 없지만 신뢰 경계는 여기다)
+  if (step!.document.type !== "minutes")
+    return { error: "서명할 수 없는 링크입니다." };
   if (typedName.length < 2) return { error: "성명을 2자 이상 입력해 주세요." };
   if (normalizeName(typedName) !== normalizeName(step!.name))
     return { error: "서명자 성명이 참석자 명단과 다릅니다. 본인 성명을 입력해 주세요." };

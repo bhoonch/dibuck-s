@@ -1,8 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { compareSync } from "bcryptjs";
 import { db } from "@/lib/db";
+import { logAccess } from "@/lib/access-log";
 import { createSession, destroySession } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/utils";
 import { rateLimit, rateLimitReset } from "@/lib/rate-limit";
@@ -21,13 +23,25 @@ export async function login(
     return {
       error: "로그인 시도가 너무 많습니다. 10분 후에 다시 시도해 주세요.",
     };
+  // IP당 한도도 함께 — 계정 키만으로는 "수만 계정 × 1회"(크리덴셜 스터핑)를
+  // 전혀 막지 못한다 (signup이 IP로 묶는 것과 같은 이유)
+  const h = await headers();
+  const ip =
+    (h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? "").split(",")[0].trim() ||
+    "unknown";
+  if (rateLimit(`login-ip:${ip}`, 30, 10 * 60_000) === 0)
+    return {
+      error: "로그인 시도가 너무 많습니다. 10분 후에 다시 시도해 주세요.",
+    };
 
   const user = await db.user.findUnique({
     where: { email },
     include: { tenant: { select: { status: true } } },
   });
-  if (!user || !compareSync(password, user.passwordHash))
+  if (!user || !compareSync(password, user.passwordHash)) {
+    await logAccess("login_fail", { email });
     return { error: "이메일 또는 비밀번호가 올바르지 않습니다." };
+  }
   rateLimitReset(`login:${email}`);
   if (user.tenant?.status === "SUSPENDED")
     return {
@@ -35,6 +49,7 @@ export async function login(
         "이용이 중지된 단지입니다. 디벅 운영팀(support@dibuck.kr)으로 문의해 주세요.",
     };
 
+  await logAccess("login", { userId: user.id, tenantId: user.tenantId, email });
   await createSession({
     userId: user.id,
     tenantId: user.tenantId,

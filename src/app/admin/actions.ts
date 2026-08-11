@@ -13,6 +13,7 @@ import {
 import { parseWon } from "@/lib/won";
 import { kstDayEnd, kstDayStart, normalizeEmail, ymdKst } from "@/lib/utils";
 import { logAdmin } from "@/lib/admin-log";
+import { logAccess } from "@/lib/access-log";
 import { roleLabels } from "@/lib/labels";
 import { notifyTenant } from "@/lib/notifications";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
@@ -327,6 +328,8 @@ export async function impersonate(formData: FormData) {
     impersonating: true,
   });
   await logAdmin("impersonate", { tenantId: tenant.id, tenantName: tenant.name });
+  // 접속기록에도 병기 — 단지 개인정보에 대한 운영자 접근이라 두 로그의 성격이 다르다
+  await logAccess("impersonate", { tenantId: tenant.id, userId: session.userId });
   redirect("/home");
 }
 

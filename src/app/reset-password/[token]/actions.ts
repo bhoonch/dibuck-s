@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
+import { logAccess } from "@/lib/access-log";
 import { db } from "@/lib/db";
 import {
   RESET_STATE_MESSAGE,
@@ -60,5 +61,6 @@ export async function resetPassword(
     throw err;
   }
 
+  await logAccess("password_reset", { userId: record!.userId });
   redirect("/login?reset=1");
 }

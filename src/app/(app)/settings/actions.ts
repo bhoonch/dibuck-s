@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { hashSync } from "bcryptjs";
+import { logAccess } from "@/lib/access-log";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { tempPassword, type TempPasswordResult } from "@/lib/temp-password";
@@ -24,7 +25,8 @@ async function imageField(formData: FormData, name: string, removeName: string) 
   if (formData.get(removeName) === "on") return null;
   const f = formData.get(name);
   if (!(f instanceof File) || f.size === 0) return undefined;
-  if (!f.type.startsWith("image/"))
+  // SVG 제외 — 스크립트를 실을 수 있는 형식은 받지 않는다(attachments.ts와 같은 기준)
+  if (!f.type.startsWith("image/") || f.type === "image/svg+xml")
     throw new Error("이미지 파일만 업로드할 수 있습니다.");
   if (f.size > 1024 * 1024)
     throw new Error("이미지는 1MB 이하로 업로드해 주세요.");
@@ -306,6 +308,12 @@ export async function uploadUnits(
       },
     });
     await tx.unit.createMany({ data: unique });
+  });
+  // 접속기록 — 세대주 성명·연락처(개인정보)의 대량 반입이다
+  await logAccess("units_upload", {
+    tenantId: session.tenantId,
+    userId: session.userId,
+    detail: `${unique.length}세대${replace ? " (전체 교체)" : ""}`,
   });
   revalidatePath("/settings/units");
   return { success: `${unique.length}세대를 등록했습니다.` };

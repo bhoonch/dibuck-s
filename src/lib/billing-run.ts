@@ -285,7 +285,10 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
         }),
         db.billing.update({
           where: { tenantId },
-          data: { status: "PAST_DUE", pastDueSince },
+          // 자리 잡기가 밀어 둔 청구일을 원복한다 — 결제가 성공하지 않았으면 청구일은
+          // 밀리지 않는다. 안 돌리면 연체 화면에 거짓 예정일이 뜨고, "ACTIVE + 청구일
+          // 미래"를 보는 입구 검사들이 오염된 값을 읽는다.
+          data: { status: "PAST_DUE", pastDueSince, nextBillingAt: billing.nextBillingAt },
         }),
       ]);
 
@@ -334,10 +337,21 @@ export async function chargeTenant(tenantId: string): Promise<ChargeResult> {
 
 /** 유예 초과 — 전 모듈 잠금. 데이터는 지우지 않는다(재결제하면 그대로 복구) */
 export async function suspendTenant(tenantId: string) {
-  await db.billing.update({
-    where: { tenantId },
+  // 지금 정지할 차례인가 — 유예 판정을 호출자(크론)에게만 맡기면 새 호출자가
+  // 생기는 순간 유예 중인 단지를 정지시킨다(chargeTenant가 겪은 사고와 같은 형태).
+  const billing = await db.billing.findUnique({ where: { tenantId } });
+  if (
+    billing?.status !== "PAST_DUE" ||
+    !billing.pastDueSince ||
+    daysBetween(billing.pastDueSince, new Date()) < GRACE_DAYS
+  )
+    return;
+  // 조건부 자리 잡기 — 동시 호출이 정지 메일을 두 번 보내지 않는다
+  const claimed = await db.billing.updateMany({
+    where: { tenantId, status: "PAST_DUE" },
     data: { status: "SUSPENDED" },
   });
+  if (claimed.count === 0) return;
   const contact = await billingContact(tenantId);
   if (contact)
     await trySend(() => sendSuspended(contact.email, contact.name));

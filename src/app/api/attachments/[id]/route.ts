@@ -48,11 +48,17 @@ export async function GET(
     // 폐기된 문서 — 파일 본문은 비웠고 이름·해시만 기록으로 남아 있다
     return NextResponse.json({ error: "purged" }, { status: 410 });
 
-  // 첨부는 불변 리소스다(내용이 바뀌면 새 id) — 재열람은 브라우저 캐시가 다 걷는다
+  // 첨부는 불변 리소스다(내용이 바뀌면 새 id) — 재열람은 브라우저 캐시가 다 걷는다.
+  // inline은 스크립트를 실을 수 없는 형식(SVG 제외 이미지·PDF)만 — 그 외가 저장돼
+  // 있었더라도(업로드 검증 이전 데이터) 다운로드로 강등해 앱 오리진 실행을 막는다.
+  const inlineSafe =
+    (att.mime.startsWith("image/") && att.mime !== "image/svg+xml") ||
+    att.mime === "application/pdf";
   return new NextResponse(att.data, {
     headers: {
       "Content-Type": att.mime,
-      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(att.name)}`,
+      "Content-Disposition": `${inlineSafe ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=31536000, immutable",
       ETag: `"${att.sha256}"`,
     },

@@ -391,6 +391,22 @@ model AdminLog {
   @@index([tenantId])
 }
 
+// ── 접속기록 (개인정보보호법 안전성 확보조치 — 1년 이상 보관) ──────────
+
+model AccessLog {
+  id        String   @id @default(cuid())
+  tenantId  String? // FK 없음 — 단지 삭제 후에도 보관 의무 기간 동안 남는다 (AdminLog와 동일)
+  userId    String?
+  email     String? // 로그인 실패는 계정이 특정되지 않을 수 있어 입력 이메일을 남긴다
+  action    String // src/lib/access-log.ts 의 AccessAction
+  detail    String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([tenantId])
+}
+
 // ── 고객 문의 (단지 → 운영자) ────────────────────────────────
 
 model Inquiry {

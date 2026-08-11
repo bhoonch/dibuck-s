@@ -88,7 +88,10 @@ export async function generateTrainingAction(
     return { error: "교육 주제를 한 가지 이상 골라 주세요." };
 
   const date = String(formData.get("date") ?? "").trim();
-  if (!date) return { error: "교육일자를 입력해 주세요." };
+  // 반기 판정이 "YYYY-MM-DD" 사전순 비교라 형식이 틀리면 그 회차가 집계에서
+  // 통째로 빠진다 — 이수했는데 미이수로 판정된다. 형식은 여기(신뢰 경계)가 지킨다.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+    return { error: "교육일자를 입력해 주세요." };
   const place = String(formData.get("place") ?? "").trim() || "관리사무소";
   // 시간은 숫자로 저장한다 — 반기 누적(6h/12h) 판정이 이 값을 합산한다
   const hours = parseHours(formData.get("hours")) ?? 1;
@@ -231,12 +234,21 @@ export async function saveTrainingBody(formData: FormData) {
       content: draftPlainText(draft),
       meta: {
         ...(found.doc.meta as object),
-        date:
-          String(formData.get("date") ?? "").trim() ||
-          (meta as { date?: string }).date,
-        place: String(formData.get("place") ?? "").trim(),
+        // 형식이 틀리면 기존 값 유지 — 반기 판정(사전순 비교)에서 회차가 빠지지 않게
+        date: (() => {
+          const d = String(formData.get("date") ?? "").trim();
+          return /^\d{4}-\d{2}-\d{2}$/.test(d)
+            ? d
+            : (meta as { date?: string }).date;
+        })(),
+        // 폼에 없는 칸이 기존 값을 빈 값으로 덮지 않도록 폴백 (date·hours와 같은 원칙)
+        place:
+          String(formData.get("place") ?? "").trim() ||
+          (meta as { place?: string }).place,
         hours: parseHours(formData.get("hours")) ?? meta.hours,
-        instructor: String(formData.get("instructor") ?? "").trim(),
+        instructor:
+          String(formData.get("instructor") ?? "").trim() ||
+          (meta as { instructor?: string }).instructor,
         absentReason: String(formData.get("absentReason") ?? "").trim(),
         topics,
         draft,

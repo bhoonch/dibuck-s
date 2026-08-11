@@ -558,6 +558,9 @@ export async function completeInspectionAction(docId: string) {
       tenantId: session.tenantId!,
       type: TYPE,
       status: "scheduled",
+      // 조치(kind: "action")만 — 이 필터가 없으면 도래 예정 작업지시 id를 넣어
+      // 점검을 하지 않았는데 할 일에서 내릴 수 있다 (rollForward와 같은 긍정 필터)
+      meta: { path: ["kind"], equals: "action" },
     },
     data: { status: "done" },
   });
@@ -583,6 +586,12 @@ export async function voidInspectionRecord(docId: string) {
   await db.document.updateMany({
     where: { id: doc.id, status: { not: "void" } },
     data: { status: "void" },
+  });
+  // 첨부 본문 회수 — 폐기본의 파일은 다른 경로로도 지울 수 없으므로(deleteInspectionFile이
+  // 폐기본을 막는다) 여기서 비운다. 이름·해시는 기록으로 남는다(notice 폐기와 동일).
+  await db.documentAttachment.updateMany({
+    where: { documentId: doc.id },
+    data: { data: null },
   });
   const itemId = (doc.meta as { itemId?: string })?.itemId;
   if (itemId) await recomputeAnchor(session.tenantId!, itemId);

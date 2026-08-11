@@ -49,8 +49,11 @@ export default async function ApproverInboxPage({
   // 링크를 새로 발급하면 옛 링크는 여기서 걸린다 — 회장이 바뀌었을 때의 회수 경로다
   if (!tenant || !me) return notice("유효하지 않은 링크입니다. 관리사무소에 문의해 주세요.");
 
+  // role만으로 매칭하면 같은 역할이 여럿일 때(ETC 위원들) 서로의 건이 보인다 —
+  // 스텝의 성명 스냅샷까지 대조한다. 이름이 바뀐 새 임원은 전임자 건을 못 보는데,
+  // 그게 맞다(본인 전용 링크 안내문과 같은 원칙).
   const steps = await db.approvalStep.findMany({
-    where: { externalRole: me.role, document: { tenantId } },
+    where: { externalRole: me.role, name: me.name, document: { tenantId } },
     select: {
       id: true,
       status: true,

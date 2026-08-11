@@ -118,8 +118,11 @@ export async function approvalLineFor(
     (tenant.approvalLine as string[] | null) ?? [],
     drafterId,
   );
+  // tenantId 필터 필수 — orderInternalLine이 drafterId를 검증 없이 맨 앞에 붙이는데,
+  // 임퍼서네이션 중 만든 기안의 createdById는 이 단지 소속이 아닌 운영자 id다.
+  // 필터가 없으면 그 이름이 결재란에 인쇄되고 상신 시각으로 자동 승인까지 된다.
   const users = await db.user.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, tenantId },
     select: { id: true, name: true },
   });
   const byId = new Map(users.map((u) => [u.id, u.name]));

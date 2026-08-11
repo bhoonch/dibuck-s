@@ -446,6 +446,12 @@ export async function voidRepairRecord(docId: string) {
     where: { id: doc.id, status: { not: "void" } },
     data: { status: "void" },
   });
+  // 첨부 본문 회수 — 폐기본의 파일은 삭제 경로가 없으므로 여기서 비운다.
+  // 이름·해시는 기록으로 남는다(notice·facilities 폐기와 동일).
+  await db.documentAttachment.updateMany({
+    where: { documentId: doc.id },
+    data: { data: null },
+  });
   revalidatePath("/modules/repairs");
   redirect("/modules/repairs");
 }

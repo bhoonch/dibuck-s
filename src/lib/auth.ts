@@ -72,6 +72,15 @@ export const getSession = cache(async (): Promise<Session | null> => {
     });
     if (admin?.role !== Role.SUPER_ADMIN) return null;
     if (issuedAt + 1000 < admin.passwordChangedAt.getTime()) return null;
+    // 대상 단지도 재확인 — 토큰 발급 후 단지가 삭제됐으면 대리 세션이 7일간
+    // 존재하지 않는 tenantId로 쿼리를 던진다 (일반 세션의 DB 재확인과 같은 원칙)
+    if (claims.tenantId) {
+      const tenant = await db.tenant.findUnique({
+        where: { id: claims.tenantId },
+        select: { id: true },
+      });
+      if (!tenant) return null;
+    }
     return claims;
   }
 

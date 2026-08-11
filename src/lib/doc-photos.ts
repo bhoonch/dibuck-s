@@ -13,8 +13,9 @@ import { MAX_DOC_PHOTOS, PHOTO_CAPTION_MAX } from "@/lib/photo-sheet";
 export async function addDocPhoto(docId: string, file: unknown) {
   if (!(file instanceof File) || file.size === 0)
     return { error: "사진을 선택해 주세요." };
-  // A4에 <img>로 찍혀야 한다 — PDF는 종이에 못 싣는다
-  if (!file.type.startsWith("image/"))
+  // A4에 <img>로 찍혀야 한다 — PDF는 종이에 못 싣는다.
+  // SVG는 스크립트를 실을 수 있어 이미지로 치지 않는다(attachments.ts와 같은 기준)
+  if (!file.type.startsWith("image/") || file.type === "image/svg+xml")
     return { error: "사진(이미지 파일)만 실을 수 있습니다." };
   if (file.size > MAX_FILE_BYTES)
     return {

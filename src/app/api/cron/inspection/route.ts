@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
 import { createDocument } from "@/lib/documents";
 import { notifyTenant } from "@/lib/notifications";
@@ -97,8 +98,7 @@ async function ensureWorkOrder(
 }
 
 async function run(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`)
+  if (!cronAuthorized(req))
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const now = new Date();

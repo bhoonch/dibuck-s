@@ -39,9 +39,15 @@ export async function GET(req: NextRequest) {
         billingKey: issued.billingKey,
         cardCompany: issued.card?.company ?? null,
         cardNumber: issued.card?.number ?? null,
-        status: "ACTIVE",
         cancelRequestedAt: null, // 카드를 새로 넣었으면 해지 예약은 철회로 본다
       },
+    });
+    // 상태를 ACTIVE로 올리는 건 성공한 결제뿐이다(billing-run.ts) — 여기서 무조건
+    // 올리면 chargeTenant 입구 검사(status ACTIVE + 청구일 미래)가 통과해 버려,
+    // 연체·정지 단지가 카드 교체만으로 결제 없이 풀린다. 카드 첫 등록(NONE)만 승격.
+    await db.billing.updateMany({
+      where: { tenantId: session.tenantId, status: "NONE" },
+      data: { status: "ACTIVE" },
     });
   } catch (err) {
     console.error("[billing] 빌링키 발급 실패", err);

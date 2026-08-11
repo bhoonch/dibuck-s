@@ -36,9 +36,9 @@ const td2 = `${line} px-[2.5mm] py-[1mm] text-[8.5pt]`;
 const dongOf = (a: Attendee) => a.dong ?? /^(\d+동)/.exec(a.label)?.[1] ?? "";
 
 /**
- * 발언자 표기 공개용 마스킹 — 마지막 낱말을 성명으로 보고 가운데 ○, 동·호 낱말은 뺀다.
- * "101동 동대표 박일동" → "동대표 박○동". 발언 내용 속 개인정보는 자동 판별하지
- * 않는다(법 해석 경계) — 화면에서 사람이 확인하라고 안내한다.
+ * 발언자 표기 공개용 마스킹 — 마지막 낱말을 성명으로 보고 maskName(첫 글자만 남김),
+ * 동·호 낱말은 뺀다. "101동 동대표 박일동" → "동대표 박○○". 발언 내용 속 개인정보는
+ * 자동 판별하지 않는다(법 해석 경계) — 화면에서 사람이 확인하라고 안내한다.
  */
 function maskSpeaker(speaker: string): string {
   const words = speaker.trim().split(/\s+/).filter((w) => !/^\d+(동|호)$/.test(w));

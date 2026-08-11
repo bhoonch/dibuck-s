@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { RedirectType, redirect } from "next/navigation";
+import { Role } from "@/generated/prisma/enums";
 import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { assignDocNo, createDocument } from "@/lib/documents";
@@ -63,6 +64,31 @@ async function requireMinutes() {
   return session;
 }
 
+/**
+ * 문서 수정·완성·폐기·서명요청의 공통 경계 — 작성자 본인 또는 마스터.
+ * notice ownedPost와 동형. 이 경계가 없으면 말단 직원이 남의 회의록을
+ * 폐기하거나 참석자 전원에게 서명 요청을 쏠 수 있다.
+ */
+async function ownedMinutes(
+  docId: string,
+  session: Awaited<ReturnType<typeof requireMinutes>>,
+) {
+  const doc = await db.document.findFirst({
+    where: {
+      id: docId,
+      tenantId: session.tenantId!,
+      type: TYPE,
+      moduleId: MODULE_ID,
+    },
+  });
+  if (!doc) return { error: "문서를 찾을 수 없습니다." as const };
+  if (doc.createdById !== session.userId && session.role !== Role.DIRECTOR)
+    return {
+      error: "수정·폐기는 작성자 또는 마스터만 할 수 있습니다." as const,
+    };
+  return { doc };
+}
+
 export type MeetingState = { error?: string } | undefined;
 
 /**
@@ -110,10 +136,21 @@ export async function createMeeting(
       ? Math.floor(noticeDaysRaw)
       : DEFAULT_NOTICE_DAYS;
 
+  // 참석자는 서명 스텝(ApprovalStep 컬럼)·해시·서식의 뿌리다 — 임의 JSON을 그대로
+  // 믿지 않고 여기서 정규화한다. role은 화이트리스트(모르는 값은 ETC), 문자열은
+  // 길이를 자르고, 개수 상한을 둔다(observers slice(0,10)과 같은 원칙).
   let attendees: Attendee[];
   try {
     attendees = (JSON.parse(String(formData.get("attendees") ?? "[]")) as Attendee[])
-      .filter((a) => a && typeof a.name === "string" && a.name.trim());
+      .filter((a) => a && typeof a.name === "string" && a.name.trim())
+      .slice(0, 100)
+      .map((a) => ({
+        role: ["CHAIR", "AUDITOR", "ETC"].includes(a.role) ? a.role : "ETC",
+        label: String(a.label ?? "").trim().slice(0, 30),
+        name: String(a.name).trim().slice(0, 30),
+        present: !!a.present,
+        ...(a.dong ? { dong: String(a.dong).trim().slice(0, 10) } : {}),
+      }));
   } catch {
     return { error: "참석자 정보를 읽을 수 없습니다." };
   }
@@ -128,10 +165,13 @@ export async function createMeeting(
   }
   // order는 제출된 배열 순서로 다시 매긴다 — 제안분 삭제로 생긴 빈틈을 그대로 쓰면 안 된다
   const agenda = agendaRaw
+    .slice(0, 50) // 안건 개수 상한 — 참석자와 같은 원칙
     .map((a, i) => ({
       order: i + 1,
-      title: (a.title ?? "").trim(),
-      fromResolutionId: a.fromResolutionId,
+      title: String(a.title ?? "").trim(),
+      fromResolutionId: a.fromResolutionId
+        ? String(a.fromResolutionId)
+        : undefined,
     }))
     .filter((a) => a.title);
   if (agenda.length === 0) return { error: "안건을 1개 이상 입력해 주세요." };
@@ -217,10 +257,9 @@ export async function generateMinutes(
   const session = await requireMinutes();
   const tenantId = session.tenantId!;
   const docId = String(formData.get("docId") ?? "");
-  const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
-  });
-  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error ?? "문서를 찾을 수 없습니다." };
+  const doc = found.doc;
   if (doc.status !== "draft")
     return { error: "완성된 회의록은 다시 만들 수 없습니다." };
 
@@ -289,12 +328,10 @@ export async function saveMinutesDraft(
   formData: FormData,
 ): Promise<SaveMinutesState> {
   const session = await requireMinutes();
-  const tenantId = session.tenantId!;
   const docId = String(formData.get("docId") ?? "");
-  const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
-  });
-  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error };
+  const doc = found.doc;
   if (doc.status !== "draft")
     return { error: "완성된 회의록은 수정할 수 없습니다." };
 
@@ -360,10 +397,9 @@ export async function finalizeMinutes(
 ): Promise<{ error?: string } | void> {
   const session = await requireMinutes();
   const tenantId = session.tenantId!;
-  const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
-  });
-  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error };
+  const doc = found.doc;
   if (doc.status !== "draft")
     return { error: "이미 완성됐거나 폐기된 회의록입니다." };
 
@@ -432,11 +468,9 @@ export async function finalizeMinutes(
  */
 export async function voidMinutes(docId: string) {
   const session = await requireMinutes();
-  const tenantId = session.tenantId!;
-  const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
-  });
-  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error };
+  const doc = found.doc;
   if (!doc.docNo) {
     await db.document.delete({ where: { id: doc.id } });
   } else {
@@ -459,10 +493,9 @@ export async function requestSignatures(
 ): Promise<{ error?: string } | void> {
   const session = await requireMinutes();
   const tenantId = session.tenantId!;
-  const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
-  });
-  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error };
+  const doc = found.doc;
   if (doc.status !== "final")
     return { error: "완성된 회의록만 서명을 요청할 수 있습니다." };
 
@@ -479,7 +512,9 @@ export async function requestSignatures(
         documentId: doc.id,
         order: i + 1,
         name: a.name,
-        externalRole: a.role === "ETC" ? null : a.role, // 표시용 — 판정에 안 쓴다
+        // 표시용 + 결재함(inbox) 목록 매칭용 — ETC를 null로 누르면 ETC 위원의
+        // 결재함이 영구히 빈 화면이 된다(매칭할 스텝이 존재하지 않는다)
+        externalRole: a.role,
         status: "pending",
         token: newToken(),
         tokenExpiresAt: tokenExpiry(),
@@ -529,8 +564,12 @@ export async function reissueSignToken(
       id: stepId,
       document: { tenantId: session.tenantId!, type: TYPE, moduleId: MODULE_ID },
     },
+    include: { document: { select: { createdById: true } } },
   });
   if (!step) return { error: "단계를 찾을 수 없습니다." };
+  // 서명 링크 발급도 작성자/마스터 경계 — 링크는 곧 문서 열람 권한이다
+  if (step.document.createdById !== session.userId && session.role !== Role.DIRECTOR)
+    return { error: "수정·폐기는 작성자 또는 마스터만 할 수 있습니다." };
 
   const result = await reissueToken(stepId);
   if ("error" in result) return result;
@@ -580,10 +619,9 @@ export async function createResolutionNotice(
 ): Promise<{ error?: string } | void> {
   const session = await requireMinutes();
   const tenantId = session.tenantId!;
-  const doc = await db.document.findFirst({
-    where: { id: docId, tenantId, type: TYPE, moduleId: MODULE_ID },
-  });
-  if (!doc) return { error: "문서를 찾을 수 없습니다." };
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error };
+  const doc = found.doc;
   if (doc.status !== "final")
     return { error: "완성된 회의록만 공고문을 만들 수 있습니다." };
 

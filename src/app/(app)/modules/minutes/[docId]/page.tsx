@@ -291,6 +291,9 @@ export default async function MeetingDocPage({
               <br />
               발언 내용 안에 개인정보(호수·전화번호 등)가 남아 있는지 확인한 뒤
               게시하세요.
+              <br />
+              직책·동 표기(예: 101동 동대표)만으로 사람이 특정될 수 있으면 그
+              부분도 확인하세요.
             </div>
           )}
 

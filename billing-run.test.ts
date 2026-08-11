@@ -67,15 +67,21 @@ async function main() {
   );
 
   // 2) 청구일 도래 → 유료 청구 시도. 토스 키가 없으니 실패 경로를 탄다
+  const dueAt = new Date(Date.now() - 86400000);
   await db.billing.update({
     where: { tenantId: T },
-    data: { nextBillingAt: new Date(Date.now() - 86400000) },
+    data: { nextBillingAt: dueAt },
   });
   r = await chargeTenant(T);
   assert.equal(r.ok, false, "결제 실패해야 한다(키 없음)");
   b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
   assert.equal(b.status, "PAST_DUE", "실패하면 PAST_DUE");
   assert.ok(b.pastDueSince, "유예 시작 시각이 찍혀야 한다");
+  assert.equal(
+    b.nextBillingAt!.getTime(),
+    dueAt.getTime(),
+    "실패했으면 자리 잡기가 밀어 둔 청구일을 원복해야 한다 — 안 돌리면 거짓 예정일이 남는다",
+  );
   const firstFailure = b.pastDueSince!;
   const p = await db.payment.findFirstOrThrow({ where: { tenantId: T } });
   assert.equal(p.status, "FAILED");
@@ -162,7 +168,28 @@ async function main() {
   });
   assert.equal(closed.status, "FAILED", "승인 내역 없는 PENDING은 실패로 닫는다");
 
-  // 4) 정지
+  // 4) 정지 — 입구 검사: 유예가 끝난 연체 단지만 정지된다.
+  //    판정을 호출자(크론)에게만 맡기면 새 호출자가 유예 중인 단지를 정지시킨다
+  await db.billing.update({
+    where: { tenantId: T },
+    data: { status: "ACTIVE", pastDueSince: null },
+  });
+  await suspendTenant(T);
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "ACTIVE", "연체가 아닌 단지를 정지시키면 안 된다");
+
+  await db.billing.update({
+    where: { tenantId: T },
+    data: { status: "PAST_DUE", pastDueSince: new Date(Date.now() - 3 * 86400000) },
+  });
+  await suspendTenant(T);
+  b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
+  assert.equal(b.status, "PAST_DUE", "유예가 남은 단지는 정지하지 않는다");
+
+  await db.billing.update({
+    where: { tenantId: T },
+    data: { pastDueSince: new Date(Date.now() - 8 * 86400000) },
+  });
   await suspendTenant(T);
   b = await db.billing.findUniqueOrThrow({ where: { tenantId: T } });
   assert.equal(b.status, "SUSPENDED");
@@ -278,7 +305,7 @@ async function main() {
   );
 
   console.log(
-    "billing-run 통과 (무청구 / 실패 유예 / 재시도 / 대사 복구 / 정지 / 해지 예약 / 정지 해지 / 0원 비세탁 / 탈퇴 청구 정지)",
+    "billing-run 통과 (무청구 / 실패 유예·청구일 원복 / 재시도 / 대사 복구 / 정지 입구 검사 / 해지 예약 / 정지 해지 / 0원 비세탁 / 탈퇴 청구 정지)",
   );
 }
 

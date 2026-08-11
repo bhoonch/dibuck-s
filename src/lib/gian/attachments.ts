@@ -11,8 +11,11 @@ export const MAX_FILE_BYTES = 3 * 1024 * 1024;
 export const MAX_FILES_PER_QUOTE = 3;
 export const MAX_FILES_PER_DOC = 9;
 
+// SVG는 이미지가 아니라 스크립트를 실을 수 있는 문서다 — inline으로 서빙하면
+// 앱 오리진에서 실행되는 저장형 XSS가 된다(외부 결재 링크로 전파). 받지 않는다.
 export const allowedMime = (mime: string) =>
-  mime.startsWith("image/") || mime === "application/pdf";
+  (mime.startsWith("image/") && mime !== "image/svg+xml") ||
+  mime === "application/pdf";
 
 /** 상신에 모자란 증빙 설명. null이면 충분하다 */
 export function quoteFileGap(
