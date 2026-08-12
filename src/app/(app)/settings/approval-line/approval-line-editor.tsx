@@ -25,6 +25,8 @@ export type ExternalApproverInput = {
   role: "CHAIR" | "AUDITOR" | "ETC";
   label?: string; // ETC의 역할명 (예: 이사, 동대표)
   name: string;
+  /** 선거구 동 (예: 101동) — 회의록 서명표의 '동' 칸에 인쇄된다 */
+  dong?: string;
   phone?: string;
   email?: string;
   /** 상시 열람 링크 토큰 — 서버가 발급한다. 비운 채로 저장하면 새로 발급된다(=옛 링크 무효) */
@@ -286,7 +288,7 @@ function ExternalApprovers({
                 </Button>
               )}
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5">
                 <Label htmlFor={`ext-name-${i}`}>이름</Label>
                 <input
@@ -295,6 +297,17 @@ function ExternalApprovers({
                   placeholder="이름"
                   disabled={!isDirector}
                   onChange={(e) => patch(i, { name: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`ext-dong-${i}`}>동 (선택)</Label>
+                <input
+                  id={`ext-dong-${i}`}
+                  value={row.dong ?? ""}
+                  placeholder="예: 101동"
+                  disabled={!isDirector}
+                  onChange={(e) => patch(i, { dong: e.target.value })}
                   className={inputCls}
                 />
               </div>

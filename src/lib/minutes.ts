@@ -265,6 +265,52 @@ function readVotes3(v: unknown, presentNames: string[]): Votes | null | "invalid
 }
 
 /**
+ * AI가 제안한 표결·견적을 명부·형식 기준으로 걸러낸다 — 원칙은 "AI는 제안만".
+ * normalizeMinutesAgendas는 위반을 **거부**하지만, AI 제안의 위반(명부 밖 이름,
+ * 이상한 금액)은 초안 전체를 버릴 이유가 아니다 — 그 제안만 조용히 떨군다.
+ */
+export function sanitizeAiSuggestions(
+  agendas: MinutesAgenda[],
+  roster: string[],
+): MinutesAgenda[] {
+  const names = new Set(roster);
+  return agendas.map((a) => {
+    let votes: Votes | undefined;
+    if (a.votes && typeof a.votes === "object") {
+      const seen = new Set<string>();
+      const bucket = (arr: unknown) =>
+        (Array.isArray(arr) ? arr : [])
+          .map((n) => String(n).trim())
+          .filter((n) => n && names.has(n) && !seen.has(n) && (seen.add(n), true));
+      const v = {
+        for: bucket(a.votes.for),
+        against: bucket(a.votes.against),
+        abstain: bucket(a.votes.abstain),
+      };
+      if (v.for.length + v.against.length + v.abstain.length > 0) votes = v;
+    }
+    // 의결이 없는 안건의 표결 제안은 버린다 — 화면도 저장도 decision과 짝으로 다룬다
+    if (a.decision === "없음") votes = undefined;
+    const quotes = (Array.isArray(a.quotes) ? a.quotes : [])
+      .map((q) => ({
+        vendor: String(q?.vendor ?? "").trim().slice(0, 50),
+        amount:
+          q?.amount != null && Number.isFinite(Number(q.amount)) && Number(q.amount) >= 0
+            ? Number(q.amount)
+            : null,
+        note: String(q?.note ?? "").trim().slice(0, 50),
+      }))
+      .filter((q) => q.vendor)
+      .slice(0, 10);
+    return {
+      ...a,
+      votes,
+      quotes: quotes.length > 0 ? quotes : undefined,
+    };
+  });
+}
+
+/**
  * 회의록 안건 배열을 meta.agenda(앵커)에 맞춰 검증·정규화한다. 손 입력 저장
  * (saveMinutesDraft)과 LLM 초안(generateMinutes) 둘 다 이걸 거친다 — LLM
  * 출력도 스키마가 형태만 강제할 뿐 안건 개수·순서·제목 동일성은 보장하지

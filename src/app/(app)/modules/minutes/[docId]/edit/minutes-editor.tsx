@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { useActionState, useRef, useState } from "react";
+import { FileUp, ListPlus, Loader2, Plus, X } from "lucide-react";
 import type { AgendaItem, MinutesAgenda, Quote, Speech, Votes } from "@/lib/minutes";
+import { GeneratingOverlay } from "@/components/generating-overlay";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,6 +114,38 @@ export function MinutesEditor({
     FormData
   >(generateMinutes, undefined);
 
+  // 메모는 제어 입력 — [메모 틀 넣기]·파일 업로드가 값을 밀어 넣어야 한다
+  const [rawText, setRawText] = useState(initialRawText);
+  const [fileError, setFileError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  /** 안건별 헤딩을 미리 깔아 준다 — 회의 중 이 틀 밑에 몇 줄씩만 적으면 된다 */
+  const insertTemplate = () =>
+    setRawText((prev) => {
+      const tpl = agenda.map((a) => `■ ${a.order}. ${a.title}\n`).join("\n");
+      return prev.trim() ? `${prev.trimEnd()}\n\n${tpl}` : tpl;
+    });
+
+  /** 전사 앱(클로바노트 등) 결과물 .txt를 그대로 투입 — 클라이언트에서 읽기만 한다 */
+  const onTxtFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024) {
+      setFileError("파일이 너무 큽니다. 2MB 이하의 .txt 파일만 올릴 수 있습니다.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFileError("");
+      // ponytail: UTF-8로 읽는다 — EUC-KR로 저장된 옛 파일은 깨져 보인다.
+      // 그때는 메모장에서 UTF-8로 다시 저장하면 된다(전사 앱 결과물은 전부 UTF-8이다)
+      const text = String(reader.result ?? "").trim();
+      setRawText((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text));
+    };
+    reader.readAsText(f);
+  };
+
   /**
    * 의결이 있는데 표결이 비어 있으면 전원 찬성으로 채운다 — AI 초안과 votes 도입 전
    * 회의록이 여기로 들어온다. 채우지 않으면 화면은 "전원 찬성"을 보여주면서 저장은
@@ -137,11 +170,31 @@ export function MinutesEditor({
   // genState.agendas는 이미 서버(generateMinutes → normalizeMinutesAgendas)가
   // meta.agenda로 검증·정규화한 뒤 돌려준 값이다 — 여기서 다시 안건 개수·제목을
   // 맞춰 넣을 필요가 없다(앵커 위반 콘텐츠는 애초에 여기 도달하지 않는다).
+  // AI가 표결·견적을 채운 안건은 "AI 제안" 배지를 단다 — 사람이 확인·수정하면 뗀다.
+  const [aiVoteOrders, setAiVoteOrders] = useState<Set<number>>(new Set());
+  const [aiQuoteOrders, setAiQuoteOrders] = useState<Set<number>>(new Set());
   const [syncedGenState, setSyncedGenState] = useState(genState);
   if (genState !== syncedGenState) {
     setSyncedGenState(genState);
-    if (genState && "agendas" in genState)
+    if (genState && "agendas" in genState) {
       setDraft(withVoteDefaults(genState.agendas));
+      setAiVoteOrders(new Set(genState.agendas.filter((a) => a.votes).map((a) => a.order)));
+      setAiQuoteOrders(
+        new Set(genState.agendas.filter((a) => a.quotes?.length).map((a) => a.order)),
+      );
+    }
+  }
+
+  // 지적사항을 안건 카드에 인라인으로 붙인다 — 상단 요약에는 안건에 못 붙는 것만 남긴다
+  const clarByOrder = new Map<number, string[]>();
+  const clarGeneral: string[] = [];
+  if (genState && "agendas" in genState) {
+    const orders = new Set(agenda.map((a) => a.order));
+    for (const c of genState.needsClarification) {
+      if (orders.has(c.order))
+        clarByOrder.set(c.order, [...(clarByOrder.get(c.order) ?? []), c.text]);
+      else clarGeneral.push(c.text);
+    }
   }
 
   const [saveState, saveAction, savePending] = useActionState<
@@ -177,8 +230,22 @@ export function MinutesEditor({
         j === i ? { ...a, quotes: fn(a.quotes ?? []) } : a,
       ),
     );
-  const updateQuote = (i: number, k: number, patch: Partial<Quote>) =>
+  /** 사람이 손을 대면 그 안건의 "AI 제안" 배지를 뗀다 — 확인이 끝났다는 뜻 */
+  const clearAiMark = (
+    set: React.Dispatch<React.SetStateAction<Set<number>>>,
+    order: number,
+  ) =>
+    set((prev) => {
+      if (!prev.has(order)) return prev;
+      const next = new Set(prev);
+      next.delete(order);
+      return next;
+    });
+
+  const updateQuote = (i: number, k: number, patch: Partial<Quote>) => {
+    clearAiMark(setAiQuoteOrders, draft[i]?.order ?? -1);
     setQuotes(i, (rows) => rows.map((r, j) => (j === k ? { ...r, ...patch } : r)));
+  };
   const addQuote = (i: number) =>
     setQuotes(i, (rows) => [...rows, { vendor: "", amount: null, note: "" }]);
   const removeQuote = (i: number, k: number) =>
@@ -199,7 +266,8 @@ export function MinutesEditor({
       ),
     );
 
-  const cycleVote = (i: number, name: string) =>
+  const cycleVote = (i: number, name: string) => {
+    clearAiMark(setAiVoteOrders, draft[i]?.order ?? -1);
     setDraft((prev) =>
       prev.map((a, j) => {
         if (j !== i) return a;
@@ -212,9 +280,13 @@ export function MinutesEditor({
         };
       }),
     );
+  };
 
   return (
-    <div className="space-y-5">
+    <div className="relative space-y-5">
+      {genPending && (
+        <GeneratingOverlay label="메모를 안건별로 정리하고 있습니다" />
+      )}
       {/* 발언자 후보 — datalist라 목록에 없는 사람(배석자 등)도 그대로 적을 수 있다 */}
       <datalist id="speaker-options">
         {present.map((p) => (
@@ -229,32 +301,51 @@ export function MinutesEditor({
           <br />
           안건별로 나눌 필요는 없습니다. 어느 안건 이야기인지는 AI가 나눕니다.
           <br />
+          녹음을 전사 앱(클로바노트 등)으로 글로 바꿨다면 .txt 파일로 올려도
+          됩니다.
+          <br />
           정리 결과는 메모에 적힌 만큼 나옵니다. AI는 메모에 없는 내용을 만들지
           않습니다.
         </p>
         <form action={genAction} className="space-y-3">
           <input type="hidden" name="docId" value={docId} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={insertTemplate}>
+              <ListPlus className="size-4" /> 메모 틀 넣기
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileRef.current?.click()}
+            >
+              <FileUp className="size-4" /> 전사 파일(.txt) 올리기
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,text/plain"
+              className="hidden"
+              onChange={onTxtFile}
+              aria-label="전사 텍스트 파일 선택"
+            />
+          </div>
+          {fileError && <p className="text-sm text-destructive">{fileError}</p>}
           <Textarea
             id="rawText"
             name="rawText"
             rows={8}
-            defaultValue={initialRawText}
+            value={rawText}
+            onChange={(e) => setRawText(e.target.value)}
             placeholder="예: 승강기건 얘기함. 지금 업체가 3년째 하고 있는데 다들 만족한다고 함..."
           />
           {aiReady ? (
-            <>
-              <Button type="submit" disabled={genPending}>
-                {genPending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : null}
-                AI로 정리
-              </Button>
-              {genPending && (
-                <p className="text-sm text-muted-foreground">
-                  메모를 안건별로 나누고 있습니다. 잠시 걸립니다.
-                </p>
-              )}
-            </>
+            <Button type="submit" disabled={genPending}>
+              {genPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              AI로 정리
+            </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
               AI 초안은 준비 중입니다. 아래에서 직접 입력할 수 있습니다.
@@ -263,18 +354,23 @@ export function MinutesEditor({
           {genState && "error" in genState && (
             <p className="text-sm text-destructive">{genState.error}</p>
           )}
-          {/* 성공 피드백 + 확인 필요 목록 — 서버가 돌려주는 needsClarification을 버리지 않는다 */}
+          {/* 성공 피드백 — 안건에 붙는 지적은 해당 안건 카드 위에 인라인으로 나온다 */}
           {!genPending && genState && "agendas" in genState && (
             <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
               <p>
                 메모를 안건 {genState.agendas.length}개에 정리해 넣었습니다.
                 아래에서 확인하고 수정하세요.
               </p>
-              {genState.needsClarification.length > 0 && (
+              {clarByOrder.size > 0 && (
+                <p className="mt-1">
+                  확인이 필요한 안건에는 아래 카드에 표시해 두었습니다.
+                </p>
+              )}
+              {clarGeneral.length > 0 && (
                 <>
                   <p className="mt-2 font-semibold">확인이 필요한 항목</p>
                   <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                    {genState.needsClarification.map((c, i) => (
+                    {clarGeneral.map((c, i) => (
                       <li key={i}>{c}</li>
                     ))}
                   </ul>
@@ -308,6 +404,13 @@ export function MinutesEditor({
             <p className="text-sm font-semibold">
               {a.order}. {a.title}
             </p>
+            {(clarByOrder.get(a.order) ?? []).length > 0 && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {(clarByOrder.get(a.order) ?? []).map((c, k) => (
+                  <p key={k}>{c}</p>
+                ))}
+              </div>
+            )}
             <div>
               <Label>발언 요지</Label>
               <p className="mb-1.5 text-xs text-muted-foreground">
@@ -356,7 +459,14 @@ export function MinutesEditor({
             </div>
 
             <div>
-              <Label>견적 비교 (입찰 안건)</Label>
+              <div className="flex items-center gap-2">
+                <Label>견적 비교 (입찰 안건)</Label>
+                {aiQuoteOrders.has(a.order) && (
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                    AI 제안. 금액을 확인하세요
+                  </span>
+                )}
+              </div>
               <p className="mb-1.5 text-xs text-muted-foreground">
                 사업자 선정 안건이면 응찰 업체와 금액을 적으세요.
                 <br />
@@ -439,7 +549,14 @@ export function MinutesEditor({
 
             {a.decision !== "없음" && (
               <div>
-                <Label>표결</Label>
+                <div className="flex items-center gap-2">
+                  <Label>표결</Label>
+                  {aiVoteOrders.has(a.order) && (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                      AI 제안. 확인 후 저장하세요
+                    </span>
+                  )}
+                </div>
                 <p className="mb-1.5 text-xs text-muted-foreground">
                   기본은 전원 찬성입니다.
                   <br />

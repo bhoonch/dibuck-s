@@ -11,6 +11,7 @@ import {
   type Attendee,
   type MeetingMeta,
 } from "@/lib/minutes";
+import { ymdKst } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { MeetingForm } from "./meeting-form";
 
@@ -27,7 +28,7 @@ export default async function NewMeetingPage() {
     db.resolution.findMany({
       where: { tenantId, followupStatus: "이행중" },
       orderBy: { createdAt: "asc" },
-      select: { id: true, title: true, meetingDocId: true },
+      select: { id: true, title: true, meetingDocId: true, dueDate: true, note: true },
     }),
     // 규약 정원·작성자·배석자는 회의마다 스냅샷이지만 매번 다시 적을 값은 아니다 —
     // 직전 회의 값을 초기값으로 끌어온다(첫 회의만 손으로 적는다).
@@ -48,6 +49,7 @@ export default async function NewMeetingPage() {
       label: approverRoleLabel(e),
       name: e.name,
       present: true,
+      ...(e.dong ? { dong: e.dong } : {}),
     }));
 
   // 미완료 의결의 회의 문서번호 — proposeAgenda의 안내 문구에 붙는다
@@ -67,6 +69,16 @@ export default async function NewMeetingPage() {
     })),
     0,
   );
+  // 이행보고 안건의 맥락 — 기한·비고를 안건 입력칸 밑에 보여준다("무엇을 언제까지").
+  // meta에는 넣지 않는다 — 회의록에 남는 값이 아니라 소집 화면의 참고 정보다.
+  const resolutionHints = Object.fromEntries(
+    unresolved
+      .map((r) => [
+        r.id,
+        [r.dueDate && `기한 ${ymdKst(r.dueDate)}`, r.note].filter(Boolean).join(" · "),
+      ])
+      .filter(([, hint]) => hint),
+  ) as Record<string, string>;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -84,9 +96,12 @@ export default async function NewMeetingPage() {
       <MeetingForm
         attendeesInit={attendees}
         agendaInit={agenda}
+        resolutionHints={resolutionHints}
         hasRegistry={registry.length > 0}
         defaultNoticeDays={DEFAULT_NOTICE_DAYS}
         defaultBoardSeats={prev?.boardSeats ?? null}
+        defaultPlace={prev?.place ?? ""}
+        defaultKind={prev?.kind ?? "정기"}
         defaultWriterName={
           prev?.writerName ??
           attendees.find((a) => a.role === "CHAIR")?.name ??

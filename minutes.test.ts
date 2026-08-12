@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   proposeAgenda, signTokenState, minutesHash, noticeDueYmd, signProgress,
-  normalizeMinutesAgendas, quorum, voteCounts, toSpeech, maskName,
+  normalizeMinutesAgendas, quorum, voteCounts, toSpeech, maskName, sanitizeAiSuggestions,
 } from "./src/lib/minutes";
 
 // ── proposeAgenda: 미완료 의결 → 이행 보고 안건, 순서는 이어 붙는다 ──
@@ -213,6 +213,44 @@ assert.deepEqual(
   ),
   { fail: "quote" }, // 음수 금액 거부
 );
+
+// ── sanitizeAiSuggestions: AI 표결·견적 제안 필터 — 위반 제안만 떨구고 초안은 살린다 ──
+const aiIn: Parameters<typeof sanitizeAiSuggestions>[0] = [
+  { order: 1, title: "x", discussion: [], decision: "가결",
+    // 명부 밖 이름·중복(김회장이 두 칸)은 떨군다. 유효분만 남는다
+    votes: { for: ["김회장", "외부인"], against: ["박서울", "김회장"], abstain: [] },
+    quotes: [
+      { vendor: "한빛방수", amount: 48000000, note: "최저가" },
+      { vendor: "", amount: 1, note: "업체명 없음" },
+      { vendor: "대성건설", amount: -5, note: "음수 금액" },
+    ],
+    votesFor: null, votesAgainst: null },
+  // 의결 "없음"이면 표결 제안 자체를 버린다
+  { order: 2, title: "x", discussion: [], decision: "없음",
+    votes: { for: ["이감사"], against: [], abstain: [] },
+    votesFor: null, votesAgainst: null },
+  // 전부 명부 밖이면 votes를 남기지 않는다
+  { order: 3, title: "x", discussion: [], decision: "가결",
+    votes: { for: ["아무개"], against: [], abstain: [] },
+    votesFor: null, votesAgainst: null },
+];
+const aiOut = sanitizeAiSuggestions(aiIn, roster);
+assert.deepEqual(aiOut[0].votes, { for: ["김회장"], against: ["박서울"], abstain: [] });
+assert.deepEqual(aiOut[0].quotes, [
+  { vendor: "한빛방수", amount: 48000000, note: "최저가" },
+  { vendor: "대성건설", amount: null, note: "음수 금액" }, // 이상한 금액은 null로
+]);
+assert.equal(aiOut[1].votes, undefined);
+assert.equal(aiOut[2].votes, undefined);
+assert.equal(aiOut[2].quotes, undefined);
+// 필터 결과는 normalize(명부 대조)를 그대로 통과해야 한다 — 두 관문이 어긋나면 안 된다
+assert.ok("agendas" in normalizeMinutesAgendas(
+  [aiOut[0], aiOut[1], { ...aiOut[2], order: 3 }].map((a, i) => ({ ...a, order: i + 1 })),
+  anchor.length === 2
+    ? [...anchor, { order: 3, title: "x" }]
+    : anchor,
+  roster,
+));
 
 // ── maskName: 공개용 성명 비식별(준칙 제43조⑤) — 성만 남긴다 ──
 assert.equal(maskName("박일동"), "박○○");

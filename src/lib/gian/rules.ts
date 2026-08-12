@@ -203,6 +203,8 @@ export type ExternalApprover = {
   /** ETC의 역할명 (예: 이사, 동대표). 고정 역할은 externalRoleLabels가 이름을 갖는다 */
   label?: string;
   name: string;
+  /** 선거구 동 (예: 101동) — 회의록 서명표의 '동' 칸에 인쇄된다 */
+  dong?: string;
   phone?: string;
   email?: string;
   /**

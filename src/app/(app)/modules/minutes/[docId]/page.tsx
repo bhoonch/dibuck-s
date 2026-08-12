@@ -5,6 +5,7 @@ import { requireTenantSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSubscribed } from "@/lib/modules";
 import { docStatusLabels, docStatusStyles } from "@/lib/labels";
+import { mailerEnabled } from "@/lib/mailer";
 import { dayKst, kstDayStart, koreanDateKst, ymdKst, ymdhmKst } from "@/lib/utils";
 import {
   noticeDueYmd,
@@ -29,6 +30,7 @@ import { FinalizeForm } from "./finalize-form";
 import { VoidButton } from "./void-button";
 import { SignPanel, type SignStepRow } from "./sign-panel";
 import { NoticeButton } from "./notice-button";
+import { ConvokeMailButton } from "./convoke-mail-button";
 
 const MODULE_ID = "minutes";
 const TYPE = "minutes";
@@ -425,6 +427,7 @@ export default async function MeetingDocPage({
 
   const dueYmd = noticeDueYmd(meta.meetingAt, meta.noticeDays);
   const overdue = dueYmd < ymdKst(new Date());
+  const mailEnabled = mailerEnabled();
 
   return (
     <>
@@ -478,6 +481,7 @@ export default async function MeetingDocPage({
                   ① 동별 대표자에게 개별 통지
                   <br />
                   서면으로 전달하거나, 수신확인이 되는 전자우편으로 보내세요.
+                  {mailEnabled && <ConvokeMailButton docId={doc.id} />}
                 </li>
                 <li>
                   ② 게시판 공개

@@ -65,21 +65,26 @@ export const escapeHtml = (s: string) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-/** 공통 레이아웃 — 본문 + 버튼 하나. 메일 클라이언트는 CSS를 못 믿으니 인라인 스타일만 */
-function layout(bodyHtml: string, cta: { label: string; url: string; danger?: boolean }) {
-  const bg = cta.danger ? "#dc2626" : "#2563eb";
-  // url도 이스케이프 — receiptUrl은 토스가 주는 외부 값이라 href="..." 를 깨고 나올 수 있다
-  const url = escapeHtml(cta.url);
-  return `
-    <div style="font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:520px;margin:0 auto;color:#0f172a;line-height:1.7;">
-      <p style="font-size:18px;font-weight:bold;color:#2563eb;margin:0 0 20px;">디벅</p>
-      ${bodyHtml}
+/** 공통 레이아웃 — 본문 + 버튼 하나(없어도 된다 — 소집 통지처럼 열람 대상이 없는 안내).
+ *  메일 클라이언트는 CSS를 못 믿으니 인라인 스타일만 */
+function layout(bodyHtml: string, cta?: { label: string; url: string; danger?: boolean }) {
+  let ctaHtml = "";
+  if (cta) {
+    const bg = cta.danger ? "#dc2626" : "#2563eb";
+    // url도 이스케이프 — receiptUrl은 토스가 주는 외부 값이라 href="..." 를 깨고 나올 수 있다
+    const url = escapeHtml(cta.url);
+    ctaHtml = `
       <a href="${url}" style="display:inline-block;margin:20px 0;padding:12px 24px;background:${bg};color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;">
         ${cta.label}
       </a>
       <p style="color:#64748b;font-size:13px;margin-top:8px;">
         버튼이 눌리지 않으면 아래 주소를 브라우저에 붙여넣어 주세요.<br/>${url}
-      </p>
+      </p>`;
+  }
+  return `
+    <div style="font-family:-apple-system,'Malgun Gothic',sans-serif;max-width:520px;margin:0 auto;color:#0f172a;line-height:1.7;">
+      <p style="font-size:18px;font-weight:bold;color:#2563eb;margin:0 0 20px;">디벅</p>
+      ${bodyHtml}${ctaHtml}
     </div>`;
 }
 
@@ -136,6 +141,37 @@ export async function sendSignatureRequest(
        <p>아래 버튼을 눌러 회의록을 확인하고 서명해 주세요.<br/>
        링크는 <b>7일</b> 동안 유효하며, 별도 로그인 없이 처리할 수 있습니다.</p>`,
       { label: "회의록 확인하고 서명하기", url: `${APP_URL}/sign/${token}` },
+    ),
+  );
+}
+
+// ── 입대의 소집 통지 (회의록 모듈) ─────────────────────────────
+/**
+ * 준칙의 "수신확인이 되는 전자우편" 통지를 대신한다 — 열람할 앱 화면이 없는
+ * 수신자(동별 대표자)라 버튼 없이 내용 전문을 본문에 싣는다.
+ */
+export async function sendConvocationNotice(
+  to: string,
+  name: string,
+  tenantName: string,
+  meeting: { title: string; meetingAt: string; place: string; agenda: string[] },
+) {
+  const agendaHtml = meeting.agenda
+    .map((t) => `<li style="margin:2px 0;">${escapeHtml(t)}</li>`)
+    .join("");
+  await send(
+    to,
+    `[디벅] ${tenantName} ${meeting.title} 소집 통지`,
+    layout(
+      `<p>${escapeHtml(name)}님, 안녕하세요.</p>
+       <p><b>${escapeHtml(tenantName)}</b> ${escapeHtml(meeting.title)}가 아래와 같이 소집되었습니다.</p>
+       <table style="border-collapse:collapse;margin:12px 0;font-size:14px;">
+         <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">일시</td><td style="padding:8px 16px;">${escapeHtml(meeting.meetingAt)}</td></tr>
+         <tr><td style="padding:8px 16px;background:#f1f5f9;font-weight:bold;">장소</td><td style="padding:8px 16px;">${escapeHtml(meeting.place)}</td></tr>
+       </table>
+       <p style="font-weight:bold;margin:12px 0 4px;">안건</p>
+       <ol style="margin:0 0 12px;padding-left:20px;">${agendaHtml}</ol>
+       <p style="color:#64748b;font-size:13px;">이 메일은 입주자대표회의 소집 통지를 위해 관리사무소에서 보냈습니다.</p>`,
     ),
   );
 }

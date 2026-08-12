@@ -11,35 +11,12 @@ import {
   type CourseType,
   type TrainingTopic,
 } from "@/lib/safety-training";
+import { GeneratingOverlay } from "@/components/generating-overlay";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addStaff, generateTrainingAction } from "../actions";
-
-/**
- * 생성 대기 — 10~30초짜리 대기에서 "멈춘 건지 도는 건지"를 가르는 건
- * 스피너가 아니라 숫자가 올라가는 것이다 (공지문 폼과 같은 장치).
- */
-function GeneratingOverlay() {
-  const [sec, setSec] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setSec((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="absolute inset-0 z-10 rounded-lg bg-white/85 backdrop-blur-[1px]">
-      {/* sticky — 폼이 길어서 세로 중앙 정렬이면 안내가 화면 밖에 놓인다. 스크롤 위치와 무관하게 보이는 자리 */}
-      <div className="sticky top-[35vh] flex flex-col items-center gap-3">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-        <p className="text-base font-bold">교육 내용을 만들고 있습니다</p>
-        <p className="text-sm text-muted-foreground">
-          보통 10~30초 걸립니다 · <span className="font-mono">{sec}초</span> 경과
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /** 명부가 빈 단지의 첫 등록 — 페이지를 떠나지 않고 이 자리에서 채운다 */
 function QuickAddStaff() {
@@ -159,7 +136,7 @@ export function TrainingForm({
 
   return (
     <form action={formAction} className="relative space-y-5">
-      {pending && <GeneratingOverlay />}
+      {pending && <GeneratingOverlay label="교육 내용을 만들고 있습니다" />}
       <input type="hidden" name="courseType" value={courseType} />
       {[...topics].map((k) => (
         <input key={k} type="hidden" name="topics" value={k} />

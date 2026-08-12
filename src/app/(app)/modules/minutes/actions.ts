@@ -16,7 +16,12 @@ import {
   findNoticeFor,
   type NoticeDoc,
 } from "@/lib/gian/notice";
-import { mailerEnabled, sendSignatureRequest, trySend } from "@/lib/mailer";
+import {
+  mailerEnabled,
+  sendConvocationNotice,
+  sendSignatureRequest,
+  trySend,
+} from "@/lib/mailer";
 import { ymdKst } from "@/lib/utils";
 import type { ExternalApprover } from "@/lib/gian/rules";
 import {
@@ -26,10 +31,12 @@ import {
   MEETING_KINDS,
   voteCounts,
   normalizeMinutesAgendas,
+  sanitizeAiSuggestions,
   type AnchorMismatch,
   type Attendee,
   type MeetingMeta,
   type MinutesAgenda,
+  type Speech,
 } from "@/lib/minutes";
 
 const MODULE_ID = "minutes";
@@ -236,13 +243,76 @@ export async function createMeeting(
   redirect(`/modules/minutes/${doc.id}`, RedirectType.replace);
 }
 
+/**
+ * 소집 통지 이메일 — 명부(externalApprovers)에 이메일이 등록된 참석자에게 통지문
+ * 내용을 발송한다. 준칙의 "수신확인이 되는 전자우편" 통지 경로. 메일이 없는
+ * 참석자는 이름을 돌려줘 화면이 "서면으로 전달하세요"를 안내한다.
+ */
+export async function sendConvocationEmails(
+  docId: string,
+): Promise<{ error?: string; sent?: number; noEmail?: string[] }> {
+  const session = await requireMinutes();
+  const tenantId = session.tenantId!;
+  const found = await ownedMinutes(docId, session);
+  if ("error" in found) return { error: found.error };
+  const doc = found.doc;
+  // 소집 단계(회의 전, draft)에서만 — 완성된 회의의 소집 통지는 이미 지난 일이다
+  if (doc.status !== "draft")
+    return { error: "소집 단계의 회의만 통지를 보낼 수 있습니다." };
+  if (!mailerEnabled())
+    return {
+      error: "메일 발송이 설정되지 않았습니다. 통지문을 인쇄해 전달해 주세요.",
+    };
+
+  // 참석자 전원에게 나가는 메일이라 문서당 하루 3회로 막는다(재전송 실수 방지)
+  if (rateLimit(`convoke-mail:${docId}`, 3, 24 * 60 * 60 * 1000) <= 0)
+    return { error: "오늘은 이 회의의 통지를 더 보낼 수 없습니다." };
+
+  const meta = doc.meta as MeetingMeta;
+  const tenant = await db.tenant.findUniqueOrThrow({
+    where: { id: tenantId },
+    select: { name: true, externalApprovers: true },
+  });
+  const approvers = (tenant.externalApprovers as ExternalApprover[] | null) ?? [];
+  const emailByName = new Map(
+    approvers.filter((e) => e.email && e.name).map((e) => [e.name, e.email!]),
+  );
+  const present = meta.attendees.filter((a) => a.present);
+  const withEmail = present.filter((a) => emailByName.has(a.name));
+  const noEmail = present.filter((a) => !emailByName.has(a.name)).map((a) => a.name);
+  if (withEmail.length === 0)
+    return {
+      error:
+        "이메일이 등록된 참석자가 없습니다. 설정의 결재선에서 이메일을 등록해 주세요.",
+    };
+
+  const [ymd, hm] = meta.meetingAt.split(" ");
+  const [y, m, d] = ymd.split("-");
+  const meeting = {
+    title: doc.title,
+    meetingAt: `${y}년 ${Number(m)}월 ${Number(d)}일 ${hm}`,
+    place: meta.place || "추후 공지",
+    agenda: meta.agenda.map((a) => a.title),
+  };
+  for (const a of withEmail)
+    await trySend(() =>
+      sendConvocationNotice(emailByName.get(a.name)!, a.name, tenant.name, meeting),
+    );
+  return { sent: withEmail.length, noEmail };
+}
+
 /** 단지당 일일 생성 한도 — 공지문·기안 모듈과 같은 셀프서비스 남용 방지 */
 const DAILY_LIMIT = 30;
 
 export type GenerateMinutesState =
   | { error: string }
-  | { agendas: MinutesAgenda[]; needsClarification: string[] }
+  | {
+      agendas: MinutesAgenda[];
+      /** order = 관련 안건 번호(안건 카드 인라인 표시용), 0 = 특정 안건 아님 */
+      needsClarification: { order: number; text: string }[];
+    }
   | undefined;
+
 
 /**
  * 회의록 AI 초안 — 문서를 만드는 입구가 아니라 상태를 바꾸는 입구라, 호출자를
@@ -278,13 +348,36 @@ export async function generateMinutes(
 
   const rawText = String(formData.get("rawText") ?? "");
 
-  let result: { agendas: MinutesAgenda[]; needsClarification: string[] };
+  // 이행보고 안건의 전차 의결 배경 — 제목만 넘기면 모델이 "무엇을 언제까지"를 모른다
+  const fromIds = meta.agenda
+    .map((a) => a.fromResolutionId)
+    .filter((id): id is string => !!id);
+  const priorResolutions = fromIds.length
+    ? await db.resolution.findMany({
+        where: { id: { in: fromIds }, tenantId },
+        select: { id: true, title: true, decision: true, dueDate: true, note: true },
+      })
+    : [];
+  const resolutionContext = meta.agenda.flatMap((a) => {
+    const r = priorResolutions.find((x) => x.id === a.fromResolutionId);
+    if (!r) return [];
+    const parts = [
+      r.decision,
+      r.dueDate && `기한 ${ymdKst(r.dueDate)}`,
+      r.note && `비고 ${r.note}`,
+    ].filter(Boolean);
+    return [`${a.order}번 안건의 전차 의결: ${r.title} (${parts.join(", ")})`];
+  });
+
+  let result: Awaited<ReturnType<typeof generateMinutesDraft>>;
   try {
     result = await generateMinutesDraft({
       agenda: meta.agenda.map((a) => ({ order: a.order, title: a.title })),
       rawText,
       meetingLabel: doc.title,
+      meetingAt: meta.meetingAt,
       attendees: presentNames(meta),
+      resolutionContext,
     });
   } catch (e) {
     return {
@@ -297,23 +390,53 @@ export async function generateMinutes(
 
   // JSON 스키마는 형태만 강제한다 — 안건 개수·순서·제목이 입력 앵커와 같은지는
   // 여기서 다시 검사해야 한다(모델이 안건을 더하거나 빼거나 제목을 바꿀 수 있다).
-  // saveMinutesDraft와 같은 정규화를 태워, 제목도 meta.agenda 기준으로 되돌린다.
-  const validated = normalizeMinutesAgendas(result.agendas, meta.agenda, presentNames(meta));
+  // 표결·견적 제안은 먼저 명부·형식으로 걸러 위반 제안만 떨구고(초안 전체를 살린다),
+  // saveMinutesDraft와 같은 정규화를 태워 제목도 meta.agenda 기준으로 되돌린다.
+  const roster = presentNames(meta);
+  const validated = normalizeMinutesAgendas(
+    sanitizeAiSuggestions(result.agendas, roster),
+    meta.agenda,
+    roster,
+  );
   if ("fail" in validated)
     return { error: "AI 초안이 안건 구성과 맞지 않습니다. 다시 시도해 주세요." };
+
+  // 발언자 표기를 화면의 datalist("직함 이름")와 같은 꼴로 — 모델은 이름만 내므로
+  // 여기서 직함을 붙인다. 붙이지 않으면 AI 초안과 손 입력의 표기가 갈린다.
+  const labelByName = new Map(
+    meta.attendees.filter((a) => a.present).map((a) => [a.name, a.label]),
+  );
+  const agendas = validated.agendas.map((a) => ({
+    ...a,
+    discussion: a.discussion.map((l) => {
+      const sp = l as Speech;
+      const label = sp.speaker ? labelByName.get(sp.speaker) : undefined;
+      return label ? { ...sp, speaker: `${label} ${sp.speaker}` } : sp;
+    }),
+  }));
+
+  const needsClarification = (
+    Array.isArray(result.needsClarification) ? result.needsClarification : []
+  )
+    .map((c) => ({
+      order: Number(c?.order) || 0,
+      text: String(c?.text ?? "").trim().slice(0, 200),
+    }))
+    .filter((c) => c.text)
+    .slice(0, 20);
 
   // LLM 호출(수십 초) 동안 다른 탭이 완성·서명까지 끝낼 수 있다 — 그 사이 status가
   // draft를 벗어났으면 이 쓰기는 버린다. 무조건 update면 지연된 쓰기가 서명된
   // final 문서의 meta.minutes를 덮어써 서명 docHash와 문서가 어긋난다(증거력 붕괴).
   const updated = await db.document.updateMany({
     where: { id: doc.id, status: "draft" },
-    data: { meta: { ...meta, minutes: validated.agendas, rawText } },
+    data: { meta: { ...meta, minutes: agendas, rawText } },
   });
   if (updated.count === 0)
     return { error: "완성된 회의록은 수정할 수 없습니다." };
   revalidatePath(`/modules/minutes/${doc.id}`);
   revalidatePath(`/modules/minutes/${doc.id}/edit`);
-  return { agendas: validated.agendas, needsClarification: result.needsClarification };
+  return { agendas, needsClarification };
 }
 
 export type SaveMinutesState = { error?: string } | undefined;

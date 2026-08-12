@@ -15,21 +15,43 @@ import { createMeeting, type MeetingState } from "../actions";
  * 회의 만들기 폼. attendees는 명부 전체 스냅샷(증빙 원칙) — 체크는 삭제가 아니라
  * present 토글이다. 명부 등록이 없으면 이름을 직접 입력해 행을 추가할 수 있다.
  */
+/**
+ * 정기회의 단골 안건 카탈로그 — 타이핑 대신 클릭으로 추가한다(교육일지 주제 칩과
+ * 같은 문법). 문구는 준칙·현장 관행의 상투 표현이라 그대로 회의록 안건명이 된다.
+ */
+const COMMON_AGENDAS = [
+  "관리비 결산 보고",
+  "장기수선충당금 사용계획 심의",
+  "하자보수 진행 현황 보고",
+  "사업자 선정 건",
+  "잡수입 사용계획 심의",
+  "관리규약 개정 건",
+  "공용시설 보수 공사 건",
+];
+
 export function MeetingForm({
   attendeesInit,
   agendaInit,
+  resolutionHints,
   hasRegistry,
   defaultNoticeDays,
   defaultBoardSeats,
+  defaultPlace,
+  defaultKind,
   defaultWriterName,
   defaultObservers,
 }: {
   attendeesInit: Attendee[];
   agendaInit: AgendaItem[];
+  /** 이행보고 안건의 기한·비고 — fromResolutionId로 찾는 참고 문구(저장 안 됨) */
+  resolutionHints: Record<string, string>;
   hasRegistry: boolean;
   defaultNoticeDays: number;
   /** 관리규약이 정한 입대의 정원 — 직전 회의 값. 없으면 빈칸 */
   defaultBoardSeats: number | null;
+  /** 직전 회의 장소 — 매번 같은 회의실이라 승계한다 */
+  defaultPlace: string;
+  defaultKind: string;
   defaultWriterName: string;
   defaultObservers: string;
 }) {
@@ -74,7 +96,7 @@ export function MeetingForm({
                   type="radio"
                   name="kind"
                   value={k}
-                  defaultChecked={k === "정기"}
+                  defaultChecked={k === defaultKind}
                   className="size-4 accent-primary"
                 />
                 {k}회의
@@ -108,6 +130,7 @@ export function MeetingForm({
             <Input
               id="mt-place"
               name="place"
+              defaultValue={defaultPlace}
               placeholder="예: 관리사무소 회의실"
               className="mt-1.5 h-11"
             />
@@ -234,34 +257,46 @@ export function MeetingForm({
         <Label>안건</Label>
         {agenda.length > 0 && (
           <ul className="space-y-1.5">
-            {agenda.map((a, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <span className="w-5 shrink-0 text-sm text-muted-foreground">
-                  {i + 1}.
-                </span>
-                <Input
-                  value={a.title}
-                  onChange={(e) =>
-                    setAgenda((prev) =>
-                      prev.map((x, j) =>
-                        j === i ? { ...x, title: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  className="h-9 flex-1"
-                />
-                <button
-                  type="button"
-                  aria-label="안건 삭제"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() =>
-                    setAgenda((prev) => prev.filter((_, j) => j !== i))
-                  }
-                >
-                  <X className="size-4" />
-                </button>
-              </li>
-            ))}
+            {agenda.map((a, i) => {
+              const hint = a.fromResolutionId
+                ? resolutionHints[a.fromResolutionId]
+                : undefined;
+              return (
+                <li key={i}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-sm text-muted-foreground">
+                      {i + 1}.
+                    </span>
+                    <Input
+                      value={a.title}
+                      onChange={(e) =>
+                        setAgenda((prev) =>
+                          prev.map((x, j) =>
+                            j === i ? { ...x, title: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      className="h-9 flex-1"
+                    />
+                    <button
+                      type="button"
+                      aria-label="안건 삭제"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setAgenda((prev) => prev.filter((_, j) => j !== i))
+                      }
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                  {hint && (
+                    <p className="mt-0.5 pl-7 text-xs text-muted-foreground">
+                      지난 의결: {hint}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
         <Button
@@ -271,6 +306,31 @@ export function MeetingForm({
         >
           <Plus className="size-4" /> 안건 추가
         </Button>
+        {/* 단골 안건은 클릭으로 — 이미 담긴 제목의 칩은 감춘다(중복 클릭 방지) */}
+        {(() => {
+          const titles = new Set(agenda.map((a) => a.title.trim()));
+          const rest = COMMON_AGENDAS.filter((t) => !titles.has(t));
+          if (rest.length === 0) return null;
+          return (
+            <div>
+              <p className="mb-1.5 text-xs text-muted-foreground">
+                자주 올리는 안건을 눌러 추가하세요.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {rest.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setAgenda((prev) => [...prev, { title: t }])}
+                    className="rounded-full border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    + {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       {state?.error && <p className="text-sm text-destructive">{state.error}</p>}

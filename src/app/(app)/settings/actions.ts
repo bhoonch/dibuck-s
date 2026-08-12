@@ -194,6 +194,7 @@ export async function saveApprovalLine(formData: FormData) {
         e.role === "CHAIR" || e.role === "AUDITOR" ? (e.role as string) : "ETC",
       label: String(e.label ?? "").trim().slice(0, 20) || undefined,
       name: String(e.name ?? "").trim().slice(0, 30),
+      dong: String(e.dong ?? "").trim().slice(0, 10) || undefined,
       phone: String(e.phone ?? "").trim().slice(0, 20) || undefined,
       email: String(e.email ?? "").trim().slice(0, 100) || undefined,
       token: inboxToken(e.token),
