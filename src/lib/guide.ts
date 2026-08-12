@@ -20,6 +20,8 @@ export type GuideStep = {
 export type GuideSection = {
   /** 앵커 id — 모듈 섹션은 모듈 id 그대로 */
   id: string;
+  /** 목차 아이콘 이름 — 모듈 섹션은 레지스트리의 icon을 화면에서 채운다 */
+  icon?: string;
   title: string;
   /** 한 줄 정의 */
   tagline: string;
@@ -35,6 +37,7 @@ export type GuideSection = {
 /** 목차 맨 위 — 가입 직후 공통 설정. 홈의 시작 가이드와 같은 순서 */
 export const GUIDE_START: GuideSection = {
   id: "start",
+  icon: "Rocket",
   title: "처음 시작",
   tagline: "가입 직후 한 번만 해 두면 모든 모듈이 함께 쓰는 기본 설정입니다.",
   when: [
@@ -77,6 +80,7 @@ export const GUIDE_START: GuideSection = {
 /** 목차 맨 아래 — 모듈을 가로지르는 공통 기능 */
 export const GUIDE_COMMON: GuideSection = {
   id: "documents",
+  icon: "FolderOpen",
   title: "문서함·알림·문의",
   tagline:
     "어느 모듈에서 만들었든 문서는 한 곳에 쌓이고, 챙길 일은 알림이 먼저 알려 줍니다.",

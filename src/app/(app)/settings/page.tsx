@@ -241,7 +241,8 @@ export default async function TenantSettingsPage() {
                   왼쪽 사이드바의 단지 표시에 세대수와 함께 나옵니다.
                 </p>
               </div>
-              <div className="space-y-2 sm:col-span-2">
+              {/* 직인·로고는 나란히 — col-span-2로 쌓으면 점선 업로드 박스가 전폭을 차지해 과대해진다 */}
+              <div className="space-y-2">
                 <Label htmlFor="sealImage">직인 이미지</Label>
                 <div className="flex items-start gap-4">
                   {tenant.sealImage && (
@@ -280,7 +281,7 @@ export default async function TenantSettingsPage() {
                   </div>
                 </div>
               </div>
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="logoImage">아파트 로고</Label>
                 <div className="flex items-start gap-4">
                   {tenant.logoImage && (
@@ -323,7 +324,7 @@ export default async function TenantSettingsPage() {
             <div className="flex flex-wrap items-center gap-3">
               {isDirector ? (
                 <>
-                  <Button type="submit" size="lg">
+                  <Button type="submit" size="lg" className="h-11 min-w-40 px-8">
                     저장
                   </Button>
                   <p className="text-sm text-muted-foreground">

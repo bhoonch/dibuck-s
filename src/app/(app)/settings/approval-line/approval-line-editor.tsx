@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { SummaryBox } from "@/components/ui/summary-box";
 import { saveApprovalLine } from "../actions";
 
 export type StaffOption = {
@@ -187,67 +186,71 @@ function ExternalApprovers({
     }))
     .filter((r) => r.name);
 
+  // 이름이 빈 고정 슬롯 — 회장·감사가 비면 그 결재가 필요한 문서를 상신할 수 없다
+  const missingFixed = FIXED_ROLES.filter(
+    (f) => !rows.some((r) => r.role === f.role && r.name.trim()),
+  );
+
   return (
-    <div className="space-y-3 border-t border-gray-100 pt-4">
+    <div className="space-y-3">
       {/* 저장은 서버 액션 폼 그대로 — 동적 목록이라 JSON 하나로 실어 보낸다 */}
       <input
         type="hidden"
         name="externalApprovers"
         value={JSON.stringify(rows)}
       />
-      <div>
-        <p className="text-sm font-semibold">외부 결재자 (입주자대표회의)</p>
-        <p className="text-xs text-muted-foreground">
-          직원 계정 없이 이름과 연락처만 등록합니다. 회장·감사는 문서 성격에
-          따라 결재선 뒤에 자동으로 추가되고, 결재는 문자·이메일 서명 링크로
-          받습니다. 문서별 서명 링크는 7일이면 만료되므로, 지난 결재 건을 다시
-          볼 수 있도록 <b>만료 없는 결재함 링크</b>를 한 번 전달해 두세요.
-        </p>
-      </div>
 
       {/*
         등록된 사람을 입력칸 위에 먼저 — 아래는 빈 칸까지 포함한 편집기라
         훑어봐서는 누가 등록돼 있는지, 연락처가 비었는지 알 수 없다.
+        내부 결재선의 StepCard와 같은 어휘(원형 아바타 칩)로 그려 위계를 맞춘다.
         연락처 유무를 같이 적는 이유: 서명 링크가 문자·메일로 나가므로 비면 못 보낸다.
       */}
-      <SummaryBox>
-        <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-          등록된 외부 결재자
-        </span>
-        {registered.length === 0 ? (
-          <p className="mt-1 text-muted-foreground">
-            아직 없습니다 — 지출 품의는 회장 결재가 필요해 등록 전에는 상신할 수
-            없습니다.
-          </p>
-        ) : (
-          <ul className="mt-1.5 space-y-2">
-            {registered.map((r) => (
-              <li key={r.i}>
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-muted-foreground">{r.roleLabel}</span>
-                  <b>{r.name}</b>
-                  <span className="text-xs text-muted-foreground">
-                    {r.contact ||
-                      "연락처 미등록 — 서명 링크를 직접 전달해야 합니다"}
-                  </span>
-                </div>
-                {/* 저장해야 발급된다 — 새 사람을 적어 넣은 직후에는 아직 토큰이 없다 */}
-                {r.token ? (
-                  <InboxLink
-                    token={r.token}
-                    isDirector={isDirector}
-                    onReissue={() => patch(r.i, { token: "" })}
-                  />
-                ) : (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    저장하면 결재함 링크가 발급됩니다.
+      {registered.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {registered.map((r) => (
+            <div
+              key={r.i}
+              className="min-w-64 space-y-1.5 rounded-lg border bg-card p-3"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-800 text-sm font-semibold text-white">
+                  {r.name.charAt(0)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{r.name}</p>
+                  <p className="truncate text-xs text-gray-500">
+                    {r.roleLabel}
+                    {r.contact ? ` · ${r.contact}` : " · 연락처 미등록"}
                   </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </SummaryBox>
+                </div>
+              </div>
+              {/* 저장해야 발급된다 — 새 사람을 적어 넣은 직후에는 아직 토큰이 없다 */}
+              {r.token ? (
+                <InboxLink
+                  token={r.token}
+                  isDirector={isDirector}
+                  onReissue={() => patch(r.i, { token: "" })}
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  저장하면 결재함 링크가 발급됩니다.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {missingFixed.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {missingFixed.map((f) => f.label).join("·")}이(가) 등록되지
+          않았습니다.
+          <br />
+          {missingFixed.some((f) => f.role === "CHAIR")
+            ? "지출 품의는 회장 결재가 필요해 등록 전에는 상신할 수 없습니다."
+            : "장기수선충당금 공사 결재에 감사가 필요합니다."}
+        </div>
+      )}
       {rows.map((row, i) => {
         const fixed = FIXED_ROLES.find((f) => f.role === row.role);
         return (
@@ -284,28 +287,40 @@ function ExternalApprovers({
               )}
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
-              <input
-                value={row.name}
-                placeholder="이름"
-                disabled={!isDirector}
-                onChange={(e) => patch(i, { name: e.target.value })}
-                className={inputCls}
-              />
-              <input
-                value={row.phone ?? ""}
-                placeholder="휴대전화 (선택)"
-                disabled={!isDirector}
-                onChange={(e) => patch(i, { phone: e.target.value })}
-                className={inputCls}
-              />
-              <input
-                type="email"
-                value={row.email ?? ""}
-                placeholder="이메일 (선택)"
-                disabled={!isDirector}
-                onChange={(e) => patch(i, { email: e.target.value })}
-                className={inputCls}
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor={`ext-name-${i}`}>이름</Label>
+                <input
+                  id={`ext-name-${i}`}
+                  value={row.name}
+                  placeholder="이름"
+                  disabled={!isDirector}
+                  onChange={(e) => patch(i, { name: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`ext-phone-${i}`}>휴대전화 (선택)</Label>
+                <input
+                  id={`ext-phone-${i}`}
+                  value={row.phone ?? ""}
+                  placeholder="010-0000-0000"
+                  disabled={!isDirector}
+                  onChange={(e) => patch(i, { phone: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`ext-email-${i}`}>이메일 (선택)</Label>
+                <input
+                  id={`ext-email-${i}`}
+                  type="email"
+                  value={row.email ?? ""}
+                  placeholder="example@apt.kr"
+                  disabled={!isDirector}
+                  onChange={(e) => patch(i, { email: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
             </div>
           </div>
         );
@@ -410,11 +425,29 @@ export function ApprovalLineEditor({
             ))}
           </div>
 
+        </CardContent>
+      </Card>
+
+      {/*
+        외부 결재자는 내부 결재선과 같은 위계의 별도 카드 — border-t 꼬리로 붙여 두면
+        같은 섹션의 부록처럼 보여 등록 여부가 눈에 들어오지 않는다(사용자 피드백).
+        저장은 위 결재선과 한 폼·한 액션 그대로다.
+      */}
+      <Card className="mt-6 gap-0 py-0">
+        <CardHeader className="gap-0.5 border-b border-gray-100 px-4 py-3">
+          <CardTitle>외부 결재자 (입주자대표회의)</CardTitle>
+          <CardDescription>
+            직원 계정 없이 이름과 연락처만 등록합니다. 회장·감사는 문서 성격에
+            따라 결재선 뒤에 자동으로 추가되고, 결재는 문자·이메일 서명 링크로
+            받습니다. 문서별 서명 링크는 7일이면 만료되므로, 지난 결재 건을 다시
+            볼 수 있도록 <b>만료 없는 결재함 링크</b>를 한 번 전달해 두세요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4">
           <ExternalApprovers
             initialExternal={initialExternal}
             isDirector={isDirector}
           />
-
         </CardContent>
 
         {/*
@@ -422,23 +455,23 @@ export function ApprovalLineEditor({
         결재선 카드 아래에 붙어 있으니 "거기 있는 줄 몰랐다"가 됐다. 저장 액션도
         갈라져 있다: 한 액션이 둘 다 쓰면 이 화면에서 저장할 때 전결 한도가 지워진다.
       */}
-      <CardFooter className="justify-between gap-3 border-t border-gray-100 px-4 py-3">
-        <Link
-          href="/settings/director-limit"
-          className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-        >
-          관리소장 전결 규정
-        </Link>
-        {isDirector ? (
-          <Button type="submit" size="lg">
-            저장
-          </Button>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            결재선은 마스터만 수정할 수 있습니다.
-          </p>
-        )}
-      </CardFooter>
+        <CardFooter className="justify-between gap-3 border-t border-gray-100 px-4 py-3">
+          <Link
+            href="/settings/director-limit"
+            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            관리소장 전결 규정
+          </Link>
+          {isDirector ? (
+            <Button type="submit" size="lg">
+              저장
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              결재선은 마스터만 수정할 수 있습니다.
+            </p>
+          )}
+        </CardFooter>
       </Card>
     </form>
   );

@@ -23,6 +23,7 @@ export default async function SupportPage({
     id: q.id,
     category: q.category,
     title: q.title,
+    userName: q.userName,
     createdAt: ymdKst(q.createdAt),
     status: q.status,
     answer: q.answer,

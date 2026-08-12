@@ -58,8 +58,14 @@ export default async function SubscriptionsPage() {
           return (
             <div
               key={m.id}
+              // 구독 상태가 카드 외곽에서 바로 읽히게 — 배지 색만으로는 훑어볼 때 안 보인다.
+              // 사용 중(체험 포함) = primary 테두리 + 옅은 accent, 정지·체험 종료 = red 테두리
               className={`flex flex-col rounded-lg border p-4 ${
-                m.subscribed ? "bg-card" : "bg-background"
+                m.suspended || m.trialExpired
+                  ? "border-red-200 bg-red-50/30"
+                  : m.subscribed
+                    ? "border-primary/50 bg-accent/40"
+                    : "bg-background"
               }`}
             >
               <div className="mb-3 flex items-center gap-2.5">

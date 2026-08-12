@@ -168,7 +168,8 @@ export function TrainingForm({
       <Card className="p-6">
         <h2 className="mb-4 text-sm font-semibold">1. 어떤 교육인가요?</h2>
         {/* 카드에 법정 시간이 힌트로 보인다 — 몇 시간을 채워야 하는지 찾아보게 하지 않는다 */}
-        <div className="grid gap-2 sm:grid-cols-3">
+        {/* 열 수 고정 대신 카드 최소 폭 보장 — 가장 긴 시간 힌트가 한 줄로 들어가는 폭 아래로 좁아지지 않는다 */}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(330px,100%),1fr))] gap-2">
           {COURSE_TYPES.map((c) => (
             <button
               key={c.key}
@@ -191,7 +192,7 @@ export function TrainingForm({
 
       <Card className="p-6">
         <h2 className="mb-4 text-sm font-semibold">2. 기본 정보</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Label htmlFor="date">교육일자</Label>
             <Input id="date" name="date" type="date" defaultValue={defaultDate} className="mt-1.5" required />
@@ -241,7 +242,8 @@ export function TrainingForm({
           {groups.map(([label, list]) => (
             <div key={label}>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {/* 카드 최소 폭 보장(auto-fill) — 가장 긴 주제명이 접히지 않는 폭. 열 수는 화면이 정한다 */}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] gap-2">
                 {list.map((t) => (
                   <button
                     key={t.key}
@@ -294,7 +296,7 @@ export function TrainingForm({
           신입 한 명만 남기면 됩니다.
         </p>
         {roster.length > 0 ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
             {roster.map((s) => (
               <label key={s.id} className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="attendees" value={s.id} defaultChecked />

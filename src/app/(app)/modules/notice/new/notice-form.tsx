@@ -74,7 +74,7 @@ export function NoticeForm({
                 {cat}
               </p>
               {/* 카드 그리드(시안 A) — 고르기 전에 "무엇을 적게 될지"가 힌트로 보인다 */}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
                 {NOTICE_TYPES.filter((t) => t.category === cat).map((t) => (
                   <button
                     key={t.key}

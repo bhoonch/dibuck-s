@@ -27,18 +27,19 @@ export default async function GuidePage({
   const modules = await db.module.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
-    select: { id: true },
+    select: { id: true, icon: true },
   });
   const sections: GuideSection[] = [
     GUIDE_START,
     ...modules
       .filter((m) => MODULE_GUIDES[m.id])
-      .map((m) => ({ id: m.id, ...MODULE_GUIDES[m.id] })),
+      .map((m) => ({ id: m.id, icon: m.icon, ...MODULE_GUIDES[m.id] })),
     GUIDE_COMMON,
   ];
 
   return (
-    <div className="mx-auto max-w-5xl">
+    // 다른 화면과 같은 폭·정렬(1280 좌정렬) — 이 페이지만 좁은 중앙 정렬이라 떠 보였다
+    <div className="max-w-[1280px]">
       <PageHeader
         title="사용법"
         description="어떤 업무를 어느 모듈로, 어떤 순서로 하는지 모았습니다. 왼쪽에서 항목을 고르면 그 순서만 보여 드립니다."

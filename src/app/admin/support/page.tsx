@@ -49,8 +49,15 @@ export default async function AdminSupportPage() {
                   className={`${tableRow} cursor-pointer border-0 hover:bg-gray-50`}
                   style={{ gridTemplateColumns: COLS }}
                 >
-                  <span className="truncate text-sm font-medium">
-                    {q.tenant?.name ?? q.title}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {q.tenant?.name ?? q.title}
+                    </span>
+                    {q.userName && (
+                      <span className="block truncate text-xs text-gray-500">
+                        {q.userName}
+                      </span>
+                    )}
                   </span>
                   {/* 문의 내용은 이 줄에만 있다 — 펼치면 잘림을 풀어 전문이 그대로 보인다 */}
                   <span className="truncate text-sm text-gray-600 group-open:overflow-visible group-open:whitespace-pre-wrap">

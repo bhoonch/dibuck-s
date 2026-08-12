@@ -412,6 +412,7 @@ model AccessLog {
 model Inquiry {
   id         String    @id @default(cuid())
   tenantId   String? // null = 아직 가입 전 (무료 체험 신청)
+  userName   String? // 작성자 이름 스냅샷 — FK 없음(AdminLog 선례): 직원 삭제 후에도 표시 유지. 옛 행은 null
   tenant     Tenant?   @relation(fields: [tenantId], references: [id])
   category   String // "기능 문의" | "구독" | "계정" | "결제" | "체험 신청"
   title      String // 문의 본문. 체험 신청이면 단지명(담당자)

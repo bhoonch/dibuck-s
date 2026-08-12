@@ -6,6 +6,7 @@ export type InquiryRow = {
   id: string;
   category: string;
   title: string;
+  userName: string | null; // 옛 행은 null
   createdAt: string;
   status: string;
   answer: string | null;
@@ -31,6 +32,14 @@ const columns: Column<InquiryRow>[] = [
     // 본문이 500자까지라 목록에서는 한 줄로 자른다 — 전체는 펼쳐서 본다
     render: (row) => (
       <span className="line-clamp-1 font-medium">{row.title}</span>
+    ),
+  },
+  {
+    key: "userName",
+    header: "작성자",
+    sortable: true,
+    render: (row) => (
+      <span className="text-sm">{row.userName ?? "—"}</span>
     ),
   },
   {
@@ -68,8 +77,9 @@ export function InquiriesTable({ rows }: { rows: InquiryRow[] }) {
       renderExpanded={(row) => (
         <div className="grid max-w-3xl gap-3">
           <div>
+            {/* 목록은 단지 전체 문의라 "내가 남긴"이 아닐 수 있다 — 중립 표기 */}
             <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              내가 남긴 문의
+              문의 내용
             </p>
             <p className="mt-1.5 text-sm whitespace-pre-wrap">{row.title}</p>
           </div>

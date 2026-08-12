@@ -27,6 +27,7 @@ export async function createInquiry(
   await db.inquiry.create({
     data: {
       tenantId: session.tenantId,
+      userName: session.name, // 작성자 스냅샷 — 목록·운영자 화면에 표시
       category,
       title: title.slice(0, 500),
       fromPath,

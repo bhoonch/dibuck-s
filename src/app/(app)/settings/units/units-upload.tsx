@@ -19,26 +19,29 @@ export function UnitsUpload() {
   }, [state]);
 
   return (
-    <form ref={formRef} action={action} className="space-y-3">
+    // 점선 업로드 박스가 전폭을 차지하면 과대하다 — 좌 업로드, 우 안내·버튼 2열
+    <form ref={formRef} action={action} className="grid gap-4 sm:grid-cols-2">
       <FileUpload name="file" accept=".xlsx,.xls,.csv" />
-      <p className="text-xs text-muted-foreground">
-        엑셀 형식: A열 = 동(예: 101), B열 = 호(예: 502), C열 = 이름(선택), D열
-        = 연락처(선택). 첫 행이 제목이면 자동으로 건너뜁니다.
-      </p>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="replace" className="size-4 accent-primary" />
-        기존 세대 목록을 지우고 새로 등록
-      </label>
-      {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
-      <div className="flex items-center gap-2">
-        <Button type="submit" size="lg" disabled={pending}>
-          {pending ? "등록 중..." : "엑셀 업로드"}
-        </Button>
-        <Button asChild variant="outline" size="lg">
-          <a href="/unit-upload-sample.xlsx" download="세대목록_샘플.xlsx">
-            <Download className="size-4" /> 샘플 파일 받기
-          </a>
-        </Button>
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          엑셀 형식: A열 = 동(예: 101), B열 = 호(예: 502), C열 = 이름(선택), D열
+          = 연락처(선택). 첫 행이 제목이면 자동으로 건너뜁니다.
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="replace" className="size-4 accent-primary" />
+          기존 세대 목록을 지우고 새로 등록
+        </label>
+        {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
+        <div className="flex items-center gap-2">
+          <Button type="submit" size="lg" disabled={pending}>
+            {pending ? "등록 중..." : "엑셀 업로드"}
+          </Button>
+          <Button asChild variant="outline" size="lg">
+            <a href="/unit-upload-sample.xlsx" download="세대목록_샘플.xlsx">
+              <Download className="size-4" /> 샘플 파일 받기
+            </a>
+          </Button>
+        </div>
       </div>
     </form>
   );
